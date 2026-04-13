@@ -1,0 +1,36 @@
+{
+  "name": "@friendlyrobot/discord-pi-agent",
+  "version": "0.1.1",
+  "description": "Reusable Discord gateway bridge for persistent pi agent sessions",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "rm -rf dist && bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external && tsc -p tsconfig.json --emitDeclarationOnly --declaration --declarationMap false",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@mariozechner/pi-ai": "latest",
+    "@mariozechner/pi-coding-agent": "latest",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "^5.9.3"
+  }
+}
