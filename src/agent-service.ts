@@ -89,12 +89,14 @@ export class AgentService {
 	getStatus(): AgentStatus {
 		const session = this.requireSession();
 		const model = session.model ? `${session.model.provider}/${session.model.id}` : "(no model selected)";
+		const contextUsage = session.getContextUsage();
 
 		return {
 			sessionId: session.sessionId,
 			sessionFile: session.sessionFile,
 			model,
 			streaming: session.isStreaming,
+			contextUsage,
 		};
 	}
 

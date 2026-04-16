@@ -34,6 +34,12 @@ export async function handleCommand(
 	if (trimmed === "!status") {
 		const agentStatus = agentService.getStatus();
 		const queueStatus = promptQueue.getSnapshot();
+		const contextUsage = agentStatus.contextUsage;
+		const contextLine = contextUsage
+			? contextUsage.tokens === null || contextUsage.percent === null
+				? `context: ?/${contextUsage.contextWindow}`
+				: `context: ${contextUsage.tokens}/${contextUsage.contextWindow} (${Math.round(contextUsage.percent)}%)`
+			: "context: (unavailable)";
 		return {
 			handled: true,
 			response: [
@@ -41,6 +47,7 @@ export async function handleCommand(
 				`session-id: ${agentStatus.sessionId}`,
 				`session-file: ${agentStatus.sessionFile ?? "(none)"}`,
 				`streaming: ${agentStatus.streaming}`,
+				contextLine,
 				`queue-pending: ${queueStatus.pending}`,
 				`queue-busy: ${queueStatus.busy}`,
 			].join("\n"),

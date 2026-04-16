@@ -26,11 +26,18 @@ export type ResolvedDiscordPiBridgeConfig = {
 	shutdownOnSignals: boolean;
 };
 
+export type ContextUsageStatus = {
+	tokens: number | null;
+	contextWindow: number;
+	percent: number | null;
+};
+
 export type AgentStatus = {
 	sessionId: string;
 	sessionFile: string | undefined;
 	model: string;
 	streaming: boolean;
+	contextUsage: ContextUsageStatus | undefined;
 };
 
 export type DiscordPiBridge = {
