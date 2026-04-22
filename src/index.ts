@@ -64,8 +64,10 @@ function createStopHandler(
 
 function registerSignalHandlers(stop: () => Promise<void>): void {
 	const handleSignal = (signal: NodeJS.Signals) => {
+		console.log(`[shutdown] received ${signal}`);
 		void stop().finally(() => {
-			console.log(`[shutdown] received ${signal}`);
+			console.log("[shutdown] done");
+			process.exit(0);
 		});
 	};
 
