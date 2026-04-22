@@ -5,6 +5,7 @@ import {
 	GatewayIntentBits,
 	Partials,
 	type Message,
+	type SendableChannels,
 } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
@@ -110,7 +111,7 @@ async function onMessage(
 		return;
 	}
 
-	await message.channel.sendTyping();
+	const typingInterval = await startTypingInterval(message.channel);
 	const queuePosition = promptQueue.getSnapshot().pending;
 	console.log("[queue] enqueue request", {
 		messageId: message.id,
@@ -125,6 +126,7 @@ async function onMessage(
 		return agentService.prompt(content);
 	});
 
+	stopTypingInterval(typingInterval);
 	console.log("[discord] response ready", {
 		messageId: message.id,
 		responseLength: response.length,
@@ -155,4 +157,17 @@ async function sendReply(message: Message, text: string): Promise<void> {
 	for (const chunk of remainingChunks) {
 		await message.channel.send(chunk);
 	}
+}
+
+const TYPING_INTERVAL_MS = 8000;
+
+function startTypingInterval(channel: SendableChannels): NodeJS.Timeout {
+	void channel.sendTyping();
+	return setInterval(() => {
+		void channel.sendTyping();
+	}, TYPING_INTERVAL_MS);
+}
+
+function stopTypingInterval(interval: NodeJS.Timeout): void {
+	clearInterval(interval);
 }
