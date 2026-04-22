@@ -12,7 +12,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import type { Model } from "@mariozechner/pi-ai";
 import { collectReply } from "./reply-buffer";
-import type { AgentStatus, ResolvedDiscordPiBridgeConfig } from "./types";
+import type { AgentStatus, ResolvedDiscordPiBridgeConfig, ThinkingLevel } from "./types";
 
 export class AgentService {
 	private readonly config: ResolvedDiscordPiBridgeConfig;
@@ -43,6 +43,7 @@ export class AgentService {
 			sessionDir: this.getSessionDir(),
 			modelProvider: this.config.modelProvider,
 			modelId: this.config.modelId,
+			thinkingLevel: this.config.thinkingLevel,
 		});
 		await this.resourceLoader.reload();
 		console.log("[agent] resources loaded", {
@@ -79,6 +80,7 @@ export class AgentService {
 			resourceLoader: this.resourceLoader,
 			settingsManager: this.settingsManager,
 			sessionManager: SessionManager.create(this.config.cwd, this.getSessionDir()),
+			thinkingLevel: this.config.thinkingLevel,
 		});
 		this.session = session;
 		await this.ensureConfiguredModel();
@@ -91,12 +93,17 @@ export class AgentService {
 		const model = session.model ? `${session.model.provider}/${session.model.id}` : "(no model selected)";
 		const contextUsage = session.getContextUsage();
 
+		const thinkingInfo = session.supportsThinking()
+			? `thinking: ${session.thinkingLevel} (available: ${session.getAvailableThinkingLevels().join(", ")})`
+			: "thinking: not supported";
+
 		return {
 			sessionId: session.sessionId,
 			sessionFile: session.sessionFile,
 			model,
 			streaming: session.isStreaming,
 			contextUsage,
+			thinkingInfo,
 		};
 	}
 
@@ -118,6 +125,7 @@ export class AgentService {
 			resourceLoader: this.resourceLoader,
 			settingsManager: this.settingsManager,
 			sessionManager: SessionManager.continueRecent(this.config.cwd, this.getSessionDir()),
+			thinkingLevel: this.config.thinkingLevel,
 		});
 		this.session = session;
 		console.log("[agent] session ready", {
@@ -159,6 +167,7 @@ export class AgentService {
 			to: `${desiredModel.provider}/${desiredModel.id}`,
 		});
 		await session.setModel(desiredModel);
+		await this.applyConfiguredThinkingLevel();
 	}
 
 	private requireSession(): AgentSession {
@@ -167,6 +176,47 @@ export class AgentService {
 		}
 
 		return this.session;
+	}
+
+	private async applyConfiguredThinkingLevel(): Promise<void> {
+		const session = this.requireSession();
+		if (session.supportsThinking()) {
+			const available = session.getAvailableThinkingLevels();
+			if (available.includes(this.config.thinkingLevel)) {
+				session.setThinkingLevel(this.config.thinkingLevel);
+				console.log("[agent] thinking level applied", { level: this.config.thinkingLevel });
+			} else {
+				console.log("[agent] thinking level not available for model", {
+					requested: this.config.thinkingLevel,
+					available,
+				});
+			}
+		}
+	}
+
+	getThinkingLevel(): { current: ThinkingLevel; available: ThinkingLevel[]; supported: boolean } {
+		const session = this.requireSession();
+		if (!session.supportsThinking()) {
+			return { current: "off", available: [], supported: false };
+		}
+		return {
+			current: session.thinkingLevel,
+			available: session.getAvailableThinkingLevels(),
+			supported: true,
+		};
+	}
+
+	setThinkingLevel(level: ThinkingLevel): string {
+		const session = this.requireSession();
+		if (!session.supportsThinking()) {
+			return "Current model does not support reasoning/thinking.";
+		}
+		const available = session.getAvailableThinkingLevels();
+		if (!available.includes(level)) {
+			return `Invalid thinking level "${level}" for current model. Available: ${available.join(", ")}`;
+		}
+		session.setThinkingLevel(level);
+		return `Thinking level set to "${level}".`;
 	}
 
 	private getSessionDir(): string {

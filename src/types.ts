@@ -2,6 +2,8 @@ import type { Client } from "discord.js";
 
 export type PromptTransform = (input: string) => string | Promise<string>;
 
+export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+
 export type DiscordPiBridgeConfig = {
 	discordBotToken: string;
 	discordAllowedUserId: string;
@@ -9,6 +11,7 @@ export type DiscordPiBridgeConfig = {
 	agentDir?: string;
 	modelProvider?: string;
 	modelId?: string;
+	thinkingLevel?: ThinkingLevel;
 	promptTransform?: PromptTransform;
 	startupMessage?: string | false;
 	shutdownOnSignals?: boolean;
@@ -21,6 +24,7 @@ export type ResolvedDiscordPiBridgeConfig = {
 	agentDir: string;
 	modelProvider: string;
 	modelId: string;
+	thinkingLevel: ThinkingLevel;
 	promptTransform: PromptTransform;
 	startupMessage: string | false;
 	shutdownOnSignals: boolean;
@@ -38,6 +42,7 @@ export type AgentStatus = {
 	model: string;
 	streaming: boolean;
 	contextUsage: ContextUsageStatus | undefined;
+	thinkingInfo: string;
 };
 
 export type DiscordPiBridge = {

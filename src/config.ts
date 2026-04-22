@@ -1,6 +1,6 @@
 import path from "node:path";
 import dotenv from "dotenv";
-import type { DiscordPiBridgeConfig, ResolvedDiscordPiBridgeConfig } from "./types";
+import type { DiscordPiBridgeConfig, ResolvedDiscordPiBridgeConfig, ThinkingLevel } from "./types";
 
 export function resolveConfig(config: DiscordPiBridgeConfig): ResolvedDiscordPiBridgeConfig {
 	return {
@@ -10,6 +10,7 @@ export function resolveConfig(config: DiscordPiBridgeConfig): ResolvedDiscordPiB
 		agentDir: config.agentDir?.trim() || path.join(config.cwd, ".pi-agent"),
 		modelProvider: config.modelProvider?.trim() || "moonshot-cn",
 		modelId: config.modelId?.trim() || "kimi-k2.5",
+		thinkingLevel: parseThinkingLevel(config.thinkingLevel) || "medium",
 		promptTransform: config.promptTransform || identityPromptTransform,
 		startupMessage: config.startupMessage === undefined ? "Bot is online and ready." : config.startupMessage,
 		shutdownOnSignals: config.shutdownOnSignals ?? true,
@@ -28,6 +29,7 @@ export function loadDiscordPiBridgeConfigFromEnv(
 		agentDir: overrides.agentDir || process.env.PI_AGENT_DIR,
 		modelProvider: overrides.modelProvider || process.env.PI_MODEL_PROVIDER,
 		modelId: overrides.modelId || process.env.PI_MODEL_ID,
+		thinkingLevel: parseThinkingLevel(overrides.thinkingLevel || process.env.PI_THINKING_LEVEL),
 		promptTransform: overrides.promptTransform,
 		startupMessage: overrides.startupMessage ?? readStartupMessageFromEnv(),
 		shutdownOnSignals: overrides.shutdownOnSignals,
@@ -57,6 +59,18 @@ function readStartupMessageFromEnv(): string | false | undefined {
 	}
 
 	return trimmedValue;
+}
+
+function parseThinkingLevel(value: string | undefined): ThinkingLevel | undefined {
+	if (!value) {
+		return undefined;
+	}
+	const trimmed = value.trim().toLowerCase();
+	const validLevels: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
+	if (validLevels.includes(trimmed as ThinkingLevel)) {
+		return trimmed as ThinkingLevel;
+	}
+	return undefined;
 }
 
 function identityPromptTransform(input: string): string {
