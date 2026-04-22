@@ -16,6 +16,10 @@
     "dist",
     "README.md"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/friendlyrobot/discord-pi-agent.git"
+  },
   "publishConfig": {
     "access": "public"
   },

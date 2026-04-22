@@ -7,6 +7,10 @@ on:
     paths:
       - 'package.json'
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   check-and-publish:
     runs-on: ubuntu-latest
@@ -42,19 +46,13 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Setup Node for publish
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.14.0'
+          registry-url: 'https://registry.npmjs.org'
+
       - name: Publish to npm
         if: steps.check.outputs.changed == 'true'
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_CONFIG_TOKEN}" > ~/.npmrc
-          npm publish --access public
-
-      - name: Create GitHub release
-        if: steps.check.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "v${{ steps.check.outputs.current }}" \
-            --title "v${{ steps.check.outputs.current }}" \
-            --generate-notes
+        run: npm publish --access public
