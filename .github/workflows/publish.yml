@@ -52,6 +52,7 @@ jobs:
         with:
           node-version: '22.14.0'
           registry-url: 'https://registry.npmjs.org'
+          token: ''
 
       - name: Publish to npm
         if: steps.check.outputs.changed == 'true'
