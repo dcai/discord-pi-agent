@@ -54,6 +54,10 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           token: ''
 
+      - name: Upgrade npm for trusted publishing
+        if: steps.check.outputs.changed == 'true'
+        run: npm install -g npm@latest
+
       - name: Publish to npm
         if: steps.check.outputs.changed == 'true'
         run: npm publish --provenance --access public
