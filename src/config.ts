@@ -20,8 +20,8 @@ export function resolveConfig(
     ),
     cwd: readRequiredValue("cwd", config.cwd),
     agentDir: config.agentDir?.trim() || path.join(config.cwd, ".pi-agent"),
-    modelProvider: config.modelProvider?.trim() || "moonshot-cn",
-    modelId: config.modelId?.trim() || "kimi-k2.5",
+    modelProvider: config.modelProvider?.trim() || "openrouter",
+    modelId: config.modelId?.trim() || "anthropic/claude-3.5-haiku",
     thinkingLevel: parseThinkingLevel(config.thinkingLevel) || "medium",
     promptTransform: config.promptTransform || identityPromptTransform,
     startupMessage:

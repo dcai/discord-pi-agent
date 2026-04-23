@@ -36,8 +36,8 @@ const bridge = await startDiscordPiBridge({
   discordBotToken: process.env.DISCORD_BOT_TOKEN!,
   discordAllowedUserId: process.env.DISCORD_ALLOWED_USER_ID!,
   cwd: process.cwd(),
-  modelProvider: "moonshot-cn",
-  modelId: "kimi-k2.5",
+  modelProvider: "openrouter",
+  modelId: "anthropic/claude-3.5-haiku",
 });
 ```
 
@@ -73,8 +73,8 @@ await startDiscordPiBridge(config);
 ### Optional
 
 - `agentDir` default: `<cwd>/.pi-agent`
-- `modelProvider` default: `moonshot-cn`
-- `modelId` default: `kimi-k2.5`
+- `modelProvider` default: `openrouter`
+- `modelId` default: `anthropic/claude-3.5-haiku`
 - `thinkingLevel` default: `medium` (values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`)
 - `promptTransform` default: identity
 - `startupMessage` default: `Bot is online and ready.`
