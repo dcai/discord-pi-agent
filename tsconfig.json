@@ -9,11 +9,11 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     },
     "types": ["node"],
+    "rootDir": "src",
     "outDir": "dist"
   },
   "include": ["src/**/*.ts"]
