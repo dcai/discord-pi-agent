@@ -18,13 +18,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Node for publish
-        if: steps.check.outputs.changed == 'true'
-        uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          registry-url: "https://registry.npmjs.org"
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -52,6 +45,13 @@ jobs:
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Setup Node for publish
+        if: steps.check.outputs.changed == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Publish to npm
         if: steps.check.outputs.changed == 'true'
