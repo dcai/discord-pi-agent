@@ -3,6 +3,7 @@
 Reusable Discord DM bridge for persistent pi agent sessions.
 
 ## What it does
+
 - runs one long-lived pi agent session
 - resumes the latest session on restart
 - loads project context from the target repo via pi resource loading
@@ -11,6 +12,7 @@ Reusable Discord DM bridge for persistent pi agent sessions.
 - exposes built-in session commands
 
 ## Built-in commands
+
 - `!help`
 - `!status`
 - `!compact`
@@ -52,7 +54,6 @@ const config = loadDiscordPiBridgeConfigFromEnv({
     return buildTimeContextPrompt(input, {
       timeZone: "Australia/Sydney",
       locale: "en-AU",
-      locationLabel: "Sydney",
     });
   },
 });
@@ -63,11 +64,13 @@ await startDiscordPiBridge(config);
 ## Config
 
 ### Required
+
 - `discordBotToken`
 - `discordAllowedUserId`
 - `cwd`
 
 ### Optional
+
 - `agentDir` default: `<cwd>/.pi-agent`
 - `modelProvider` default: `moonshot-cn`
 - `modelId` default: `kimi-k2.5`
@@ -99,6 +102,7 @@ bun run typecheck
 ```
 
 ## Notes
+
 - DM-only by design
 - single allowed user by design
 - the package does not register Discord slash commands
