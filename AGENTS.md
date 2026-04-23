@@ -5,9 +5,11 @@ Guide for coding agents working in this repository.
 ## What this repo is
 
 This repo contains the standalone npm package:
+
 - `@friendlyrobot/discord-pi-agent`
 
 Purpose:
+
 - reusable Discord DM bridge for persistent pi agent sessions
 - generic package, not tied to any specific consumer app
 
@@ -20,6 +22,7 @@ Do not drift back into app-specific behavior.
 
 This package is shared infrastructure.
 Do not hardcode:
+
 - consumer-specific app names
 - domain-specific wording from a downstream app
 - repo-specific paths
@@ -27,6 +30,7 @@ Do not hardcode:
 - assumptions about a parent repo layout
 
 If a consumer needs custom behavior, prefer config hooks like:
+
 - `cwd`
 - `agentDir`
 - `promptTransform`
@@ -35,22 +39,26 @@ If a consumer needs custom behavior, prefer config hooks like:
 ### 2. Runtime `.env` belongs to the consumer app
 
 Important:
+
 - do **not** keep the active runtime `.env` in this package repo
 - this repo may keep `.env.example` for documentation only
 - real secrets should live in the consuming app repo
 
 Example:
+
 - the consumer app's `.env` is correct
 - this package repo's `.env` should not be relied on for normal usage
 
 ### 3. KISS
 
 Prefer:
+
 - small config-driven APIs
 - boring Node/Bun patterns
 - minimal abstractions
 
 Avoid:
+
 - plugin systems unless clearly needed
 - middleware stacks unless clearly needed
 - auto-discovery magic based on directory structure
@@ -82,6 +90,7 @@ tsconfig.json
 
 Main exports live in `src/index.ts`.
 Current public surface:
+
 - `startDiscordPiBridge`
 - `resolveConfig`
 - `loadDiscordPiBridgeConfigFromEnv`
@@ -89,6 +98,7 @@ Current public surface:
 - exported TS types from `./types`
 
 When changing exports:
+
 - keep API changes intentional
 - avoid breaking consumer imports casually
 - update `README.md` if public usage changes
@@ -112,6 +122,7 @@ bun run build
 - TS declarations are emitted into `dist/`
 
 If packaging changes, always verify:
+
 - `dist/index.js` does not contain broken repo-local path aliases
 - consumer import works from another repo
 
@@ -120,12 +131,14 @@ If packaging changes, always verify:
 Typical local workflow:
 
 ### Register package link
+
 ```bash
 cd /path/to/discord-pi-agent
 bun link
 ```
 
 ### Consume from app repo
+
 ```bash
 cd /path/to/consumer-app
 bun link @friendlyrobot/discord-pi-agent
@@ -133,6 +146,7 @@ bun install
 ```
 
 ### Run consumer app
+
 ```bash
 cd /path/to/consumer-app
 bun start
@@ -141,10 +155,12 @@ bun start
 ## Publishing notes
 
 Package details:
+
 - name: `@friendlyrobot/discord-pi-agent`
 - visibility: public
 
 Before publish:
+
 1. run `bun run typecheck`
 2. run `bun run build`
 3. inspect `dist/`
@@ -163,6 +179,7 @@ Before publish:
 ## What not to do
 
 Do not:
+
 - add consumer-specific prompt text to package defaults
 - rename generic config back to app-specific names like `appRepoCwd`
 - assume the package is always run from its own repo root
@@ -171,6 +188,7 @@ Do not:
 ## Safe change checklist
 
 Before finishing a change, check:
+
 - Is this still generic?
 - Does this belong in the package rather than the consumer app?
 - Does `bun run typecheck` pass?
