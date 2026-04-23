@@ -112,6 +112,7 @@ Use Bun for package workflow.
 ```bash
 bun install
 bun run typecheck
+bun run format
 bun run build
 ```
 
@@ -162,10 +163,18 @@ Package details:
 Before publish:
 
 1. run `bun run typecheck`
-2. run `bun run build`
-3. inspect `dist/`
-4. confirm README examples still match reality
-5. optionally smoke test via linked consumer app
+2. run `bun run format`
+3. run `bun run build`
+4. inspect `dist/`
+5. confirm README examples still match reality
+6. optionally smoke test via linked consumer app
+
+### How to publish
+
+Run `npm version patch|minor|major` (choose level based on change significance).
+This bumps version, commits, and pushes a tag.
+
+The GitHub Action is trusted as the publisher — on tag push, it triggers and publishes automatically.
 
 ## Code style notes
 
@@ -192,6 +201,7 @@ Before finishing a change, check:
 - Is this still generic?
 - Does this belong in the package rather than the consumer app?
 - Does `bun run typecheck` pass?
+- Does `bun run format` pass?
 - Does `bun run build` pass?
 - Would a linked consumer still import this cleanly?
 
