@@ -15,6 +15,7 @@ Reusable Discord DM bridge for persistent pi agent sessions.
 
 - `!help`
 - `!status`
+- `!thinking`
 - `!compact`
 - `!reset-session`
 
@@ -74,6 +75,7 @@ await startDiscordPiBridge(config);
 - `agentDir` default: `<cwd>/.pi-agent`
 - `modelProvider` default: `moonshot-cn`
 - `modelId` default: `kimi-k2.5`
+- `thinkingLevel` default: `medium` (values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`)
 - `promptTransform` default: identity
 - `startupMessage` default: `Bot is online and ready.`
 - `shutdownOnSignals` default: `true`
@@ -93,6 +95,12 @@ await startDiscordPiBridge(config);
 If `PI_AGENT_CWD` is missing it falls back to `process.cwd()`.
 
 Set `DISCORD_STARTUP_MESSAGE=false` to disable the startup DM.
+
+## Thinking Levels
+
+Use `!thinking` to view the current thinking/reasoning level and available options. Use `!thinking <level>` to set it (e.g., `!thinking high`).
+
+Not all models support thinking/reasoning. The configured `thinkingLevel` is applied automatically when the model supports it.
 
 ## Build
 
