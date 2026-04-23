@@ -22,7 +22,9 @@
     "access": "public"
   },
   "scripts": {
-    "update-deps": "bun add @mariozechner/pi-ai@latest @mariozechner/pi-coding-agent@latest discord.js@latest dotenv@latest; bun add -d @types/node@latest prettier@latest typescript@latest",
+    "test:watch": "vitest",
+    "test": "vitest run",
+    "update-deps": "bun add @mariozechner/pi-ai@latest @mariozechner/pi-coding-agent@latest discord.js@latest dotenv@latest; bun add -d @types/node@latest prettier@latest typescript@latest vitest@latest @vitest/ui@latest",
     "format": "prettier --write .",
     "build": "rm -rf dist && bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external && tsc -p tsconfig.json --emitDeclarationOnly --declaration --declarationMap false",
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -35,7 +37,9 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@vitest/ui": "^4.1.5",
     "prettier": "^3.8.3",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   }
 }

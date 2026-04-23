@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildTimeContextPrompt > should format time context with both custom timezone and locale 1`] = `
+"<time>24年12月26日 03:45 JST</time>
+
+Greetings"
+`;
+
+exports[`buildTimeContextPrompt > should format time context with custom locale 1`] = `
+"<time>15 juin 24, 10:30 UTC</time>
+
+Bonjour"
+`;
+
+exports[`buildTimeContextPrompt > should format time context with custom timezone 1`] = `
+"<time>15 June 24, 06:30 GMT-4</time>
+
+Test message"
+`;
+
+exports[`buildTimeContextPrompt > should format time context with default options (UTC, en-AU) 1`] = `
+"<time>15 June 24, 10:30 UTC</time>
+
+Hello world"
+`;
+
+exports[`buildTimeContextPrompt > should handle empty message string 1`] = `
+"<time>15 June 24, 10:30 UTC</time>
+
+"
+`;
+
+exports[`buildTimeContextPrompt > should handle multi-line message 1`] = `
+"<time>15 June 24, 10:30 UTC</time>
+
+Line one
+Line two
+Line three"
+`;
+
+exports[`buildTimeContextPrompt > should trim whitespace from user message 1`] = `
+"<time>15 June 24, 10:30 UTC</time>
+
+Spaces around"
+`;
+
+exports[`buildTimeContextPrompt > should use current time when now is not provided 1`] = `
+"<time>15 June 24, 10:30 UTC</time>
+
+Hello"
+`;
