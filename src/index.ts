@@ -13,7 +13,6 @@ export {
   buildTimeContextPrompt,
   type TimeContextPromptOptions,
 } from "./prompt-context";
-export { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
 export { loadDiscordPiBridgeConfigFromEnv, resolveConfig } from "./config";
 export type {
   AgentStatus,
