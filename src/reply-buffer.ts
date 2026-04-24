@@ -3,6 +3,7 @@ import type {
   AgentSession,
   AgentSessionEvent,
 } from "@mariozechner/pi-coding-agent";
+import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
 
 type CollectReplyOptions = {
   logPrefix?: string;
@@ -82,7 +83,8 @@ export async function collectReply(
   }
 
   if (finalText) {
-    return finalText;
+    const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
+    return transformed;
   }
 
   return "No response generated.";
