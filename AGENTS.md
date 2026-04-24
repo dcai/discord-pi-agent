@@ -204,5 +204,6 @@ Before finishing a change, check:
 - Does `bun run format` pass?
 - Does `bun run build` pass?
 - Would a linked consumer still import this cleanly?
+- Is `README.md` updated if public command surface changed?
 
 If the answer to the first two is shaky, the code probably belongs in the consumer app, not here.

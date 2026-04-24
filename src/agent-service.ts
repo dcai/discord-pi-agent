@@ -75,6 +75,22 @@ export class AgentService {
     });
   }
 
+  async reloadResources(): Promise<string> {
+    await this.resourceLoader.reload();
+    const extensions = this.resourceLoader
+      .getExtensions()
+      .extensions.map((ext) => ext.path);
+    const agentsFiles = this.resourceLoader
+      .getAgentsFiles()
+      .agentsFiles.map((f) => f.path);
+
+    return [
+      "Resources reloaded.",
+      `Extensions (${extensions.length}): ${extensions.join(", ") || "(none)"}`,
+      `AGENTS.md files (${agentsFiles.length}): ${agentsFiles.join(", ") || "(none)"}`,
+    ].join("\n");
+  }
+
   async compact(): Promise<string> {
     const session = this.requireSession();
     await session.compact();

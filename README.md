@@ -17,6 +17,7 @@ Reusable Discord DM bridge for persistent pi agent sessions.
 - `!status`
 - `!thinking`
 - `!compact`
+- `!reload`
 - `!reset-session`
 
 Any other DM text is sent to the persistent agent session.

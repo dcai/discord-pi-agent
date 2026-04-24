@@ -28,6 +28,7 @@ export async function handleCommand(
         "!thinking - show or set thinking/reasoning level",
         "!compact - compact the persistent session",
         "!reset-session - start a fresh persistent session",
+        "!reload - reload resources (AGENTS.md, extensions, skills, etc.)",
         "Any other DM text goes to the persistent agent session.",
       ].join("\n"),
     };
@@ -89,6 +90,15 @@ export async function handleCommand(
       handled: true,
       response: await promptQueue.enqueue(async () => {
         return agentService.compact();
+      }),
+    };
+  }
+
+  if (trimmed === "!reload") {
+    return {
+      handled: true,
+      response: await promptQueue.enqueue(async () => {
+        return agentService.reloadResources();
       }),
     };
   }
