@@ -1,6 +1,6 @@
 {
   "name": "@friendlyrobot/discord-pi-agent",
-  "version": "0.3.18",
+  "version": "0.4.0",
   "description": "Reusable Discord gateway bridge for persistent pi agent sessions",
   "license": "MIT",
   "type": "module",
@@ -13,7 +13,10 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dcai/discord-pi-agent.git"
