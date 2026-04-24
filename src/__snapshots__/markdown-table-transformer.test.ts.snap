@@ -1,6 +1,6 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should wrap and format a table with Prettier 1`] = `
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should wrap and format a basic table 1`] = `
 "\`\`\`
 | Name  | Age | City |
 | ----- | --- | ---- |
@@ -17,4 +17,94 @@ exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should h
 | ----- | ---------------- |
 | A     | B                |
 \`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle tables with text alignment (left, center, right) 1`] = `
+"\`\`\`
+| Left  | Center | Right |
+| :---- | :----: | ----: |
+| Alice |   30   |   NYC |
+| Bob   |   25   |    LA |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle tables with text formatting in cells 1`] = `
+"\`\`\`
+| Feature                     | Status  | Code    |
+| --------------------------- | ------- | ------- |
+| **Bold**                    | Active  | \`true\`  |
+| _Italic_                    | Pending | \`false\` |
+| [Link](https://example.com) | Done    | \`const\` |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle multiple tables in same document 1`] = `
+"Here is the first table:
+
+\`\`\`
+| Name  | Age |
+| ----- | --- |
+| Alice | 30  |
+| Bob   | 25  |
+\`\`\`
+
+And the second table:
+
+\`\`\`
+| City   | Country |
+| ------ | ------- |
+| NYC    | USA     |
+| London | UK      |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle table with text before and after 1`] = `
+"## Monthly Report
+
+Check out this data:
+
+\`\`\`
+| Month    | Savings |
+| -------- | ------- |
+| January  | $250    |
+| February | $80     |
+| March    | $420    |
+\`\`\`
+
+Total savings are looking good!"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle table with empty cells 1`] = `
+"\`\`\`
+| Name  | Age | City |
+| ----- | --- | ---- |
+| Alice | 30  |      |
+|       | 25  | NYC  |
+| Bob   |     | LA   |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle table with pipe escaped in cells 1`] = `
+"\`\`\`
+| Command      | Description        |
+| ------------ | ------------------ |
+| \`&#124;\`     | Escaped pipe       |
+| \`a &#124; b\` | Pipe in expression |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle complex table with all features 1`] = `
+"# Product Inventory
+
+Below is our **inventory status**:
+
+\`\`\`
+| Product           | Price  | Alignment | Notes       |
+| ----------------- | ------ | :-------: | ----------- |
+| Python Hat        | $23.99 |   Left    | _In stock_  |
+| SQL Hat           | $23.99 |  Center   | [View](url) |
+| Codecademy Hoodie | $42.99 |   Right   | \`SALE\`      |
+\`\`\`
+
+Contact us for more info."
 `;

@@ -13,10 +13,7 @@
       "import": "./dist/index.js"
     }
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dcai/discord-pi-agent.git"
@@ -27,7 +24,7 @@
   "scripts": {
     "test:watch": "vitest",
     "test": "vitest run",
-    "update-deps": "bun add @mariozechner/pi-ai@latest @mariozechner/pi-coding-agent@latest discord.js@latest dotenv@latest prettier@latest; bun add -d @types/node@latest typescript@latest vitest@latest @vitest/ui@latest",
+    "update-deps": "bun add @mariozechner/pi-ai@latest @mariozechner/pi-coding-agent@latest marked@latest discord.js@latest dotenv@latest prettier@latest; bun add -d @types/node@latest typescript@latest vitest@latest @vitest/ui@latest",
     "format": "prettier --write .",
     "build": "rm -rf dist && bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external && tsc -p tsconfig.json --emitDeclarationOnly --declaration --declarationMap false",
     "typecheck": "tsc --noEmit -p tsconfig.json"
@@ -37,6 +34,7 @@
     "@mariozechner/pi-coding-agent": "^0.70.0",
     "discord.js": "^14.26.3",
     "dotenv": "^17.4.2",
+    "marked": "^18.0.2",
     "prettier": "^3.8.3"
   },
   "devDependencies": {

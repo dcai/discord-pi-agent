@@ -1,57 +1,9 @@
 import { describe, expect, it } from "vitest";
-import {
-  transformMarkdownTablesToCodeBlocks,
-  transformMarkdownTablesSync,
-} from "./markdown-table-transformer";
+import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
 
 describe("markdown-table-transformer", () => {
-  describe("transformMarkdownTablesSync", () => {
-    it("should wrap a single table in code blocks", () => {
-      const input = `Here is a table:
-
-| Name | Age |
-|------|-----|
-| Alice | 30 |
-| Bob | 25 |
-
-And some text after.`;
-
-      const result = transformMarkdownTablesSync(input);
-
-      expect(result).toContain("```\n| Name | Age |");
-      expect(result).toContain("| Alice | 30 |");
-      expect(result).toContain("```");
-    });
-
-    it("should not modify text without tables", () => {
-      const input = "This is just plain text without any table.";
-
-      const result = transformMarkdownTablesSync(input);
-
-      expect(result).toBe(input);
-    });
-
-    it("should handle multiple tables", () => {
-      const input = `| A | B |
-|---|---|
-| 1 | 2 |
-
-Some text
-
-| C | D |
-|---|---|
-| 3 | 4 |`;
-
-      const result = transformMarkdownTablesSync(input);
-
-      // Should have 2 code blocks (2 opening + 2 closing = 4 backtick triplets)
-      const codeBlockDelimiters = result.match(/```/g);
-      expect(codeBlockDelimiters?.length).toBe(4);
-    });
-  });
-
   describe("transformMarkdownTablesToCodeBlocks", () => {
-    it("should wrap and format a table with Prettier", async () => {
+    it("should wrap and format a basic table", async () => {
       const input = `| Name | Age | City |
 |------|-----|------|
 | Alice | 30 | NYC |
@@ -59,10 +11,7 @@ Some text
 
       const result = await transformMarkdownTablesToCodeBlocks(input);
 
-      expect(result).toContain("```\n");
-      expect(result).toContain("```");
-      // Prettier formats markdown tables nicely
-      expect(result).toContain("|");
+      expect(result).toMatchSnapshot();
     });
 
     it("should return text unchanged if no tables", async () => {
@@ -70,7 +19,7 @@ Some text
 
       const result = await transformMarkdownTablesToCodeBlocks(input);
 
-      expect(result).toBe(input);
+      expect(result).toMatchSnapshot();
     });
 
     it("should handle tables with varying column widths", async () => {
@@ -80,9 +29,109 @@ Some text
 
       const result = await transformMarkdownTablesToCodeBlocks(input);
 
-      expect(result).toContain("```\n");
-      // Should be formatted with proper alignment
-      expect(result).toContain("|");
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should handle tables with text alignment (left, center, right)", async () => {
+      const input = `| Left | Center | Right |
+|:-----|:------:|------:|
+| Alice | 30 | NYC |
+| Bob | 25 | LA |`;
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should handle tables with text formatting in cells", async () => {
+      const input = `| Feature | Status | Code |
+|---------|--------|------|
+| **Bold** | Active | \`true\` |
+| *Italic* | Pending | \`false\` |
+| [Link](https://example.com) | Done | \`const\` |`;
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should handle multiple tables in same document", async () => {
+      const input = `Here is the first table:
+
+| Name | Age |
+|------|-----|
+| Alice | 30 |
+| Bob | 25 |
+
+And the second table:
+
+| City | Country |
+|------|---------|
+| NYC | USA |
+| London | UK |`;
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should handle table with text before and after", async () => {
+      const input = `## Monthly Report
+
+Check out this data:
+
+| Month | Savings |
+|-------|---------|
+| January | $250 |
+| February | $80 |
+| March | $420 |
+
+Total savings are looking good!`;
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should handle table with empty cells", async () => {
+      const input = `| Name | Age | City |
+|------|-----|------|
+| Alice | 30 | |
+| | 25 | NYC |
+| Bob | | LA |`;
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should handle table with pipe escaped in cells", async () => {
+      const input = `| Command | Description |
+|---------|-------------|
+| \`&#124;\` | Escaped pipe |
+| \`a &#124; b\` | Pipe in expression |`;
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should handle complex table with all features", async () => {
+      const input = `# Product Inventory
+
+Below is our **inventory status**:
+
+| Product | Price | Alignment | Notes |
+|---------|-------|:---------:|-------|
+| Python Hat | $23.99 | Left | *In stock* |
+| SQL Hat | $23.99 | Center | [View](url) |
+| Codecademy Hoodie | $42.99 | Right | \`SALE\` |
+
+Contact us for more info.`;
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      expect(result).toMatchSnapshot();
     });
   });
 });
