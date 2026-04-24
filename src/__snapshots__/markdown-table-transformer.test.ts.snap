@@ -1,0 +1,20 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should wrap and format a table with Prettier 1`] = `
+"\`\`\`
+| Name  | Age | City |
+| ----- | --- | ---- |
+| Alice | 30  | NYC  |
+| Bob   | 25  | LA   |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should return text unchanged if no tables 1`] = `"No tables here, just text."`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle tables with varying column widths 1`] = `
+"\`\`\`
+| Short | Very Long Header |
+| ----- | ---------------- |
+| A     | B                |
+\`\`\`"
+`;
