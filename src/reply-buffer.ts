@@ -86,9 +86,11 @@ export async function collectReply(
     const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
     console.log(
       "[DEBUG] Table transformation comparison:",
-      "\n=== RAW finalText ===\n" + finalText +
-      "\n=== TRANSFORMED ===\n" + transformed +
-      "\n=== END ==="
+      "\n=== RAW finalText ===\n" +
+        finalText +
+        "\n=== TRANSFORMED ===\n" +
+        transformed +
+        "\n=== END ===",
     );
     return transformed;
   }

@@ -99,8 +99,12 @@ async function onMessage(
     return;
   }
 
+  // Start typing before command handling so slow commands (!compact, etc.) show typing
+  const typingInterval = await startTypingInterval(message.channel);
+
   const commandResult = await handleCommand(content, agentService, promptQueue);
   if (commandResult.handled) {
+    stopTypingInterval(typingInterval);
     console.log("[discord] command handled", {
       messageId: message.id,
       command: content,
@@ -112,12 +116,14 @@ async function onMessage(
     return;
   }
 
+  // Not a command — typing already started, keep it going
+
   if (!message.channel.isSendable()) {
+    stopTypingInterval(typingInterval);
     console.log("[discord] channel is not sendable", { messageId: message.id });
     return;
   }
 
-  const typingInterval = await startTypingInterval(message.channel);
   const queuePosition = promptQueue.getSnapshot().pending;
   console.log("[queue] enqueue request", {
     messageId: message.id,
