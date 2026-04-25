@@ -13,10 +13,7 @@
       "import": "./dist/index.js"
     }
   },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "files": ["dist", "README.md"],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dcai/discord-pi-agent.git"
@@ -27,10 +24,13 @@
   "scripts": {
     "test:watch": "vitest",
     "test": "vitest run",
-    "update-deps": "bun add @mariozechner/pi-ai@latest @mariozechner/pi-coding-agent@latest marked@latest discord.js@latest dotenv@latest prettier@latest; bun add -d @types/node@latest typescript@latest vitest@latest @vitest/ui@latest",
+    "update-deps": "npx npm-check-updates",
     "format": "prettier --write .",
-    "build": "rm -rf dist && bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external && tsc -p tsconfig.json --emitDeclarationOnly --declaration --declarationMap false",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build:01-clean": "rm -rf dist",
+    "build:02-tsgo": "tsgo -p tsconfig.json --emitDeclarationOnly --declaration --declarationMap false",
+    "build:03-build": "bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external",
+    "build": "bun run --sequential 'build:*'",
+    "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@mariozechner/pi-ai": "^0.70.2",
@@ -42,8 +42,8 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260424.2",
     "@vitest/ui": "^4.1.5",
-    "typescript": "^6.0.3",
     "vitest": "^4.1.5"
   }
 }
