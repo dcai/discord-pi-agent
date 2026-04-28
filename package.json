@@ -33,8 +33,8 @@
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "^0.70.2",
-    "@mariozechner/pi-coding-agent": "^0.70.2",
+    "@mariozechner/pi-ai": "^0.70.5",
+    "@mariozechner/pi-coding-agent": "^0.70.5",
     "discord.js": "^14.26.3",
     "dotenv": "^17.4.2",
     "marked": "^18.0.2",
@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
-    "@typescript/native-preview": "^7.0.0-dev.20260424.2",
+    "@typescript/native-preview": "^7.0.0-dev.20260427.1",
     "@vitest/ui": "^4.1.5",
     "vitest": "^4.1.5"
   }
