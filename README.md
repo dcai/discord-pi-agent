@@ -56,9 +56,6 @@ await startDiscordGateway(config);
 Each forum post creates a scoped pi session in `sessions/thread-<id>/`.
 The initial post body becomes the first prompt. Sessions survive restarts.
 
-`startDiscordPiBridge` is still available for backward compatibility — it's a thin
-wrapper around `startDiscordGateway`.
-
 ## Config
 
 ### Required
@@ -85,7 +82,7 @@ wrapper around `startDiscordGateway`.
 
 ## Env helpers
 
-`loadDiscordGatewayConfigFromEnv()` — the main config loader:
+`loadDiscordGatewayConfigFromEnv()` — the config loader:
 
 - `DISCORD_BOT_TOKEN`
 - `DISCORD_ALLOWED_USER_ID`
@@ -97,8 +94,6 @@ wrapper around `startDiscordGateway`.
 - `DISCORD_FORUM_CHANNEL_IDS` — comma-separated forum channel IDs
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated allowed user IDs
 - `DISCORD_SESSION_IDLE_TIMEOUT_MS` — idle timeout in ms
-
-`loadDiscordPiBridgeConfigFromEnv()` — legacy (DM-only subset, no gateway fields).
 
 If `PI_AGENT_CWD` is missing it falls back to `process.cwd()`.
 Set `DISCORD_STARTUP_MESSAGE=false` to disable the startup DM.
@@ -118,8 +113,7 @@ bun run typecheck
 
 ## Notes
 
-- DM and forum threads supported via the unified `startDiscordGateway` entry point
-- `startDiscordPiBridge` is a backward-compatible wrapper around `startDiscordGateway`
+- DM and forum threads supported via `startDiscordGateway`
 - Forum thread sessions are stored in `sessions/thread-<id>/` (one directory per thread)
 - Sessions survive restarts — `SessionManager.continueRecent()` resumes the latest `.jsonl`
 - Single Discord client with all intents (DM + Guild + MessageContent)
