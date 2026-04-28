@@ -1,7 +1,9 @@
 import path from "node:path";
 import dotenv from "dotenv";
 import type {
+  DiscordGatewayConfig,
   DiscordPiBridgeConfig,
+  ResolvedDiscordGatewayConfig,
   ResolvedDiscordPiBridgeConfig,
   ThinkingLevel,
 } from "./types";
@@ -80,6 +82,20 @@ function readStartupMessageFromEnv(): string | false | undefined {
   }
 
   return trimmedValue;
+}
+
+export function resolveGatewayConfig(
+  config: DiscordGatewayConfig,
+): ResolvedDiscordGatewayConfig {
+  const base = resolveConfig(config);
+  return {
+    ...base,
+    discordAllowedForumChannelIds: config.discordAllowedForumChannelIds ?? [],
+    discordAllowedUserIds: config.discordAllowedUserIds ?? [
+      base.discordAllowedUserId,
+    ],
+    sessionIdleTimeoutMs: config.sessionIdleTimeoutMs ?? null,
+  };
 }
 
 function parseThinkingLevel(

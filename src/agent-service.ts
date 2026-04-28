@@ -67,6 +67,38 @@ export class AgentService {
     await this.ensureConfiguredModel();
   }
 
+  getSession(): AgentSession | null {
+    return this.session;
+  }
+
+  getAgentDir(): string {
+    return this.config.agentDir;
+  }
+
+  async createSession(sessionDir: string): Promise<AgentSession> {
+    await fs.mkdir(sessionDir, { recursive: true });
+    const { session } = await createAgentSession({
+      cwd: this.config.cwd,
+      agentDir: this.config.agentDir,
+      authStorage: this.authStorage,
+      modelRegistry: this.modelRegistry,
+      resourceLoader: this.resourceLoader,
+      settingsManager: this.settingsManager,
+      sessionManager: SessionManager.continueRecent(
+        this.config.cwd,
+        sessionDir,
+      ),
+      thinkingLevel: this.config.thinkingLevel,
+    });
+    console.log("[agent] scoped session created", {
+      sessionDir,
+      sessionId: session.sessionId,
+      sessionFile: session.sessionFile,
+    });
+    await this.ensureModelForSession(session);
+    return session;
+  }
+
   async prompt(text: string): Promise<string> {
     const session = this.requireSession();
     const transformedPrompt = await this.config.promptTransform(text);
@@ -177,7 +209,10 @@ export class AgentService {
   }
 
   private async ensureConfiguredModel(): Promise<void> {
-    const session = this.requireSession();
+    await this.ensureModelForSession(this.requireSession());
+  }
+
+  private async ensureModelForSession(session: AgentSession): Promise<void> {
     const desiredModel = this.modelRegistry.find(
       this.config.modelProvider,
       this.config.modelId,
@@ -213,7 +248,7 @@ export class AgentService {
       to: `${desiredModel.provider}/${desiredModel.id}`,
     });
     await session.setModel(desiredModel);
-    await this.applyConfiguredThinkingLevel();
+    await this.applyConfiguredThinkingLevelForSession(session);
   }
 
   private requireSession(): AgentSession {
@@ -225,7 +260,12 @@ export class AgentService {
   }
 
   private async applyConfiguredThinkingLevel(): Promise<void> {
-    const session = this.requireSession();
+    await this.applyConfiguredThinkingLevelForSession(this.requireSession());
+  }
+
+  private async applyConfiguredThinkingLevelForSession(
+    session: AgentSession,
+  ): Promise<void> {
     if (session.supportsThinking()) {
       const available = session.getAvailableThinkingLevels();
       if (available.includes(this.config.thinkingLevel)) {

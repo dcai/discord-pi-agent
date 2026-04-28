@@ -1,9 +1,14 @@
 import type { Client } from "discord.js";
 import { AgentService } from "./agent-service";
-import { resolveConfig } from "./config";
+import { resolveConfig, resolveGatewayConfig } from "./config";
 import { startDiscordClient } from "./discord-client";
+import { startGatewayClient } from "./discord-gateway-client";
+import type { GatewayAuthConfig } from "./discord-gateway-client";
 import { PromptQueue } from "./prompt-queue";
+import { SessionRegistry } from "./session-registry";
 import type {
+  DiscordGateway,
+  DiscordGatewayConfig,
   DiscordPiBridge,
   DiscordPiBridgeConfig,
   ResolvedDiscordPiBridgeConfig,
@@ -16,29 +21,50 @@ export {
 export { loadDiscordPiBridgeConfigFromEnv, resolveConfig } from "./config";
 export type {
   AgentStatus,
+  DiscordGateway,
+  DiscordGatewayConfig,
   DiscordPiBridge,
   DiscordPiBridgeConfig,
   PromptTransform,
   ResolvedDiscordPiBridgeConfig,
 } from "./types";
 
-export async function startDiscordPiBridge(
-  config: DiscordPiBridgeConfig,
-): Promise<DiscordPiBridge> {
-  const resolvedConfig = resolveConfig(config);
+/**
+ * Start the unified Discord gateway. Supports DM and forum thread sessions
+ * out of the box. Set discordAllowedForumChannelIds to enable forum support.
+ */
+export async function startDiscordGateway(
+  config: DiscordGatewayConfig,
+): Promise<DiscordGateway> {
+  const resolvedConfig = resolveGatewayConfig(config);
   const agentService = new AgentService(resolvedConfig);
-  const promptQueue = new PromptQueue();
 
-  console.log("[boot] initializing persistent agent session");
+  console.log("[gateway] initializing agent service");
   await agentService.initialize();
-  console.log("[boot] agent ready", agentService.getStatus());
+  console.log("[gateway] agent ready", agentService.getStatus());
 
-  const client = await startDiscordClient(
+  const authConfig: GatewayAuthConfig = {
+    discordAllowedUserId: resolvedConfig.discordAllowedUserId,
+    discordAllowedForumChannelIds: resolvedConfig.discordAllowedForumChannelIds,
+    discordAllowedUserIds: resolvedConfig.discordAllowedUserIds,
+    startupMessage: resolvedConfig.startupMessage,
+  };
+
+  const sessionRegistry = new SessionRegistry(agentService);
+
+  const client = await startGatewayClient(
     resolvedConfig,
     agentService,
-    promptQueue,
+    sessionRegistry,
+    authConfig,
   );
-  const stop = createStopHandler(client, agentService, resolvedConfig);
+
+  const stop = createGatewayStopHandler(
+    client,
+    agentService,
+    sessionRegistry,
+    resolvedConfig,
+  );
 
   if (resolvedConfig.shutdownOnSignals) {
     registerSignalHandlers(stop);
@@ -50,6 +76,39 @@ export async function startDiscordPiBridge(
     getStatus: () => {
       return agentService.getStatus();
     },
+  };
+}
+
+/**
+ * Legacy DM-only entry point. Now a thin wrapper over startDiscordGateway.
+ */
+export async function startDiscordPiBridge(
+  config: DiscordPiBridgeConfig,
+): Promise<DiscordPiBridge> {
+  return startDiscordGateway(config);
+}
+
+function createGatewayStopHandler(
+  client: Client,
+  agentService: AgentService,
+  sessionRegistry: SessionRegistry,
+  config: ResolvedDiscordPiBridgeConfig,
+): () => Promise<void> {
+  let stopped = false;
+
+  return async () => {
+    if (stopped) {
+      return;
+    }
+
+    stopped = true;
+    console.log("[shutdown] stopping discord gateway", {
+      cwd: config.cwd,
+      agentDir: config.agentDir,
+    });
+    client.destroy();
+    await sessionRegistry.shutdownAll();
+    await agentService.shutdown();
   };
 }
 

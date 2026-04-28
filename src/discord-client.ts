@@ -102,7 +102,10 @@ async function onMessage(
   // Start typing before command handling so slow commands (!compact, etc.) show typing
   const typingInterval = await startTypingInterval(message.channel);
 
-  const commandResult = await handleCommand(content, agentService, promptQueue);
+  const commandResult = await handleCommand(content, {
+    agentService,
+    promptQueue,
+  });
   if (commandResult.handled) {
     stopTypingInterval(typingInterval);
     console.log("[discord] command handled", {

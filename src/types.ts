@@ -56,3 +56,24 @@ export type DiscordPiBridge = {
   stop: () => Promise<void>;
   getStatus: () => AgentStatus;
 };
+
+export type DiscordGatewayConfig = DiscordPiBridgeConfig & {
+  /** Which forum channels the bot responds in (absent = forum disabled). */
+  discordAllowedForumChannelIds?: string[];
+  /** Which users can interact in forum threads (defaults to [discordAllowedUserId]). */
+  discordAllowedUserIds?: string[];
+  /** Auto-shutdown idle thread sessions after this many ms. */
+  sessionIdleTimeoutMs?: number;
+};
+
+export type ResolvedDiscordGatewayConfig = ResolvedDiscordPiBridgeConfig & {
+  discordAllowedForumChannelIds: string[];
+  discordAllowedUserIds: string[];
+  sessionIdleTimeoutMs: number | null;
+};
+
+export type DiscordGateway = {
+  client: Client;
+  stop: () => Promise<void>;
+  getStatus: () => AgentStatus;
+};
