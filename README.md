@@ -1,15 +1,15 @@
 # @friendlyrobot/discord-pi-agent
 
-Reusable Discord DM bridge for persistent pi agent sessions.
+Reusable Discord gateway bridge for persistent pi agent sessions — DM and forum channels.
 
 ## What it does
 
-- runs one long-lived pi agent session
-- resumes the latest session on restart
+- runs persistent pi agent sessions (one per DM, one per forum thread)
+- resumes sessions on restart via scoped session directories
 - loads project context from the target repo via pi resource loading
-- accepts DM messages from one allowed Discord user
-- serializes prompts through a FIFO queue
-- exposes built-in session commands
+- accepts DM messages and forum thread messages from allowed users
+- serializes prompts per-scope through FIFO queues
+- exposes built-in session commands (per-scope, including `!archive`)
 
 ## Built-in commands
 
@@ -19,8 +19,9 @@ Reusable Discord DM bridge for persistent pi agent sessions.
 - `!compact`
 - `!reload`
 - `!reset-session`
+- `!archive` (forum threads only — archives the thread and shuts down the session)
 
-Any other DM text is sent to the persistent agent session.
+Any other text is sent to the active session (DM or thread).
 
 ## Install
 
@@ -31,6 +32,7 @@ bun add @friendlyrobot/discord-pi-agent
 ## Minimal usage
 
 ```ts
+// Legacy DM-only entry point (backward compatible)
 import { startDiscordPiBridge } from "@friendlyrobot/discord-pi-agent";
 
 const bridge = await startDiscordPiBridge({
@@ -42,16 +44,35 @@ const bridge = await startDiscordPiBridge({
 });
 ```
 
+## Forum channel usage
+
+```ts
+import {
+  loadDiscordGatewayConfigFromEnv,
+  startDiscordGateway,
+} from "@friendlyrobot/discord-pi-agent";
+
+const config = loadDiscordGatewayConfigFromEnv({
+  cwd: process.cwd(),
+  discordAllowedForumChannelIds: ["1498563501780897832"],
+});
+
+await startDiscordGateway(config);
+```
+
+Each forum post (thread) creates a scoped pi session. The initial post body becomes the first
+prompt. Sessions persist across restarts and are scoped to `sessions/thread-<id>/`.
+
 ## Usage with dotenv and time context
 
 ```ts
 import {
   buildTimeContextPrompt,
-  loadDiscordPiBridgeConfigFromEnv,
-  startDiscordPiBridge,
+  loadDiscordGatewayConfigFromEnv,
+  startDiscordGateway,
 } from "@friendlyrobot/discord-pi-agent";
 
-const config = loadDiscordPiBridgeConfigFromEnv({
+const config = loadDiscordGatewayConfigFromEnv({
   promptTransform: (input) => {
     return buildTimeContextPrompt(input, {
       timeZone: "Australia/Sydney",
@@ -60,18 +81,18 @@ const config = loadDiscordPiBridgeConfigFromEnv({
   },
 });
 
-await startDiscordPiBridge(config);
+await startDiscordGateway(config);
 ```
 
 ## Config
 
-### Required
+### Required (all modes)
 
 - `discordBotToken`
 - `discordAllowedUserId`
 - `cwd`
 
-### Optional
+### Optional (all modes)
 
 - `agentDir` default: `<cwd>/.pi-agent`
 - `modelProvider` default: `openrouter`
@@ -81,9 +102,15 @@ await startDiscordPiBridge(config);
 - `startupMessage` default: `Bot is online and ready.`
 - `shutdownOnSignals` default: `true`
 
-## Env helper
+### Forum channel options (`startDiscordGateway`)
 
-`loadDiscordPiBridgeConfigFromEnv()` supports:
+- `discordAllowedForumChannelIds` — string array of forum channel IDs to respond in
+- `discordAllowedUserIds` — string array of allowed user IDs (defaults to `[discordAllowedUserId]`)
+- `sessionIdleTimeoutMs` — auto-shutdown idle thread sessions (null = never)
+
+## Env helpers
+
+`loadDiscordPiBridgeConfigFromEnv()` — legacy DM-only config:
 
 - `DISCORD_BOT_TOKEN`
 - `DISCORD_ALLOWED_USER_ID`
@@ -92,6 +119,12 @@ await startDiscordPiBridge(config);
 - `PI_MODEL_PROVIDER`
 - `PI_MODEL_ID`
 - `DISCORD_STARTUP_MESSAGE`
+
+`loadDiscordGatewayConfigFromEnv()` — same as above, plus:
+
+- `DISCORD_FORUM_CHANNEL_IDS` — comma-separated forum channel IDs
+- `DISCORD_ALLOWED_USER_IDS` — comma-separated allowed user IDs
+- `DISCORD_SESSION_IDLE_TIMEOUT_MS` — idle timeout in ms
 
 If `PI_AGENT_CWD` is missing it falls back to `process.cwd()`.
 
@@ -112,7 +145,11 @@ bun run typecheck
 
 ## Notes
 
-- DM-only by design
-- single allowed user by design
-- the package does not register Discord slash commands
+- DM and forum threads supported via the unified `startDiscordGateway` entry point
+- `startDiscordPiBridge` is a backward-compatible wrapper around `startDiscordGateway`
+- Forum thread sessions are stored in `sessions/thread-<id>/` (one directory per thread)
+- Sessions survive restarts — `SessionManager.continueRecent()` resumes the latest `.jsonl`
+- Single Discord client with all intents (DM + Guild + MessageContent)
+- No mode flags — forum support activates when `discordAllowedForumChannelIds` is set
+- The package does not register Discord slash commands
 - pi resources are loaded from the configured `cwd` and `agentDir`

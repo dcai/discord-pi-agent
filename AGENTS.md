@@ -10,7 +10,8 @@ This repo contains the standalone npm package:
 
 Purpose:
 
-- reusable Discord DM bridge for persistent pi agent sessions
+- reusable Discord gateway bridge for persistent pi agent sessions
+- supports DM and forum channel (thread-scoped) sessions
 - generic package, not tied to any specific consumer app
 
 This repo should stay focused on shared package logic.
@@ -71,12 +72,15 @@ src/
   agent-service.ts
   commands.ts
   config.ts
-  discord-client.ts
+  discord-client.ts         # legacy DM client (kept for now)
+  discord-gateway-client.ts # unified gateway (DM + forum threads)
   index.ts
+  markdown-table-transformer.ts
   message-chunker.ts
   prompt-context.ts
   prompt-queue.ts
   reply-buffer.ts
+  session-registry.ts       # scope-agnostic map (scope → AgentSession + PromptQueue)
   types.ts
 
 dist/              # build output
@@ -91,9 +95,11 @@ tsconfig.json
 Main exports live in `src/index.ts`.
 Current public surface:
 
-- `startDiscordPiBridge`
-- `resolveConfig`
+- `startDiscordGateway` — unified entry point (DM + forum threads)
+- `startDiscordPiBridge` — legacy wrapper (backward compatible)
 - `loadDiscordPiBridgeConfigFromEnv`
+- `loadDiscordGatewayConfigFromEnv` — preserves gateway fields
+- `resolveConfig`
 - `buildTimeContextPrompt`
 - exported TS types from `./types`
 
