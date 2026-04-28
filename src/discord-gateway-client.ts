@@ -49,10 +49,12 @@ function isAuthorized(
 
   // Thread scope: check user is in allowed list and forum channel is allowed
   if (scope.startsWith("thread:")) {
-    const parentId =
-      "parentId" in message.channel && message.channel.parentId
-        ? (message.channel.parentId as string)
-        : null;
+    const channel = message.channel;
+    if (!channel.isThread()) {
+      return false;
+    }
+
+    const parentId = channel.parentId;
     if (
       !parentId ||
       !authConfig.discordAllowedForumChannelIds.includes(parentId)
@@ -146,6 +148,21 @@ export async function startGatewayClient(
   });
 
   client.on(Events.MessageCreate, async (message) => {
+    // Debug: dump full thread channel info for diagnostics
+    if (message.channel.isThread()) {
+      console.log("[gateway:debug] thread message raw", {
+        messageId: message.id,
+        authorId: message.author.id,
+        authorTag: message.author.tag,
+        channelId: message.channel.id,
+        channelType: message.channel.type,
+        parentId: message.channel.parentId,
+        parentType: message.channel.parent?.type,
+        guildId: message.guild?.id,
+        content: message.content.slice(0, 500),
+      });
+    }
+
     console.log("[gateway] message received", {
       messageId: message.id,
       authorId: message.author.id,

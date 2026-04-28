@@ -59,6 +59,32 @@ export function loadDiscordPiBridgeConfigFromEnv(
   });
 }
 
+/**
+ * Load gateway config from env vars + overrides.
+ * Preserves gateway-specific fields (forum channels, etc.) that
+ * loadDiscordPiBridgeConfigFromEnv would drop.
+ */
+export function loadDiscordGatewayConfigFromEnv(
+  overrides: Partial<DiscordGatewayConfig> = {},
+): ResolvedDiscordGatewayConfig {
+  const base = loadDiscordPiBridgeConfigFromEnv(overrides);
+  return {
+    ...base,
+    discordAllowedForumChannelIds:
+      overrides.discordAllowedForumChannelIds ??
+      parseStringArrayFromEnv("DISCORD_FORUM_CHANNEL_IDS") ??
+      [],
+    discordAllowedUserIds: overrides.discordAllowedUserIds ??
+      parseStringArrayFromEnv("DISCORD_ALLOWED_USER_IDS") ?? [
+        base.discordAllowedUserId,
+      ],
+    sessionIdleTimeoutMs:
+      overrides.sessionIdleTimeoutMs ??
+      parseOptionalIntFromEnv("DISCORD_SESSION_IDLE_TIMEOUT_MS") ??
+      null,
+  };
+}
+
 function readRequiredValue(name: string, value: string): string {
   const trimmedValue = value.trim();
 
@@ -121,4 +147,26 @@ function parseThinkingLevel(
 
 function identityPromptTransform(input: string): string {
   return input;
+}
+
+function parseStringArrayFromEnv(key: string): string[] | undefined {
+  const value = process.env[key];
+  if (!value) {
+    return undefined;
+  }
+
+  return value
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+function parseOptionalIntFromEnv(key: string): number | undefined {
+  const value = process.env[key];
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? undefined : parsed;
 }

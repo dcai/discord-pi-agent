@@ -18,7 +18,11 @@ export {
   buildTimeContextPrompt,
   type TimeContextPromptOptions,
 } from "./prompt-context";
-export { loadDiscordPiBridgeConfigFromEnv, resolveConfig } from "./config";
+export {
+  loadDiscordPiBridgeConfigFromEnv,
+  loadDiscordGatewayConfigFromEnv,
+  resolveConfig,
+} from "./config";
 export type {
   AgentStatus,
   DiscordGateway,
