@@ -18,8 +18,15 @@ const CODE_BLOCK_WRAPPER = "```\n{TABLE}\n```";
 export async function transformMarkdownTablesToCodeBlocks(
   text: string,
 ): Promise<string> {
+  // Ensure code fences are on their own lines.
+  // AI responses sometimes place ``` at the end of a text line
+  // (e.g. "some text.```"). This breaks CommonMark parsing — marked
+  // doesn't see it as a fence, and Prettier later "fixes" the resulting
+  // unbalanced blocks by adding spurious closing ```.
+  const normalized = normalizeCodeFences(text);
+
   // Format the whole document first (tables are still markdown, so they get formatted)
-  const formatted = await formatWithPrettier(text);
+  const formatted = await formatWithPrettier(normalized);
 
   // Use marked Lexer to identify tables
   const tokens = Lexer.lex(formatted);
@@ -35,6 +42,34 @@ export async function transformMarkdownTablesToCodeBlocks(
 
   // Run Prettier once more (tables are now in code blocks, won't be reformatted)
   return formatWithPrettier(result.join(""));
+}
+
+/**
+ * Moves any ``` that appears at the end of a non-fence line onto its own line.
+ * CommonMark requires code fences at line start; Discord's renderer is
+ * more lenient, so AI output often has them misplaced.
+ */
+function normalizeCodeFences(text: string): string {
+  const lines = text.split("\n");
+  const result: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trimEnd();
+
+    if (trimmed.endsWith("```") && !trimmed.startsWith("```")) {
+      const beforeFence = trimmed.slice(0, -3).trimEnd();
+
+      if (beforeFence) {
+        result.push(beforeFence);
+      }
+
+      result.push("```");
+    } else {
+      result.push(line);
+    }
+  }
+
+  return result.join("\n");
 }
 
 /**

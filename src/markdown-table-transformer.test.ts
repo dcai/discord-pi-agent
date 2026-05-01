@@ -133,5 +133,35 @@ Contact us for more info.`;
 
       expect(result).toMatchSnapshot();
     });
+
+    it("should normalize misplaced code fences at end of text lines", async () => {
+      // Real AI output: first ``` is at end of a paragraph line, not on its own.
+      // Discord renders this fine, but CommonMark parsers (marked + Prettier)
+      // require fences at line start, which causes spurious closing ```.
+      const input = `Wait, let me fix the calories — 220 + 200 + 104 = 524, not 450.\`\`\`
+Day         1 May 2026
+Breakfast   381 kcal   Lebanese bread + 2 cheddar
+Lunch       524 kcal   Glass noodle spinach salad + 2 eggs + tuna 90g
+---------------------------------------
+Intake      905 kcal
+Burn        0 kcal
+Net         905 kcal
+Deficit     1,095 kcal
+\`\`\`
+
+\`\`\`
+Protein     ~50g ✅   Eggs + tuna covered the missing eggs from breakfast
+Iron        ~5mg      No red meat today but eggs + spinach help
+Omega-3     ✅        Tuna
+\`\`\`
+
+Smart move — eggs came back at lunch to make up for the missing breakfast protein. 1,095 kcal deficit with plenty of evening left. Any pickleball plans today?`;
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      // Must not contain a spurious trailing ```
+      expect(result).not.toMatch(/\n```\s*$/);
+      expect(result).toMatchSnapshot();
+    });
   });
 });

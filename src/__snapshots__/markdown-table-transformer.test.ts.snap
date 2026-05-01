@@ -98,6 +98,29 @@ exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > shou
 \`\`\`"
 `;
 
+exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should normalize misplaced code fences at end of text lines 1`] = `
+"Wait, let me fix the calories — 220 + 200 + 104 = 524, not 450.
+
+\`\`\`
+Day         1 May 2026
+Breakfast   381 kcal   Lebanese bread + 2 cheddar
+Lunch       524 kcal   Glass noodle spinach salad + 2 eggs + tuna 90g
+---------------------------------------
+Intake      905 kcal
+Burn        0 kcal
+Net         905 kcal
+Deficit     1,095 kcal
+\`\`\`
+
+\`\`\`
+Protein     ~50g ✅   Eggs + tuna covered the missing eggs from breakfast
+Iron        ~5mg      No red meat today but eggs + spinach help
+Omega-3     ✅        Tuna
+\`\`\`
+
+Smart move — eggs came back at lunch to make up for the missing breakfast protein. 1,095 kcal deficit with plenty of evening left. Any pickleball plans today?"
+`;
+
 exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should return text unchanged if no tables 1`] = `"No tables here, just text."`;
 
 exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should wrap and format a basic table 1`] = `
