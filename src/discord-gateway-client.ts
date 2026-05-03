@@ -209,6 +209,11 @@ async function onMessage(
     return;
   }
 
+  if (message.system) {
+    console.log("[gateway] ignored system message", { messageId: message.id });
+    return;
+  }
+
   const scope = resolveScope(message);
   if (scope === null) {
     console.log("[gateway] unsupported channel type, ignoring", {
