@@ -104,9 +104,16 @@ async function sendReply(message: Message, text: string): Promise<void> {
     return;
   }
 
-  await message.reply(firstChunk);
-  for (const chunk of remainingChunks) {
-    await channel.send(chunk);
+  try {
+    await message.reply(firstChunk);
+    for (const chunk of remainingChunks) {
+      await channel.send(chunk);
+    }
+  } catch (error) {
+    console.error("[gateway] send reply failed", {
+      messageId: message.id,
+      error,
+    });
   }
 }
 
