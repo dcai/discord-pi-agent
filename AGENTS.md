@@ -120,6 +120,11 @@ bun install
 bun run typecheck
 bun run format
 bun run build
+# Tests: use vitest directly, not bun test.
+# bun test doesn't support all vitest APIs (e.g. vi.setSystemTime).
+npx vitest run            # single run
+npx vitest                 # watch mode
+npx vitest run --update   # update snapshots
 ```
 
 ### Build notes
