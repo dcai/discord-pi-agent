@@ -131,3 +131,135 @@ exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > shou
 | Bob   | 25  | LA   |
 \`\`\`"
 `;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle complex table with all features 1`] = `
+"# Product Inventory
+
+Below is our **inventory status**:
+
+\`\`\`
+| Product           | Price  | Alignment | Notes       |
+| ----------------- | ------ | :-------: | ----------- |
+| Python Hat        | $23.99 |   Left    | _In stock_  |
+| SQL Hat           | $23.99 |  Center   | [View](url) |
+| Codecademy Hoodie | $42.99 |   Right   | \`SALE\`      |
+\`\`\`
+
+Contact us for more info."
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle multiple tables in same document 1`] = `
+"Here is the first table:
+
+\`\`\`
+| Name  | Age |
+| ----- | --- |
+| Alice | 30  |
+| Bob   | 25  |
+\`\`\`
+
+And the second table:
+
+\`\`\`
+| City   | Country |
+| ------ | ------- |
+| NYC    | USA     |
+| London | UK      |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle table with empty cells 1`] = `
+"\`\`\`
+| Name  | Age | City |
+| ----- | --- | ---- |
+| Alice | 30  |      |
+|       | 25  | NYC  |
+| Bob   |     | LA   |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle table with pipe escaped in cells 1`] = `
+"\`\`\`
+| Command      | Description        |
+| ------------ | ------------------ |
+| \`&#124;\`     | Escaped pipe       |
+| \`a &#124; b\` | Pipe in expression |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle table with text before and after 1`] = `
+"## Monthly Report
+
+Check out this data:
+
+\`\`\`
+| Month    | Savings |
+| -------- | ------- |
+| January  | $250    |
+| February | $80     |
+| March    | $420    |
+\`\`\`
+
+Total savings are looking good!"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle tables with text alignment (left, center, right) 1`] = `
+"\`\`\`
+| Left  | Center | Right |
+| :---- | :----: | ----: |
+| Alice |   30   |   NYC |
+| Bob   |   25   |    LA |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle tables with text formatting in cells 1`] = `
+"\`\`\`
+| Feature                     | Status  | Code    |
+| --------------------------- | ------- | ------- |
+| **Bold**                    | Active  | \`true\`  |
+| _Italic_                    | Pending | \`false\` |
+| [Link](https://example.com) | Done    | \`const\` |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should handle tables with varying column widths 1`] = `
+"\`\`\`
+| Short | Very Long Header |
+| ----- | ---------------- |
+| A     | B                |
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should normalize misplaced code fences at end of text lines 1`] = `
+"Wait, let me fix the calories — 220 + 200 + 104 = 524, not 450.
+
+\`\`\`
+Day         1 May 2026
+Breakfast   381 kcal   Lebanese bread + 2 cheddar
+Lunch       524 kcal   Glass noodle spinach salad + 2 eggs + tuna 90g
+---------------------------------------
+Intake      905 kcal
+Burn        0 kcal
+Net         905 kcal
+Deficit     1,095 kcal
+\`\`\`
+
+\`\`\`
+Protein     ~50g ✅   Eggs + tuna covered the missing eggs from breakfast
+Iron        ~5mg      No red meat today but eggs + spinach help
+Omega-3     ✅        Tuna
+\`\`\`
+
+Smart move — eggs came back at lunch to make up for the missing breakfast protein. 1,095 kcal deficit with plenty of evening left. Any pickleball plans today?"
+`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should return text unchanged if no tables 1`] = `"No tables here, just text."`;
+
+exports[`markdown-table-transformer transformMarkdownTablesToCodeBlocks should wrap and format a basic table 1`] = `
+"\`\`\`
+| Name  | Age | City |
+| ----- | --- | ---- |
+| Alice | 30  | NYC  |
+| Bob   | 25  | LA   |
+\`\`\`"
+`;

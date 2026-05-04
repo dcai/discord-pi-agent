@@ -13,6 +13,7 @@ export function buildTimeContextPrompt(
   const now = options.now || new Date();
   const localTime = new Intl.DateTimeFormat(locale, {
     timeZone,
+    weekday: "short",
     day: "numeric",
     month: "short",
     year: "2-digit",
