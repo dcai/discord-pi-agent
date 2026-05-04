@@ -41,10 +41,12 @@ export class SessionRegistry {
     this.agentService = agentService;
   }
 
-  async getOrCreate(scope: SessionScope): Promise<ScopeEntry> {
+  async getOrCreate(
+    scope: SessionScope,
+  ): Promise<{ entry: ScopeEntry; created: boolean }> {
     const existing = this.scopes.get(scope);
     if (existing) {
-      return existing;
+      return { entry: existing, created: false };
     }
 
     const sessionDir = sessionDirForScope(
@@ -67,7 +69,7 @@ export class SessionRegistry {
       sessionId: session.sessionId,
     });
 
-    return entry;
+    return { entry, created: true };
   }
 
   async remove(scope: SessionScope): Promise<void> {

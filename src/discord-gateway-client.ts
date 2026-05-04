@@ -22,6 +22,16 @@ export type GatewayAuthConfig = {
 };
 
 /**
+ * Combine a forum thread title with the post body for the initial session prompt.
+ */
+export function buildThreadOpeningPrompt(
+  threadName: string,
+  content: string,
+): string {
+  return `<thread_title>${threadName}</thread_title>\n\n${content}`;
+}
+
+/**
  * Determine the session scope from an incoming message.
  * Returns null for unsupported channel types (silently ignored).
  */
@@ -245,7 +255,22 @@ async function onMessage(
     return;
   }
 
-  const { session, promptQueue } = await sessionRegistry.getOrCreate(scope);
+  const { entry, created } = await sessionRegistry.getOrCreate(scope);
+  const { session, promptQueue } = entry;
+
+  // For brand-new forum threads, combine the thread title (post title)
+  // with the message content (post body) as the initial session prompt.
+  let effectiveContent = content;
+  if (created && scope.startsWith("thread:")) {
+    const thread = message.channel;
+    if (thread.isThread() && thread.name) {
+      effectiveContent = buildThreadOpeningPrompt(thread.name, content);
+      console.log("[gateway] new thread session — prepending title", {
+        scope,
+        threadName: thread.name,
+      });
+    }
+  }
 
   // Start typing indicator
   let typingInterval: NodeJS.Timeout | null = null;
@@ -316,7 +341,7 @@ async function onMessage(
 
   const response = await promptQueue.enqueue(async () => {
     console.log(`[queue] processing message ${message.id} in scope ${scope}`);
-    const transformedPrompt = await config.promptTransform(content);
+    const transformedPrompt = await config.promptTransform(effectiveContent);
     return collectReply(session, transformedPrompt, {
       logPrefix: `[agent:${session.sessionId}]`,
     });
