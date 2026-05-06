@@ -282,6 +282,69 @@ export class AgentService {
     }
   }
 
+  async listModels(): Promise<string> {
+    const availableModels = await this.modelRegistry.getAvailable();
+    const session = this.session;
+    const currentDisplay = session?.model
+      ? `${session.model.provider}/${session.model.id}`
+      : null;
+
+    const lines = availableModels.map((model) => {
+      const display = `${model.provider}/${model.id}`;
+      const marker = currentDisplay === display ? " (current)" : "";
+      return `  ${display}${marker}`;
+    });
+
+    return [
+      `Available models (${availableModels.length}):`,
+      ...lines,
+      `\nUsage: !model <provider/modelId> to switch.`,
+    ].join("\n");
+  }
+
+  async switchModel(provider: string, modelId: string): Promise<string> {
+    const session = this.requireSession();
+    const model = this.modelRegistry.find(provider, modelId);
+
+    if (!model) {
+      const availableModels = await this.modelRegistry.getAvailable();
+      const matches = availableModels
+        .filter((m) => {
+          return m.provider === provider;
+        })
+        .map((m) => `${m.provider}/${m.id}`);
+
+      const hint =
+        matches.length > 0
+          ? `\nModels from "${provider}": ${matches.join(", ")}`
+          : `\nUse !model to see all available models.`;
+
+      return `Model not found: ${provider}/${modelId}.${hint}`;
+    }
+
+    if (isSameModel(session.model, model)) {
+      return `Already using ${provider}/${modelId}.`;
+    }
+
+    await session.setModel(model);
+    await this.applyConfiguredThinkingLevelForSession(session);
+
+    const thinkingInfo = session.supportsThinking()
+      ? ` (thinking: ${session.thinkingLevel})`
+      : "";
+
+    return `Switched to ${provider}/${modelId}${thinkingInfo}.`;
+  }
+
+  getCurrentModelDisplay(): string {
+    const session = this.session;
+    if (!session?.model) {
+      return "(no model selected)";
+    }
+
+    return `${session.model.provider}/${session.model.id}`;
+  }
+
   getThinkingLevel(): {
     current: ThinkingLevel;
     available: ThinkingLevel[];

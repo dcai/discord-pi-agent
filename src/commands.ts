@@ -84,6 +84,7 @@ export async function handleCommand(
         "!help - show this message",
         "!status - show current session status",
         "!thinking - show or set thinking/reasoning level",
+        "!model - list available models or switch to one",
         "!compact - compact the persistent session",
         "!reset-session - start a fresh persistent session",
         "!reload - reload resources (AGENTS.md, extensions, skills, etc.)",
@@ -174,6 +175,48 @@ export async function handleCommand(
     return {
       handled: true,
       response: `Thinking level set to "${requestedLevel}".`,
+    };
+  }
+
+  if (trimmed === "!model" || trimmed.startsWith("!model ")) {
+    const effectiveSession = session ?? agentService.getSession();
+    if (!effectiveSession) {
+      return {
+        handled: true,
+        response: "No active session.",
+      };
+    }
+
+    const parts = trimmed.split(" ");
+    if (parts.length === 1) {
+      // Show current model + available models
+      const current = agentService.getCurrentModelDisplay();
+      const modelList = await agentService.listModels();
+
+      return {
+        handled: true,
+        response: `Current model: ${current}\n\n${modelList}`,
+      };
+    }
+
+    // Parse provider/modelId from the argument.
+    // Split on first "/" — provider comes first, the rest is the model ID
+    // (model IDs can contain slashes, e.g. "anthropic/claude-sonnet-4")
+    const arg = parts.slice(1).join(" ");
+    const slashIndex = arg.indexOf("/");
+    if (slashIndex === -1) {
+      return {
+        handled: true,
+        response: `Usage: !model <provider/modelId>\nExample: !model openrouter/anthropic/claude-sonnet-4\nUse !model without args to see available models.`,
+      };
+    }
+
+    const provider = arg.substring(0, slashIndex);
+    const modelId = arg.substring(slashIndex + 1);
+
+    return {
+      handled: true,
+      response: await agentService.switchModel(provider, modelId),
     };
   }
 
