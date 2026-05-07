@@ -27,6 +27,7 @@ export async function collectReply(
     {
       logPrefix,
       promptLength: prompt.length,
+      prompt,
     },
     "prompt start",
   );
