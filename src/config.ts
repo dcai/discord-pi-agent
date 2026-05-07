@@ -25,6 +25,8 @@ export function resolveConfig(
     modelProvider: config.modelProvider?.trim() || "openrouter",
     modelId: config.modelId?.trim() || "anthropic/claude-3.5-haiku",
     thinkingLevel: parseThinkingLevel(config.thinkingLevel) || "medium",
+    promptTimeZone: config.promptTimeZone?.trim() || "UTC",
+    promptLocale: config.promptLocale?.trim() || "en-AU",
     promptTransform: config.promptTransform || identityPromptTransform,
     startupMessage:
       config.startupMessage === undefined
@@ -53,6 +55,8 @@ export function loadDiscordPiBridgeConfigFromEnv(
     thinkingLevel: parseThinkingLevel(
       overrides.thinkingLevel || process.env.PI_THINKING_LEVEL,
     ),
+    promptTimeZone: overrides.promptTimeZone || process.env.PI_PROMPT_TIME_ZONE,
+    promptLocale: overrides.promptLocale || process.env.PI_PROMPT_LOCALE,
     promptTransform: overrides.promptTransform,
     startupMessage: overrides.startupMessage ?? readStartupMessageFromEnv(),
     shutdownOnSignals: overrides.shutdownOnSignals,

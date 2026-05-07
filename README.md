@@ -23,6 +23,31 @@ Reusable Discord gateway bridge for persistent pi agent sessions — DM and foru
 
 Any other text is sent to the active session (DM or thread).
 
+## Prompt metadata
+
+Every Discord prompt is wrapped with lightweight Discord context before `promptTransform` runs:
+
+```text
+<discord_message_context>
+{
+  "scope": "thread",
+  "sent_at": "2026-05-07T04:31:00.000Z",
+  "sent_at_local": "Thu, 7 May 26, 14:31 AEST",
+  "message_id": "...",
+  "author_name": "Alice",
+  "author_id": "...",
+  "thread_title": "Bug report",
+  "thread_id": "...",
+  "forum_channel_id": "..."
+}
+</discord_message_context>
+
+User message:
+...
+```
+
+DM prompts omit thread-only fields. `sent_at_local` uses `promptTimeZone` and `promptLocale`.
+
 ## Install
 
 ```bash
@@ -33,19 +58,14 @@ bun add @friendlyrobot/discord-pi-agent
 
 ```ts
 import {
-  buildTimeContextPrompt,
   loadDiscordGatewayConfigFromEnv,
   startDiscordGateway,
 } from "@friendlyrobot/discord-pi-agent";
 
 const config = loadDiscordGatewayConfigFromEnv({
   cwd: process.cwd(),
-  promptTransform: (input) => {
-    return buildTimeContextPrompt(input, {
-      timeZone: "Australia/Sydney",
-      locale: "en-AU",
-    });
-  },
+  promptTimeZone: "Australia/Sydney",
+  promptLocale: "en-AU",
   // Enable forum channel support (omit for DM-only)
   discordAllowedForumChannelIds: ["1498563501780897832"],
 });
@@ -70,6 +90,8 @@ The initial post body becomes the first prompt. Sessions survive restarts.
 - `modelProvider` default: `openrouter`
 - `modelId` default: `anthropic/claude-3.5-haiku`
 - `thinkingLevel` default: `medium` (values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`)
+- `promptTimeZone` default: `UTC` — used for `sent_at_local` in Discord prompt metadata
+- `promptLocale` default: `en-AU` — used for `sent_at_local` in Discord prompt metadata
 - `promptTransform` default: identity
 - `startupMessage` default: `Bot is online and ready.`
 - `shutdownOnSignals` default: `true`
@@ -90,6 +112,8 @@ The initial post body becomes the first prompt. Sessions survive restarts.
 - `PI_AGENT_DIR`
 - `PI_MODEL_PROVIDER`
 - `PI_MODEL_ID`
+- `PI_PROMPT_TIME_ZONE`
+- `PI_PROMPT_LOCALE`
 - `DISCORD_STARTUP_MESSAGE`
 - `DISCORD_FORUM_CHANNEL_IDS` — comma-separated forum channel IDs
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated allowed user IDs

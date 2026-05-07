@@ -10,6 +10,10 @@ import {
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
 import { chunkMessage } from "./message-chunker";
+import {
+  buildDiscordMessageContextPrompt,
+  formatDiscordPromptTime,
+} from "./prompt-context";
 import { collectReply } from "./reply-buffer";
 import type { SessionRegistry } from "./session-registry";
 import type { ResolvedDiscordPiBridgeConfig } from "./types";
@@ -21,14 +25,36 @@ export type GatewayAuthConfig = {
   startupMessage: string | false;
 };
 
-/**
- * Combine a forum thread title with the post body for the initial session prompt.
- */
-export function buildThreadOpeningPrompt(
-  threadName: string,
+function getAuthorDisplayName(message: Message): string {
+  return (
+    message.member?.displayName ||
+    message.author.globalName ||
+    message.author.username
+  );
+}
+
+function buildDiscordPromptContent(
+  message: Message,
+  scope: string,
   content: string,
+  config: ResolvedDiscordPiBridgeConfig,
 ): string {
-  return `<thread_title>${threadName}</thread_title>\n\n${content}`;
+  const isThread = scope.startsWith("thread:") && message.channel.isThread();
+
+  return buildDiscordMessageContextPrompt(content, {
+    scope: scope === "dm" ? "dm" : "thread",
+    sentAt: message.createdAt.toISOString(),
+    sentAtLocal: formatDiscordPromptTime(message.createdAt, {
+      timeZone: config.promptTimeZone,
+      locale: config.promptLocale,
+    }),
+    messageId: message.id,
+    authorId: message.author.id,
+    authorName: getAuthorDisplayName(message),
+    threadId: isThread ? message.channel.id : undefined,
+    threadTitle: isThread ? message.channel.name : undefined,
+    forumChannelId: isThread ? message.channel.parentId : undefined,
+  });
 }
 
 /**
@@ -258,18 +284,11 @@ async function onMessage(
   const { entry, created } = await sessionRegistry.getOrCreate(scope);
   const { session, promptQueue } = entry;
 
-  // For brand-new forum threads, combine the thread title (post title)
-  // with the message content (post body) as the initial session prompt.
-  let effectiveContent = content;
-  if (created && scope.startsWith("thread:")) {
-    const thread = message.channel;
-    if (thread.isThread() && thread.name) {
-      effectiveContent = buildThreadOpeningPrompt(thread.name, content);
-      console.log("[gateway] new thread session — prepending title", {
-        scope,
-        threadName: thread.name,
-      });
-    }
+  if (created && scope.startsWith("thread:") && message.channel.isThread()) {
+    console.log("[gateway] new thread session", {
+      scope,
+      threadName: message.channel.name,
+    });
   }
 
   // Start typing indicator
@@ -341,7 +360,13 @@ async function onMessage(
 
   const response = await promptQueue.enqueue(async () => {
     console.log(`[queue] processing message ${message.id} in scope ${scope}`);
-    const transformedPrompt = await config.promptTransform(effectiveContent);
+    const promptContent = buildDiscordPromptContent(
+      message,
+      scope,
+      content,
+      config,
+    );
+    const transformedPrompt = await config.promptTransform(promptContent);
     return collectReply(session, transformedPrompt, {
       logPrefix: `[agent:${session.sessionId}]`,
     });

@@ -18,6 +18,8 @@ export type DiscordPiBridgeConfig = {
   modelProvider?: string;
   modelId?: string;
   thinkingLevel?: ThinkingLevel;
+  promptTimeZone?: string;
+  promptLocale?: string;
   promptTransform?: PromptTransform;
   startupMessage?: string | false;
   shutdownOnSignals?: boolean;
@@ -31,6 +33,8 @@ export type ResolvedDiscordPiBridgeConfig = {
   modelProvider: string;
   modelId: string;
   thinkingLevel: ThinkingLevel;
+  promptTimeZone: string;
+  promptLocale: string;
   promptTransform: PromptTransform;
   startupMessage: string | false;
   shutdownOnSignals: boolean;

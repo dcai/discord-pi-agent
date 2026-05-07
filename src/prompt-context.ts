@@ -1,17 +1,64 @@
-export type TimeContextPromptOptions = {
+export type DiscordPromptTimeFormatOptions = {
   timeZone?: string;
   locale?: string;
-  now?: Date;
 };
 
-export function buildTimeContextPrompt(
+export type DiscordPromptScope = "dm" | "thread";
+
+export type DiscordMessageContextPromptOptions = {
+  scope: DiscordPromptScope;
+  messageId: string;
+  authorId: string;
+  sentAt?: string;
+  sentAtLocal?: string;
+  authorName?: string;
+  threadId?: string;
+  threadTitle?: string;
+  forumChannelId?: string | null;
+};
+
+export function buildDiscordMessageContextPrompt(
   userMessage: string,
-  options: TimeContextPromptOptions = {},
+  options: DiscordMessageContextPromptOptions,
+): string {
+  const contextEntries = [
+    ["scope", options.scope],
+    ["sent_at", options.sentAt],
+    ["sent_at_local", options.sentAtLocal],
+    ["message_id", options.messageId],
+    ["author_name", normalizeContextValue(options.authorName)],
+    ["author_id", options.authorId],
+    ["thread_title", normalizeContextValue(options.threadTitle)],
+    ["thread_id", options.threadId],
+    ["forum_channel_id", options.forumChannelId ?? undefined],
+  ].filter((entry): entry is [string, string] => {
+    return typeof entry[1] === "string" && entry[1].trim().length > 0;
+  });
+
+  const contextJson = JSON.stringify(
+    Object.fromEntries(contextEntries),
+    null,
+    2,
+  );
+
+  return [
+    "<discord_message_context>",
+    contextJson,
+    "</discord_message_context>",
+    "",
+    "User message:",
+    userMessage.trim(),
+  ].join("\n");
+}
+
+export function formatDiscordPromptTime(
+  date: Date,
+  options: DiscordPromptTimeFormatOptions = {},
 ): string {
   const timeZone = options.timeZone || "UTC";
   const locale = options.locale || "en-AU";
-  const now = options.now || new Date();
-  const localTime = new Intl.DateTimeFormat(locale, {
+
+  return new Intl.DateTimeFormat(locale, {
     timeZone,
     weekday: "short",
     day: "numeric",
@@ -21,8 +68,13 @@ export function buildTimeContextPrompt(
     minute: "2-digit",
     hour12: false,
     timeZoneName: "short",
-  }).format(now);
-  const trimmedMessage = userMessage.trim();
+  }).format(date);
+}
 
-  return [`<time>${localTime}</time>`, "", trimmedMessage].join("\n");
+function normalizeContextValue(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return value.replace(/\s+/g, " ").trim();
 }

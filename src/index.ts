@@ -15,8 +15,11 @@ import type {
 } from "./types";
 
 export {
-  buildTimeContextPrompt,
-  type TimeContextPromptOptions,
+  buildDiscordMessageContextPrompt,
+  formatDiscordPromptTime,
+  type DiscordMessageContextPromptOptions,
+  type DiscordPromptScope,
+  type DiscordPromptTimeFormatOptions,
 } from "./prompt-context";
 export {
   loadDiscordPiBridgeConfigFromEnv,
