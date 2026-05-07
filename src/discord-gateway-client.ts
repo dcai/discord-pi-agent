@@ -9,7 +9,7 @@ import {
 } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
-import { createModuleLogger, logPayload } from "./logger";
+import { createModuleLogger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import {
   buildDiscordMessageContextPrompt,
@@ -135,7 +135,7 @@ async function sendReply(message: Message, text: string): Promise<void> {
   }
 
   const chunks = chunkMessage(text);
-  logger.info(
+  logger.debug(
     {
       direction: "OUT",
       messageId: message.id,
@@ -213,19 +213,10 @@ export async function startGatewayClient(
         messageId: message.id,
         authorId: message.author.id,
         channelType: message.channel.type,
-        preview: message.content.slice(0, 200),
+        content: message.content,
       },
       "message received",
     );
-    logPayload(logger, {
-      direction: "IN",
-      label: "gateway message content",
-      content: message.content,
-      context: {
-        messageId: message.id,
-        authorId: message.author.id,
-      },
-    });
 
     try {
       await onMessage(
@@ -401,15 +392,6 @@ async function onMessage(
       content,
       config,
     );
-    logPayload(logger, {
-      direction: "IN",
-      label: "gateway prompt content",
-      content: promptContent,
-      context: {
-        scope,
-        messageId: message.id,
-      },
-    });
     const transformedPrompt = await config.promptTransform(promptContent);
     return collectReply(session, transformedPrompt, {
       logPrefix: `[agent:${session.sessionId}]`,
@@ -423,18 +405,9 @@ async function onMessage(
       scope,
       messageId: message.id,
       responseLength: response.length,
-      preview: response.slice(0, 200),
+      response,
     },
     "response ready",
   );
-  logPayload(logger, {
-    direction: "OUT",
-    label: "gateway response content",
-    content: response,
-    context: {
-      scope,
-      messageId: message.id,
-    },
-  });
   await sendReply(message, response);
 }

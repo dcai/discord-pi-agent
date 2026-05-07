@@ -99,7 +99,7 @@ export class AgentService {
       ),
       thinkingLevel: this.config.thinkingLevel,
     });
-    logger.info(
+    logger.debug(
       {
         sessionDir,
         sessionId: session.sessionId,
@@ -253,7 +253,7 @@ export class AgentService {
     }
 
     if (isSameModel(session.model, desiredModel)) {
-      logger.info(
+      logger.debug(
         {
           model: `${desiredModel.provider}/${desiredModel.id}`,
         },
@@ -294,7 +294,7 @@ export class AgentService {
       const available = session.getAvailableThinkingLevels();
       if (available.includes(this.config.thinkingLevel)) {
         session.setThinkingLevel(this.config.thinkingLevel);
-        logger.info(
+        logger.debug(
           {
             level: this.config.thinkingLevel,
           },

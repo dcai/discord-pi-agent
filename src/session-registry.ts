@@ -66,7 +66,7 @@ export class SessionRegistry {
     };
     this.scopes.set(scope, entry);
 
-    logger.info(
+    logger.debug(
       {
         scope,
         sessionDir,
@@ -84,7 +84,7 @@ export class SessionRegistry {
       return;
     }
 
-    logger.info({ scope }, "removing scope");
+    logger.debug({ scope }, "removing scope");
     await entry.session.abort();
     entry.session.dispose();
     this.scopes.delete(scope);

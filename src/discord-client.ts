@@ -9,7 +9,7 @@ import {
 } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
-import { createModuleLogger, logPayload } from "./logger";
+import { createModuleLogger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import type { PromptQueue } from "./prompt-queue";
 import type { ResolvedDiscordPiBridgeConfig } from "./types";
@@ -57,18 +57,10 @@ export async function startDiscordClient(
         messageId: message.id,
         authorId: message.author.id,
         channelType: message.channel.type,
+        content: message.content,
       },
       "message received",
     );
-    logPayload(logger, {
-      direction: "IN",
-      label: "discord message content",
-      content: message.content,
-      context: {
-        messageId: message.id,
-        authorId: message.author.id,
-      },
-    });
     try {
       await onMessage(message, config, agentService, promptQueue);
     } catch (error) {
@@ -180,18 +172,10 @@ async function onMessage(
       direction: "OUT",
       messageId: message.id,
       responseLength: response.length,
-      preview: response.slice(0, 200),
+      response,
     },
     "response ready",
   );
-  logPayload(logger, {
-    direction: "OUT",
-    label: "discord response content",
-    content: response,
-    context: {
-      messageId: message.id,
-    },
-  });
   await sendReply(message, response);
 }
 
@@ -207,7 +191,7 @@ async function sendReply(message: Message, text: string): Promise<void> {
   }
 
   const chunks = chunkMessage(text);
-  logger.info(
+  logger.debug(
     {
       direction: "OUT",
       messageId: message.id,

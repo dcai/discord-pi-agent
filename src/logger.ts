@@ -30,28 +30,3 @@ export const logger = usePrettyTransport
 export function createModuleLogger(moduleName: string): Logger {
   return logger.child({ module: moduleName });
 }
-
-type PayloadLogOptions = {
-  direction: "IN" | "OUT";
-  label: string;
-  content: string;
-  context?: Record<string, unknown>;
-};
-
-export function logPayload(
-  targetLogger: Logger,
-  options: PayloadLogOptions,
-): void {
-  targetLogger.debug(
-    {
-      ...options.context,
-      direction: options.direction,
-      payloadLength: options.content.length,
-    },
-    formatPayloadBlock(options.label, options.content),
-  );
-}
-
-function formatPayloadBlock(label: string, content: string): string {
-  return [label, "----- BEGIN -----", content, "----- END -----"].join("\n");
-}

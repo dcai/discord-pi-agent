@@ -3,7 +3,7 @@ import type {
   AgentSession,
   AgentSessionEvent,
 } from "@mariozechner/pi-coding-agent";
-import { createModuleLogger, logPayload } from "./logger";
+import { createModuleLogger } from "./logger";
 import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
 
 const logger = createModuleLogger("reply-buffer");
@@ -23,15 +23,13 @@ export async function collectReply(
   let toolCount = 0;
   let sawAgentEnd = false;
 
-  logger.debug({ logPrefix }, "prompt start");
-  logPayload(logger, {
-    direction: "IN",
-    label: `${logPrefix} prompt content`,
-    content: prompt,
-    context: {
+  logger.debug(
+    {
       logPrefix,
+      promptLength: prompt.length,
     },
-  });
+    "prompt start",
+  );
 
   const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     eventCount += 1;
@@ -111,22 +109,15 @@ export async function collectReply(
 
   if (finalText) {
     const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
-    logPayload(logger, {
-      direction: "OUT",
-      label: `${logPrefix} assistant final text`,
-      content: finalText,
-      context: {
+    logger.debug(
+      {
         logPrefix,
+        finalTextLength: finalText.length,
+        transformedTextLength: transformed.length,
+        transformed: transformed !== finalText,
       },
-    });
-    logPayload(logger, {
-      direction: "OUT",
-      label: `${logPrefix} assistant transformed text`,
-      content: transformed,
-      context: {
-        logPrefix,
-      },
-    });
+      "assistant text ready",
+    );
     return transformed;
   }
 
