@@ -9,6 +9,7 @@ import {
 } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
+import { logger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import {
   buildDiscordMessageContextPrompt,
@@ -122,18 +123,24 @@ function stopTypingInterval(interval: NodeJS.Timeout | null): void {
 async function sendReply(message: Message, text: string): Promise<void> {
   const channel = message.channel;
   if (!channel.isSendable()) {
-    console.log("[gateway] reply skipped, channel not sendable", {
-      messageId: message.id,
-    });
+    logger.debug(
+      {
+        messageId: message.id,
+      },
+      "[gateway] reply skipped, channel not sendable",
+    );
     return;
   }
 
   const chunks = chunkMessage(text);
-  console.log("[gateway] sending reply", {
-    messageId: message.id,
-    chunkCount: chunks.length,
-    textLength: text.length,
-  });
+  logger.info(
+    {
+      messageId: message.id,
+      chunkCount: chunks.length,
+      textLength: text.length,
+    },
+    "[gateway] sending reply",
+  );
 
   const [firstChunk, ...remainingChunks] = chunks;
   if (!firstChunk) {
@@ -146,10 +153,13 @@ async function sendReply(message: Message, text: string): Promise<void> {
       await channel.send(chunk);
     }
   } catch (error) {
-    console.error("[gateway] send reply failed", {
-      messageId: message.id,
-      error,
-    });
+    logger.error(
+      {
+        messageId: message.id,
+        error,
+      },
+      "[gateway] send reply failed",
+    );
   }
 }
 
@@ -170,7 +180,7 @@ export async function startGatewayClient(
   });
 
   client.once(Events.ClientReady, async (readyClient) => {
-    console.log(`[gateway] logged in as ${readyClient.user.tag}`);
+    logger.info({ userTag: readyClient.user.tag }, "[gateway] logged in");
 
     if (!authConfig.startupMessage) {
       return;
@@ -182,21 +192,27 @@ export async function startGatewayClient(
       );
       const dmChannel = await user.createDM();
       await dmChannel.send(authConfig.startupMessage);
-      console.log("[gateway] sent startup dm", {
-        userId: authConfig.discordAllowedUserId,
-      });
+      logger.info(
+        {
+          userId: authConfig.discordAllowedUserId,
+        },
+        "[gateway] sent startup dm",
+      );
     } catch (error) {
-      console.error("[gateway] failed to send startup dm", error);
+      logger.error({ error }, "[gateway] failed to send startup dm");
     }
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    console.log("[gateway] message received", {
-      messageId: message.id,
-      authorId: message.author.id,
-      channelType: message.channel.type,
-      content: message.content.slice(0, 200),
-    });
+    logger.info(
+      {
+        messageId: message.id,
+        authorId: message.author.id,
+        channelType: message.channel.type,
+        content: message.content.slice(0, 200),
+      },
+      "[gateway] message received",
+    );
 
     try {
       await onMessage(
@@ -207,7 +223,7 @@ export async function startGatewayClient(
         authConfig,
       );
     } catch (error) {
-      console.error("[gateway] message handling failed", error);
+      logger.error({ error }, "[gateway] message handling failed");
       await sendReply(
         message,
         "The bot hit an error while handling that message.",
@@ -217,7 +233,7 @@ export async function startGatewayClient(
 
   client.on(Events.ThreadDelete, async (thread) => {
     const scope = `thread:${thread.id}`;
-    console.log("[gateway] thread deleted", { threadId: thread.id, scope });
+    logger.info({ threadId: thread.id, scope }, "[gateway] thread deleted");
     await sessionRegistry.remove(scope);
   });
 
@@ -233,36 +249,42 @@ async function onMessage(
   authConfig: GatewayAuthConfig,
 ): Promise<void> {
   if (message.author.bot) {
-    console.log("[gateway] ignored bot message", { messageId: message.id });
+    logger.debug({ messageId: message.id }, "[gateway] ignored bot message");
     return;
   }
 
   if (message.system) {
-    console.log("[gateway] ignored system message", { messageId: message.id });
+    logger.debug({ messageId: message.id }, "[gateway] ignored system message");
     return;
   }
 
   const scope = resolveScope(message);
   if (scope === null) {
-    console.log("[gateway] unsupported channel type, ignoring", {
-      messageId: message.id,
-      channelType: message.channel.type,
-    });
+    logger.debug(
+      {
+        messageId: message.id,
+        channelType: message.channel.type,
+      },
+      "[gateway] unsupported channel type, ignoring",
+    );
     return;
   }
 
   if (!isAuthorized(message, scope, authConfig)) {
-    console.log("[gateway] unauthorized", {
-      messageId: message.id,
-      authorId: message.author.id,
-      scope,
-    });
+    logger.debug(
+      {
+        messageId: message.id,
+        authorId: message.author.id,
+        scope,
+      },
+      "[gateway] unauthorized",
+    );
     return;
   }
 
   const content = message.content.trim();
   if (!content) {
-    console.log("[gateway] ignored empty message", { messageId: message.id });
+    logger.debug({ messageId: message.id }, "[gateway] ignored empty message");
     return;
   }
 
@@ -270,10 +292,13 @@ async function onMessage(
   const { session, promptQueue } = entry;
 
   if (created && scope.startsWith("thread:") && message.channel.isThread()) {
-    console.log("[gateway] new thread session", {
-      scope,
-      threadName: message.channel.name,
-    });
+    logger.info(
+      {
+        scope,
+        threadName: message.channel.name,
+      },
+      "[gateway] new thread session",
+    );
   }
 
   // Start typing indicator
@@ -293,7 +318,7 @@ async function onMessage(
     stopTypingInterval(typingInterval);
 
     if (commandResult.archive && scope.startsWith("thread:")) {
-      console.log("[gateway] archiving thread", { scope });
+      logger.info({ scope }, "[gateway] archiving thread");
       const archiveChannel = message.channel;
       if (archiveChannel.isSendable()) {
         await archiveChannel.send(commandResult.response ?? "Archiving...");
@@ -303,17 +328,20 @@ async function onMessage(
           await archiveChannel.setArchived(true);
         }
       } catch (error) {
-        console.error("[gateway] failed to archive thread", error);
+        logger.error({ error }, "[gateway] failed to archive thread");
       }
       await sessionRegistry.remove(scope);
       return;
     }
 
-    console.log("[gateway] command handled", {
-      messageId: message.id,
-      command: content,
-      hasResponse: Boolean(commandResult.response),
-    });
+    logger.info(
+      {
+        messageId: message.id,
+        command: content,
+        hasResponse: Boolean(commandResult.response),
+      },
+      "[gateway] command handled",
+    );
 
     if (commandResult.response) {
       await sendReply(message, commandResult.response);
@@ -325,16 +353,19 @@ async function onMessage(
   // Not a command — enqueue as prompt
   if (!message.channel.isSendable()) {
     stopTypingInterval(typingInterval);
-    console.log("[gateway] channel not sendable", { messageId: message.id });
+    logger.debug({ messageId: message.id }, "[gateway] channel not sendable");
     return;
   }
 
   const queuePosition = promptQueue.getSnapshot().pending;
-  console.log("[queue] enqueue request", {
-    scope,
-    messageId: message.id,
-    queuePosition,
-  });
+  logger.debug(
+    {
+      scope,
+      messageId: message.id,
+      queuePosition,
+    },
+    "[queue] enqueue request",
+  );
 
   if (queuePosition > 0) {
     await sendReply(
@@ -344,14 +375,23 @@ async function onMessage(
   }
 
   const response = await promptQueue.enqueue(async () => {
-    console.log(`[queue] processing message ${message.id} in scope ${scope}`);
+    logger.debug(
+      {
+        messageId: message.id,
+        scope,
+      },
+      "[queue] processing message",
+    );
     const promptContent = buildDiscordPromptContent(
       message,
       scope,
       content,
       config,
     );
-    console.log("[gateway:debug] prompt content", promptContent);
+    logger.debug(
+      { promptContent, scope, messageId: message.id },
+      "[gateway] prompt content",
+    );
     const transformedPrompt = await config.promptTransform(promptContent);
     return collectReply(session, transformedPrompt, {
       logPrefix: `[agent:${session.sessionId}]`,
@@ -359,11 +399,14 @@ async function onMessage(
   });
 
   stopTypingInterval(typingInterval);
-  console.log("[gateway] response ready", {
-    scope,
-    messageId: message.id,
-    responseLength: response.length,
-    preview: response.slice(0, 200),
-  });
+  logger.info(
+    {
+      scope,
+      messageId: message.id,
+      responseLength: response.length,
+      preview: response.slice(0, 200),
+    },
+    "[gateway] response ready",
+  );
   await sendReply(message, response);
 }

@@ -96,6 +96,36 @@ The initial post body becomes the first prompt. Sessions survive restarts.
 - `startupMessage` default: `Bot is online and ready.`
 - `shutdownOnSignals` default: `true`
 
+### Logging
+
+The package uses `pino` for structured logs.
+
+Behavior:
+
+- when stdout is a TTY, logs use `pino-pretty` for readable local console output
+- when stdout is not a TTY, logs stay as JSON
+
+Log level env vars:
+
+- `DISCORD_PI_AGENT_LOG_LEVEL`
+- `LOG_LEVEL` fallback
+
+Default level is `info`.
+
+For detailed prompt and tool monitoring during local runs, use:
+
+```bash
+DISCORD_PI_AGENT_LOG_LEVEL=debug
+```
+
+Pretty console logs use:
+
+- colors
+- local timestamp (`SYS:standard`)
+- level first
+- hidden `pid` and `hostname`
+- multi-line object output for easier input/output inspection
+
 ### Forum channel options
 
 - `discordAllowedForumChannelIds` — string array of forum channel IDs to respond in

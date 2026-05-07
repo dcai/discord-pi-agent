@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import type { AgentService } from "./agent-service";
+import { logger } from "./logger";
 import { PromptQueue } from "./prompt-queue";
 
 export type SessionScope = string;
@@ -63,11 +64,14 @@ export class SessionRegistry {
     };
     this.scopes.set(scope, entry);
 
-    console.log("[session-registry] scope registered", {
-      scope,
-      sessionDir,
-      sessionId: session.sessionId,
-    });
+    logger.info(
+      {
+        scope,
+        sessionDir,
+        sessionId: session.sessionId,
+      },
+      "[session-registry] scope registered",
+    );
 
     return { entry, created: true };
   }
@@ -78,7 +82,7 @@ export class SessionRegistry {
       return;
     }
 
-    console.log("[session-registry] removing scope", { scope });
+    logger.info({ scope }, "[session-registry] removing scope");
     await entry.session.abort();
     entry.session.dispose();
     this.scopes.delete(scope);
@@ -93,9 +97,9 @@ export class SessionRegistry {
   }
 
   async shutdownAll(): Promise<void> {
-    console.log(
+    logger.info(
+      { count: this.scopes.size },
       "[session-registry] shutting down all scopes",
-      this.scopes.size,
     );
     const scopes = Array.from(this.scopes.keys());
     for (const scope of scopes) {

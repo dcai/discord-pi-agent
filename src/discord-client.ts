@@ -9,6 +9,7 @@ import {
 } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
+import { logger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import type { PromptQueue } from "./prompt-queue";
 import type { ResolvedDiscordPiBridgeConfig } from "./types";
@@ -27,7 +28,7 @@ export async function startDiscordClient(
   });
 
   client.once(Events.ClientReady, async (readyClient) => {
-    console.log(`[discord] logged in as ${readyClient.user.tag}`);
+    logger.info({ userTag: readyClient.user.tag }, "[discord] logged in");
     if (!config.startupMessage) {
       return;
     }
@@ -36,25 +37,31 @@ export async function startDiscordClient(
       const user = await readyClient.users.fetch(config.discordAllowedUserId);
       const dmChannel = await user.createDM();
       await dmChannel.send(config.startupMessage);
-      console.log("[discord] sent startup dm", {
-        userId: config.discordAllowedUserId,
-      });
+      logger.info(
+        {
+          userId: config.discordAllowedUserId,
+        },
+        "[discord] sent startup dm",
+      );
     } catch (error) {
-      console.error("[discord] failed to send startup dm", error);
+      logger.error({ error }, "[discord] failed to send startup dm");
     }
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    console.log("[discord] message received", {
-      messageId: message.id,
-      authorId: message.author.id,
-      channelType: message.channel.type,
-      content: message.content,
-    });
+    logger.info(
+      {
+        messageId: message.id,
+        authorId: message.author.id,
+        channelType: message.channel.type,
+        content: message.content,
+      },
+      "[discord] message received",
+    );
     try {
       await onMessage(message, config, agentService, promptQueue);
     } catch (error) {
-      console.error("[discord] message handling failed", error);
+      logger.error({ error }, "[discord] message handling failed");
       await sendReply(
         message,
         "The bot hit an error while handling that message.",
@@ -73,29 +80,35 @@ async function onMessage(
   promptQueue: PromptQueue,
 ): Promise<void> {
   if (message.author.bot) {
-    console.log("[discord] ignored bot message", { messageId: message.id });
+    logger.debug({ messageId: message.id }, "[discord] ignored bot message");
     return;
   }
 
   if (message.author.id !== config.discordAllowedUserId) {
-    console.log("[discord] ignored unauthorized user", {
-      messageId: message.id,
-      authorId: message.author.id,
-    });
+    logger.debug(
+      {
+        messageId: message.id,
+        authorId: message.author.id,
+      },
+      "[discord] ignored unauthorized user",
+    );
     return;
   }
 
   if (message.channel.type !== ChannelType.DM) {
-    console.log("[discord] ignored non-dm message", {
-      messageId: message.id,
-      channelType: message.channel.type,
-    });
+    logger.debug(
+      {
+        messageId: message.id,
+        channelType: message.channel.type,
+      },
+      "[discord] ignored non-dm message",
+    );
     return;
   }
 
   const content = message.content.trim();
   if (!content) {
-    console.log("[discord] ignored empty message", { messageId: message.id });
+    logger.debug({ messageId: message.id }, "[discord] ignored empty message");
     return;
   }
 
@@ -108,11 +121,14 @@ async function onMessage(
   });
   if (commandResult.handled) {
     stopTypingInterval(typingInterval);
-    console.log("[discord] command handled", {
-      messageId: message.id,
-      command: content,
-      hasResponse: Boolean(commandResult.response),
-    });
+    logger.info(
+      {
+        messageId: message.id,
+        command: content,
+        hasResponse: Boolean(commandResult.response),
+      },
+      "[discord] command handled",
+    );
     if (commandResult.response) {
       await sendReply(message, commandResult.response);
     }
@@ -123,15 +139,21 @@ async function onMessage(
 
   if (!message.channel.isSendable()) {
     stopTypingInterval(typingInterval);
-    console.log("[discord] channel is not sendable", { messageId: message.id });
+    logger.debug(
+      { messageId: message.id },
+      "[discord] channel is not sendable",
+    );
     return;
   }
 
   const queuePosition = promptQueue.getSnapshot().pending;
-  console.log("[queue] enqueue request", {
-    messageId: message.id,
-    queuePosition,
-  });
+  logger.debug(
+    {
+      messageId: message.id,
+      queuePosition,
+    },
+    "[queue] enqueue request",
+  );
   if (queuePosition > 0) {
     await sendReply(
       message,
@@ -140,33 +162,42 @@ async function onMessage(
   }
 
   const response = await promptQueue.enqueue(async () => {
-    console.log(`[queue] processing message ${message.id}`);
+    logger.debug({ messageId: message.id }, "[queue] processing message");
     return agentService.prompt(content);
   });
 
   stopTypingInterval(typingInterval);
-  console.log("[discord] response ready", {
-    messageId: message.id,
-    responseLength: response.length,
-    preview: response.slice(0, 200),
-  });
+  logger.info(
+    {
+      messageId: message.id,
+      responseLength: response.length,
+      preview: response.slice(0, 200),
+    },
+    "[discord] response ready",
+  );
   await sendReply(message, response);
 }
 
 async function sendReply(message: Message, text: string): Promise<void> {
   if (!message.channel.isSendable()) {
-    console.log("[discord] reply skipped, channel not sendable", {
-      messageId: message.id,
-    });
+    logger.debug(
+      {
+        messageId: message.id,
+      },
+      "[discord] reply skipped, channel not sendable",
+    );
     return;
   }
 
   const chunks = chunkMessage(text);
-  console.log("[discord] sending reply", {
-    messageId: message.id,
-    chunkCount: chunks.length,
-    textLength: text.length,
-  });
+  logger.info(
+    {
+      messageId: message.id,
+      chunkCount: chunks.length,
+      textLength: text.length,
+    },
+    "[discord] sending reply",
+  );
 
   const [firstChunk, ...remainingChunks] = chunks;
   if (!firstChunk) {

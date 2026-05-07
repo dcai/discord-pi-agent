@@ -4,6 +4,7 @@ import { resolveConfig, resolveGatewayConfig } from "./config";
 import { startDiscordClient } from "./discord-client";
 import { startGatewayClient } from "./discord-gateway-client";
 import type { GatewayAuthConfig } from "./discord-gateway-client";
+import { logger } from "./logger";
 import { PromptQueue } from "./prompt-queue";
 import { SessionRegistry } from "./session-registry";
 import type {
@@ -46,9 +47,9 @@ export async function startDiscordGateway(
   const resolvedConfig = resolveGatewayConfig(config);
   const agentService = new AgentService(resolvedConfig);
 
-  console.log("[gateway] initializing agent service");
+  logger.info("[gateway] initializing agent service");
   await agentService.initialize();
-  console.log("[gateway] agent ready", agentService.getStatus());
+  logger.info(agentService.getStatus(), "[gateway] agent ready");
 
   const authConfig: GatewayAuthConfig = {
     discordAllowedUserId: resolvedConfig.discordAllowedUserId,
@@ -109,10 +110,13 @@ function createGatewayStopHandler(
     }
 
     stopped = true;
-    console.log("[shutdown] stopping discord gateway", {
-      cwd: config.cwd,
-      agentDir: config.agentDir,
-    });
+    logger.info(
+      {
+        cwd: config.cwd,
+        agentDir: config.agentDir,
+      },
+      "[shutdown] stopping discord gateway",
+    );
     client.destroy();
     await sessionRegistry.shutdownAll();
     await agentService.shutdown();
@@ -132,10 +136,13 @@ function createStopHandler(
     }
 
     stopped = true;
-    console.log("[shutdown] stopping discord pi bridge", {
-      cwd: config.cwd,
-      agentDir: config.agentDir,
-    });
+    logger.info(
+      {
+        cwd: config.cwd,
+        agentDir: config.agentDir,
+      },
+      "[shutdown] stopping discord pi bridge",
+    );
     client.destroy();
     await agentService.shutdown();
   };
@@ -143,9 +150,9 @@ function createStopHandler(
 
 function registerSignalHandlers(stop: () => Promise<void>): void {
   const handleSignal = (signal: NodeJS.Signals) => {
-    console.log(`[shutdown] received ${signal}`);
+    logger.info({ signal }, "[shutdown] received signal");
     void stop().finally(() => {
-      console.log("[shutdown] done");
+      logger.info("[shutdown] done");
       process.exit(0);
     });
   };

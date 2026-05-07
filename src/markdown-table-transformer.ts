@@ -8,6 +8,7 @@
  */
 
 import { Lexer } from "marked";
+import { logger } from "./logger";
 
 const CODE_BLOCK_WRAPPER = "```\n{TABLE}\n```";
 
@@ -87,9 +88,11 @@ async function formatWithPrettier(text: string): Promise<string> {
 
     return formatted.trim();
   } catch (error) {
-    console.error(
-      "[markdown-table-transformer] Prettier formatting failed:",
-      error,
+    logger.error(
+      {
+        error,
+      },
+      "[markdown-table-transformer] Prettier formatting failed",
     );
     return text;
   }

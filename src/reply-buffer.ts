@@ -3,6 +3,7 @@ import type {
   AgentSession,
   AgentSessionEvent,
 } from "@mariozechner/pi-coding-agent";
+import { logger } from "./logger";
 import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
 
 type CollectReplyOptions = {
@@ -20,7 +21,7 @@ export async function collectReply(
   let toolCount = 0;
   let sawAgentEnd = false;
 
-  console.log(`${logPrefix} prompt start`, { prompt });
+  logger.debug({ prompt, logPrefix }, `${logPrefix} prompt start`);
 
   const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     eventCount += 1;
@@ -31,31 +32,43 @@ export async function collectReply(
       }
 
       if (event.assistantMessageEvent.type === "thinking_delta") {
-        // console.log(`${logPrefix} thinking delta length=${event.assistantMessageEvent.delta.length}`);
+        // Intentionally ignored. Thinking deltas are too noisy for routine logs.
       }
     }
 
     if (event.type === "tool_execution_start") {
       toolCount += 1;
-      console.log(`${logPrefix} tool start`, {
-        toolName: event.toolName,
-        input: truncateForLog(JSON.stringify(event.args)),
-      });
+      logger.debug(
+        {
+          toolName: event.toolName,
+          input: truncateForLog(JSON.stringify(event.args)),
+          logPrefix,
+        },
+        `${logPrefix} tool start`,
+      );
     }
 
     if (event.type === "tool_execution_end") {
-      console.log(`${logPrefix} tool end`, {
-        toolName: event.toolName,
-        isError: event.isError,
-        output: truncateForLog(extractToolOutput(event.result)),
-      });
+      logger.debug(
+        {
+          toolName: event.toolName,
+          isError: event.isError,
+          output: truncateForLog(extractToolOutput(event.result)),
+          logPrefix,
+        },
+        `${logPrefix} tool end`,
+      );
     }
 
     if (event.type === "agent_end") {
       sawAgentEnd = true;
-      console.log(`${logPrefix} agent end`, {
-        messageCount: event.messages.length,
-      });
+      logger.debug(
+        {
+          messageCount: event.messages.length,
+          logPrefix,
+        },
+        `${logPrefix} agent end`,
+      );
     }
   });
 
@@ -69,14 +82,18 @@ export async function collectReply(
   const fallbackText = getLatestAssistantText(session.messages);
   const finalText = streamedText.trim() || fallbackText.trim();
 
-  console.log(`${logPrefix} prompt done`, {
-    eventCount,
-    toolCount,
-    sawAgentEnd,
-    streamedTextLength: streamedText.trim().length,
-    fallbackTextLength: fallbackText.trim().length,
-    errorMessage,
-  });
+  logger.debug(
+    {
+      eventCount,
+      toolCount,
+      sawAgentEnd,
+      streamedTextLength: streamedText.trim().length,
+      fallbackTextLength: fallbackText.trim().length,
+      errorMessage,
+      logPrefix,
+    },
+    `${logPrefix} prompt done`,
+  );
 
   if (errorMessage) {
     return errorMessage;
@@ -84,13 +101,13 @@ export async function collectReply(
 
   if (finalText) {
     const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
-    console.log(
-      "[DEBUG] Table transformation comparison:",
-      "\n=== RAW finalText ===\n" +
-        finalText +
-        "\n=== TRANSFORMED ===\n" +
-        transformed +
-        "\n=== END ===",
+    logger.debug(
+      {
+        finalText,
+        transformed,
+        logPrefix,
+      },
+      "[reply-buffer] table transformation comparison",
     );
     return transformed;
   }

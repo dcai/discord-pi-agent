@@ -11,6 +11,7 @@ import {
   type ModelRegistry as ModelRegistryType,
 } from "@mariozechner/pi-coding-agent";
 import type { Model } from "@mariozechner/pi-ai";
+import { logger } from "./logger";
 import { collectReply } from "./reply-buffer";
 import type {
   AgentStatus,
@@ -46,23 +47,29 @@ export class AgentService {
   async initialize(): Promise<void> {
     await fs.mkdir(this.config.agentDir, { recursive: true });
     await fs.mkdir(this.getSessionDir(), { recursive: true });
-    console.log("[agent] config", {
-      cwd: this.config.cwd,
-      agentDir: this.config.agentDir,
-      sessionDir: this.getSessionDir(),
-      modelProvider: this.config.modelProvider,
-      modelId: this.config.modelId,
-      thinkingLevel: this.config.thinkingLevel,
-    });
+    logger.info(
+      {
+        cwd: this.config.cwd,
+        agentDir: this.config.agentDir,
+        sessionDir: this.getSessionDir(),
+        modelProvider: this.config.modelProvider,
+        modelId: this.config.modelId,
+        thinkingLevel: this.config.thinkingLevel,
+      },
+      "[agent] config",
+    );
     await this.resourceLoader.reload();
-    console.log("[agent] resources loaded", {
-      extensions: this.resourceLoader
-        .getExtensions()
-        .extensions.map((extension) => extension.path),
-      agentsFiles: this.resourceLoader
-        .getAgentsFiles()
-        .agentsFiles.map((file) => file.path),
-    });
+    logger.info(
+      {
+        extensions: this.resourceLoader
+          .getExtensions()
+          .extensions.map((extension) => extension.path),
+        agentsFiles: this.resourceLoader
+          .getAgentsFiles()
+          .agentsFiles.map((file) => file.path),
+      },
+      "[agent] resources loaded",
+    );
     await this.createOrResumeSession();
     await this.ensureConfiguredModel();
   }
@@ -90,11 +97,14 @@ export class AgentService {
       ),
       thinkingLevel: this.config.thinkingLevel,
     });
-    console.log("[agent] scoped session created", {
-      sessionDir,
-      sessionId: session.sessionId,
-      sessionFile: session.sessionFile,
-    });
+    logger.info(
+      {
+        sessionDir,
+        sessionId: session.sessionId,
+        sessionFile: session.sessionFile,
+      },
+      "[agent] scoped session created",
+    );
     await this.ensureModelForSession(session);
     return session;
   }
@@ -199,13 +209,16 @@ export class AgentService {
       thinkingLevel: this.config.thinkingLevel,
     });
     this.session = session;
-    console.log("[agent] session ready", {
-      sessionId: session.sessionId,
-      sessionFile: session.sessionFile,
-      restoredModel: session.model
-        ? `${session.model.provider}/${session.model.id}`
-        : null,
-    });
+    logger.info(
+      {
+        sessionId: session.sessionId,
+        sessionFile: session.sessionFile,
+        restoredModel: session.model
+          ? `${session.model.provider}/${session.model.id}`
+          : null,
+      },
+      "[agent] session ready",
+    );
   }
 
   private async ensureConfiguredModel(): Promise<void> {
@@ -219,14 +232,17 @@ export class AgentService {
     );
     const availableModels = await this.modelRegistry.getAvailable();
 
-    console.log("[agent] available models", {
-      count: availableModels.length,
-      matches: availableModels
-        .filter((model) => {
-          return model.provider === this.config.modelProvider;
-        })
-        .map((model) => `${model.provider}/${model.id}`),
-    });
+    logger.debug(
+      {
+        count: availableModels.length,
+        matches: availableModels
+          .filter((model) => {
+            return model.provider === this.config.modelProvider;
+          })
+          .map((model) => `${model.provider}/${model.id}`),
+      },
+      "[agent] available models",
+    );
 
     if (!desiredModel) {
       throw new Error(
@@ -235,18 +251,24 @@ export class AgentService {
     }
 
     if (isSameModel(session.model, desiredModel)) {
-      console.log("[agent] model already selected", {
-        model: `${desiredModel.provider}/${desiredModel.id}`,
-      });
+      logger.info(
+        {
+          model: `${desiredModel.provider}/${desiredModel.id}`,
+        },
+        "[agent] model already selected",
+      );
       return;
     }
 
-    console.log("[agent] switching model", {
-      from: session.model
-        ? `${session.model.provider}/${session.model.id}`
-        : null,
-      to: `${desiredModel.provider}/${desiredModel.id}`,
-    });
+    logger.info(
+      {
+        from: session.model
+          ? `${session.model.provider}/${session.model.id}`
+          : null,
+        to: `${desiredModel.provider}/${desiredModel.id}`,
+      },
+      "[agent] switching model",
+    );
     await session.setModel(desiredModel);
     await this.applyConfiguredThinkingLevelForSession(session);
   }
@@ -270,14 +292,20 @@ export class AgentService {
       const available = session.getAvailableThinkingLevels();
       if (available.includes(this.config.thinkingLevel)) {
         session.setThinkingLevel(this.config.thinkingLevel);
-        console.log("[agent] thinking level applied", {
-          level: this.config.thinkingLevel,
-        });
+        logger.info(
+          {
+            level: this.config.thinkingLevel,
+          },
+          "[agent] thinking level applied",
+        );
       } else {
-        console.log("[agent] thinking level not available for model", {
-          requested: this.config.thinkingLevel,
-          available,
-        });
+        logger.debug(
+          {
+            requested: this.config.thinkingLevel,
+            available,
+          },
+          "[agent] thinking level not available for model",
+        );
       }
     }
   }
