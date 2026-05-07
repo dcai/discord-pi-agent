@@ -207,17 +207,6 @@ export async function startGatewayClient(
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    logger.info(
-      {
-        direction: "IN",
-        messageId: message.id,
-        authorId: message.author.id,
-        channelType: message.channel.type,
-        content: message.content,
-      },
-      "message received",
-    );
-
     try {
       await onMessage(
         message,
@@ -291,6 +280,18 @@ async function onMessage(
     logger.debug({ messageId: message.id }, "ignored empty message");
     return;
   }
+
+  logger.info(
+    {
+      direction: "IN",
+      scope,
+      messageId: message.id,
+      authorId: message.author.id,
+      channelType: message.channel.type,
+      content,
+    },
+    "message received",
+  );
 
   const { entry, created } = await sessionRegistry.getOrCreate(scope);
   const { session, promptQueue } = entry;

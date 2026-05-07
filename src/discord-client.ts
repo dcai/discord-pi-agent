@@ -51,16 +51,6 @@ export async function startDiscordClient(
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    logger.info(
-      {
-        direction: "IN",
-        messageId: message.id,
-        authorId: message.author.id,
-        channelType: message.channel.type,
-        content: message.content,
-      },
-      "message received",
-    );
     try {
       await onMessage(message, config, agentService, promptQueue);
     } catch (error) {
@@ -114,6 +104,17 @@ async function onMessage(
     logger.debug({ messageId: message.id }, "ignored empty message");
     return;
   }
+
+  logger.info(
+    {
+      direction: "IN",
+      messageId: message.id,
+      authorId: message.author.id,
+      channelType: message.channel.type,
+      content,
+    },
+    "message received",
+  );
 
   // Start typing before command handling so slow commands (!compact, etc.) show typing
   const typingInterval = await startTypingInterval(message.channel);
