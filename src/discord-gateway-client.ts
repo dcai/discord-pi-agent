@@ -191,21 +191,6 @@ export async function startGatewayClient(
   });
 
   client.on(Events.MessageCreate, async (message) => {
-    // Debug: dump full thread channel info for diagnostics
-    if (message.channel.isThread()) {
-      console.log("[gateway:debug] thread message raw", {
-        messageId: message.id,
-        authorId: message.author.id,
-        authorTag: message.author.tag,
-        channelId: message.channel.id,
-        channelType: message.channel.type,
-        parentId: message.channel.parentId,
-        parentType: message.channel.parent?.type,
-        guildId: message.guild?.id,
-        content: message.content.slice(0, 500),
-      });
-    }
-
     console.log("[gateway] message received", {
       messageId: message.id,
       authorId: message.author.id,
@@ -366,6 +351,7 @@ async function onMessage(
       content,
       config,
     );
+    console.log("[gateway:debug] prompt content", promptContent);
     const transformedPrompt = await config.promptTransform(promptContent);
     return collectReply(session, transformedPrompt, {
       logPrefix: `[agent:${session.sessionId}]`,
