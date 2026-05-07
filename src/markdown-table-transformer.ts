@@ -8,7 +8,9 @@
  */
 
 import { Lexer } from "marked";
-import { logger } from "./logger";
+import { createModuleLogger } from "./logger";
+
+const logger = createModuleLogger("markdown-table-transformer");
 
 const CODE_BLOCK_WRAPPER = "```\n{TABLE}\n```";
 
@@ -92,7 +94,7 @@ async function formatWithPrettier(text: string): Promise<string> {
       {
         error,
       },
-      "[markdown-table-transformer] Prettier formatting failed",
+      "Prettier formatting failed",
     );
     return text;
   }

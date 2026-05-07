@@ -11,13 +11,15 @@ import {
   type ModelRegistry as ModelRegistryType,
 } from "@mariozechner/pi-coding-agent";
 import type { Model } from "@mariozechner/pi-ai";
-import { logger } from "./logger";
+import { createModuleLogger } from "./logger";
 import { collectReply } from "./reply-buffer";
 import type {
   AgentStatus,
   ResolvedDiscordPiBridgeConfig,
   ThinkingLevel,
 } from "./types";
+
+const logger = createModuleLogger("agent-service");
 
 export class AgentService {
   private readonly config: ResolvedDiscordPiBridgeConfig;
@@ -56,7 +58,7 @@ export class AgentService {
         modelId: this.config.modelId,
         thinkingLevel: this.config.thinkingLevel,
       },
-      "[agent] config",
+      "config",
     );
     await this.resourceLoader.reload();
     logger.info(
@@ -68,7 +70,7 @@ export class AgentService {
           .getAgentsFiles()
           .agentsFiles.map((file) => file.path),
       },
-      "[agent] resources loaded",
+      "resources loaded",
     );
     await this.createOrResumeSession();
     await this.ensureConfiguredModel();
@@ -103,7 +105,7 @@ export class AgentService {
         sessionId: session.sessionId,
         sessionFile: session.sessionFile,
       },
-      "[agent] scoped session created",
+      "scoped session created",
     );
     await this.ensureModelForSession(session);
     return session;
@@ -217,7 +219,7 @@ export class AgentService {
           ? `${session.model.provider}/${session.model.id}`
           : null,
       },
-      "[agent] session ready",
+      "session ready",
     );
   }
 
@@ -241,7 +243,7 @@ export class AgentService {
           })
           .map((model) => `${model.provider}/${model.id}`),
       },
-      "[agent] available models",
+      "available models",
     );
 
     if (!desiredModel) {
@@ -255,7 +257,7 @@ export class AgentService {
         {
           model: `${desiredModel.provider}/${desiredModel.id}`,
         },
-        "[agent] model already selected",
+        "model already selected",
       );
       return;
     }
@@ -267,7 +269,7 @@ export class AgentService {
           : null,
         to: `${desiredModel.provider}/${desiredModel.id}`,
       },
-      "[agent] switching model",
+      "switching model",
     );
     await session.setModel(desiredModel);
     await this.applyConfiguredThinkingLevelForSession(session);
@@ -296,7 +298,7 @@ export class AgentService {
           {
             level: this.config.thinkingLevel,
           },
-          "[agent] thinking level applied",
+          "thinking level applied",
         );
       } else {
         logger.debug(
@@ -304,7 +306,7 @@ export class AgentService {
             requested: this.config.thinkingLevel,
             available,
           },
-          "[agent] thinking level not available for model",
+          "thinking level not available for model",
         );
       }
     }

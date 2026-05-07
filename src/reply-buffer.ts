@@ -3,8 +3,10 @@ import type {
   AgentSession,
   AgentSessionEvent,
 } from "@mariozechner/pi-coding-agent";
-import { logger } from "./logger";
+import { createModuleLogger, logPayload } from "./logger";
 import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
+
+const logger = createModuleLogger("reply-buffer");
 
 type CollectReplyOptions = {
   logPrefix?: string;
@@ -21,7 +23,15 @@ export async function collectReply(
   let toolCount = 0;
   let sawAgentEnd = false;
 
-  logger.debug({ prompt, logPrefix }, `${logPrefix} prompt start`);
+  logger.debug({ logPrefix }, "prompt start");
+  logPayload(logger, {
+    direction: "IN",
+    label: `${logPrefix} prompt content`,
+    content: prompt,
+    context: {
+      logPrefix,
+    },
+  });
 
   const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     eventCount += 1;
@@ -44,7 +54,7 @@ export async function collectReply(
           input: truncateForLog(JSON.stringify(event.args)),
           logPrefix,
         },
-        `${logPrefix} tool start`,
+        "tool start",
       );
     }
 
@@ -56,7 +66,7 @@ export async function collectReply(
           output: truncateForLog(extractToolOutput(event.result)),
           logPrefix,
         },
-        `${logPrefix} tool end`,
+        "tool end",
       );
     }
 
@@ -67,7 +77,7 @@ export async function collectReply(
           messageCount: event.messages.length,
           logPrefix,
         },
-        `${logPrefix} agent end`,
+        "agent end",
       );
     }
   });
@@ -92,7 +102,7 @@ export async function collectReply(
       errorMessage,
       logPrefix,
     },
-    `${logPrefix} prompt done`,
+    "prompt done",
   );
 
   if (errorMessage) {
@@ -101,14 +111,22 @@ export async function collectReply(
 
   if (finalText) {
     const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
-    logger.debug(
-      {
-        finalText,
-        transformed,
+    logPayload(logger, {
+      direction: "OUT",
+      label: `${logPrefix} assistant final text`,
+      content: finalText,
+      context: {
         logPrefix,
       },
-      "[reply-buffer] table transformation comparison",
-    );
+    });
+    logPayload(logger, {
+      direction: "OUT",
+      label: `${logPrefix} assistant transformed text`,
+      content: transformed,
+      context: {
+        logPrefix,
+      },
+    });
     return transformed;
   }
 

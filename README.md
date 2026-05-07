@@ -124,7 +124,9 @@ Pretty console logs use:
 - local timestamp (`SYS:standard`)
 - level first
 - hidden `pid` and `hostname`
-- multi-line object output for easier input/output inspection
+- module-aware labels like `[discord-gateway]`
+- direction markers like `IN` and `OUT`
+- multi-line payload blocks for easier input/output inspection
 
 ### Forum channel options
 

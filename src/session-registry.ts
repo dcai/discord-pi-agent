@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { AgentSession } from "@mariozechner/pi-coding-agent";
 import type { AgentService } from "./agent-service";
-import { logger } from "./logger";
+import { createModuleLogger } from "./logger";
 import { PromptQueue } from "./prompt-queue";
 
 export type SessionScope = string;
@@ -33,6 +33,8 @@ export function sessionDirForScope(
 
   throw new Error(`Unknown session scope: ${scope}`);
 }
+
+const logger = createModuleLogger("session-registry");
 
 export class SessionRegistry {
   private readonly scopes = new Map<SessionScope, ScopeEntry>();
@@ -70,7 +72,7 @@ export class SessionRegistry {
         sessionDir,
         sessionId: session.sessionId,
       },
-      "[session-registry] scope registered",
+      "scope registered",
     );
 
     return { entry, created: true };
@@ -82,7 +84,7 @@ export class SessionRegistry {
       return;
     }
 
-    logger.info({ scope }, "[session-registry] removing scope");
+    logger.info({ scope }, "removing scope");
     await entry.session.abort();
     entry.session.dispose();
     this.scopes.delete(scope);
@@ -97,10 +99,7 @@ export class SessionRegistry {
   }
 
   async shutdownAll(): Promise<void> {
-    logger.info(
-      { count: this.scopes.size },
-      "[session-registry] shutting down all scopes",
-    );
+    logger.info({ count: this.scopes.size }, "shutting down all scopes");
     const scopes = Array.from(this.scopes.keys());
     for (const scope of scopes) {
       await this.remove(scope);

@@ -1,4 +1,4 @@
-import pino, { type LoggerOptions } from "pino";
+import pino, { type Logger, type LoggerOptions } from "pino";
 
 const loggerLevel =
   process.env.DISCORD_PI_AGENT_LOG_LEVEL || process.env.LOG_LEVEL || "info";
@@ -21,7 +21,37 @@ export const logger = usePrettyTransport
           translateTime: "SYS:standard",
           ignore: "pid,hostname",
           singleLine: false,
+          messageFormat: "[{module}] {if direction}{direction} {end}{msg}",
         },
       },
     })
   : pino(baseOptions);
+
+export function createModuleLogger(moduleName: string): Logger {
+  return logger.child({ module: moduleName });
+}
+
+type PayloadLogOptions = {
+  direction: "IN" | "OUT";
+  label: string;
+  content: string;
+  context?: Record<string, unknown>;
+};
+
+export function logPayload(
+  targetLogger: Logger,
+  options: PayloadLogOptions,
+): void {
+  targetLogger.debug(
+    {
+      ...options.context,
+      direction: options.direction,
+      payloadLength: options.content.length,
+    },
+    formatPayloadBlock(options.label, options.content),
+  );
+}
+
+function formatPayloadBlock(label: string, content: string): string {
+  return [label, "----- BEGIN -----", content, "----- END -----"].join("\n");
+}

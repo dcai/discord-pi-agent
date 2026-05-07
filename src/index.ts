@@ -4,7 +4,7 @@ import { resolveConfig, resolveGatewayConfig } from "./config";
 import { startDiscordClient } from "./discord-client";
 import { startGatewayClient } from "./discord-gateway-client";
 import type { GatewayAuthConfig } from "./discord-gateway-client";
-import { logger } from "./logger";
+import { createModuleLogger } from "./logger";
 import { PromptQueue } from "./prompt-queue";
 import { SessionRegistry } from "./session-registry";
 import type {
@@ -14,6 +14,8 @@ import type {
   DiscordPiBridgeConfig,
   ResolvedDiscordPiBridgeConfig,
 } from "./types";
+
+const logger = createModuleLogger("index");
 
 export {
   buildDiscordMessageContextPrompt,
@@ -47,9 +49,9 @@ export async function startDiscordGateway(
   const resolvedConfig = resolveGatewayConfig(config);
   const agentService = new AgentService(resolvedConfig);
 
-  logger.info("[gateway] initializing agent service");
+  logger.info("initializing agent service");
   await agentService.initialize();
-  logger.info(agentService.getStatus(), "[gateway] agent ready");
+  logger.info(agentService.getStatus(), "agent ready");
 
   const authConfig: GatewayAuthConfig = {
     discordAllowedUserId: resolvedConfig.discordAllowedUserId,
@@ -115,7 +117,7 @@ function createGatewayStopHandler(
         cwd: config.cwd,
         agentDir: config.agentDir,
       },
-      "[shutdown] stopping discord gateway",
+      "stopping discord gateway",
     );
     client.destroy();
     await sessionRegistry.shutdownAll();
@@ -141,7 +143,7 @@ function createStopHandler(
         cwd: config.cwd,
         agentDir: config.agentDir,
       },
-      "[shutdown] stopping discord pi bridge",
+      "stopping discord pi bridge",
     );
     client.destroy();
     await agentService.shutdown();
@@ -150,9 +152,9 @@ function createStopHandler(
 
 function registerSignalHandlers(stop: () => Promise<void>): void {
   const handleSignal = (signal: NodeJS.Signals) => {
-    logger.info({ signal }, "[shutdown] received signal");
+    logger.info({ signal }, "received signal");
     void stop().finally(() => {
-      logger.info("[shutdown] done");
+      logger.info("done");
       process.exit(0);
     });
   };
