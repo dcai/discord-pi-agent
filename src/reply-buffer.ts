@@ -117,6 +117,8 @@ export async function collectReply(
 
   if (finalText) {
     const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
+    console.info(`========== reply-buffer BEFORE (${finalText.length} chars) ==========\n${finalText}\n========== reply-buffer BEFORE END ==========`);
+    console.info(`========== reply-buffer AFTER  (${transformed.length} chars) ==========\n${transformed}\n========== reply-buffer AFTER END ==========`);
     logger.debug(
       {
         logPrefix,
