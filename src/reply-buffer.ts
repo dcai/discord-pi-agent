@@ -1,8 +1,8 @@
-import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
   AgentSession,
   AgentSessionEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { createModuleLogger } from "./logger";
 import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
 

@@ -9,8 +9,8 @@ import {
   SettingsManager,
   type AgentSession,
   type ModelRegistry as ModelRegistryType,
-} from "@mariozechner/pi-coding-agent";
-import type { Model } from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
 import { createModuleLogger } from "./logger";
 import { collectReply } from "./reply-buffer";
 import type {

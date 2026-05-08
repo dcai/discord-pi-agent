@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { AgentService } from "./agent-service";
 import { createModuleLogger } from "./logger";
 import { PromptQueue } from "./prompt-queue";

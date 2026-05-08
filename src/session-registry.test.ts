@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { SessionRegistry } from "./session-registry";
 import type { AgentService } from "./agent-service";
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 
 function mockAgentService(agentDir = "/tmp/test-agent"): AgentService {
   const sessionId = `session-${Math.random().toString(36).slice(2, 8)}`;

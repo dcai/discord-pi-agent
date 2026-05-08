@@ -1,4 +1,4 @@
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
 import type { ThinkingLevel } from "./types";
