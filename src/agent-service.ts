@@ -312,11 +312,11 @@ export class AgentService {
     }
   }
 
-  async listModels(): Promise<string> {
+  async listModels(session?: AgentSession | null): Promise<string> {
+    const effectiveSession = session ?? this.session;
     const availableModels = await this.modelRegistry.getAvailable();
-    const session = this.session;
-    const currentDisplay = session?.model
-      ? `${session.model.provider}/${session.model.id}`
+    const currentDisplay = effectiveSession?.model
+      ? `${effectiveSession.model.provider}/${effectiveSession.model.id}`
       : null;
 
     const lines = availableModels.map((model) => {
@@ -332,8 +332,8 @@ export class AgentService {
     ].join("\n");
   }
 
-  async switchModel(provider: string, modelId: string): Promise<string> {
-    const session = this.requireSession();
+  async switchModel(provider: string, modelId: string, session?: AgentSession | null): Promise<string> {
+    const effectiveSession = session ?? this.requireSession();
     const model = this.modelRegistry.find(provider, modelId);
 
     if (!model) {
@@ -352,27 +352,27 @@ export class AgentService {
       return `Model not found: ${provider}/${modelId}.${hint}`;
     }
 
-    if (isSameModel(session.model, model)) {
+    if (isSameModel(effectiveSession.model, model)) {
       return `Already using ${provider}/${modelId}.`;
     }
 
-    await session.setModel(model);
-    await this.applyConfiguredThinkingLevelForSession(session);
+    await effectiveSession.setModel(model);
+    await this.applyConfiguredThinkingLevelForSession(effectiveSession);
 
-    const thinkingInfo = session.supportsThinking()
-      ? ` (thinking: ${session.thinkingLevel})`
+    const thinkingInfo = effectiveSession.supportsThinking()
+      ? ` (thinking: ${effectiveSession.thinkingLevel})`
       : "";
 
     return `Switched to ${provider}/${modelId}${thinkingInfo}.`;
   }
 
-  getCurrentModelDisplay(): string {
-    const session = this.session;
-    if (!session?.model) {
+  getCurrentModelDisplay(session?: AgentSession | null): string {
+    const effectiveSession = session ?? this.session;
+    if (!effectiveSession?.model) {
       return "(no model selected)";
     }
 
-    return `${session.model.provider}/${session.model.id}`;
+    return `${effectiveSession.model.provider}/${effectiveSession.model.id}`;
   }
 
   getThinkingLevel(): {

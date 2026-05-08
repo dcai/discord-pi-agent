@@ -190,8 +190,8 @@ export async function handleCommand(
     const parts = trimmed.split(" ");
     if (parts.length === 1) {
       // Show current model + available models
-      const current = agentService.getCurrentModelDisplay();
-      const modelList = await agentService.listModels();
+      const current = agentService.getCurrentModelDisplay(effectiveSession);
+      const modelList = await agentService.listModels(effectiveSession);
 
       return {
         handled: true,
@@ -216,7 +216,7 @@ export async function handleCommand(
 
     return {
       handled: true,
-      response: await agentService.switchModel(provider, modelId),
+      response: await agentService.switchModel(provider, modelId, effectiveSession),
     };
   }
 
