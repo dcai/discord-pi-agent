@@ -228,6 +228,19 @@ export class AgentService {
   }
 
   private async ensureModelForSession(session: AgentSession): Promise<void> {
+    // If the session already has a model (resumed from disk with a prior
+    // model_change or user selection), keep it. Only apply the config
+    // default for fresh sessions with no model selected.
+    if (session.model) {
+      logger.debug(
+        {
+          model: `${session.model.provider}/${session.model.id}`,
+        },
+        "retaining existing session model",
+      );
+      return;
+    }
+
     const desiredModel = this.modelRegistry.find(
       this.config.modelProvider,
       this.config.modelId,
@@ -252,24 +265,11 @@ export class AgentService {
       );
     }
 
-    if (isSameModel(session.model, desiredModel)) {
-      logger.debug(
-        {
-          model: `${desiredModel.provider}/${desiredModel.id}`,
-        },
-        "model already selected",
-      );
-      return;
-    }
-
     logger.info(
       {
-        from: session.model
-          ? `${session.model.provider}/${session.model.id}`
-          : null,
         to: `${desiredModel.provider}/${desiredModel.id}`,
       },
-      "switching model",
+      "setting initial session model",
     );
     await session.setModel(desiredModel);
     await this.applyConfiguredThinkingLevelForSession(session);
