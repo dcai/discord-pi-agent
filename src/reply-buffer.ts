@@ -23,10 +23,15 @@ export async function collectReply(
   let toolCount = 0;
   let sawAgentEnd = false;
 
+  const model = session.model
+    ? `${session.model.provider}/${session.model.id}`
+    : "none";
+
   logger.debug(
     {
       logPrefix,
       promptLength: prompt.length,
+      model,
       prompt,
     },
     "prompt start",
@@ -74,6 +79,7 @@ export async function collectReply(
       logger.debug(
         {
           messageCount: event.messages.length,
+          model,
           logPrefix,
         },
         "agent end",
@@ -99,6 +105,7 @@ export async function collectReply(
       streamedTextLength: streamedText.trim().length,
       fallbackTextLength: fallbackText.trim().length,
       errorMessage,
+      model,
       logPrefix,
     },
     "prompt done",
@@ -113,6 +120,7 @@ export async function collectReply(
     logger.debug(
       {
         logPrefix,
+        model,
         finalTextLength: finalText.length,
         transformedTextLength: transformed.length,
         transformed: transformed !== finalText,
