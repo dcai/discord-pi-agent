@@ -211,12 +211,16 @@ export async function handleCommand(
       };
     }
 
-    const provider = arg.substring(0, slashIndex);
-    const modelId = arg.substring(slashIndex + 1);
+    const provider = arg.substring(0, slashIndex).trim();
+    const modelId = arg.substring(slashIndex + 1).trim();
 
     return {
       handled: true,
-      response: await agentService.switchModel(provider, modelId, effectiveSession),
+      response: await agentService.switchModel(
+        provider,
+        modelId,
+        effectiveSession,
+      ),
     };
   }
 
