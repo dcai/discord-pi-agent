@@ -135,6 +135,40 @@ export class AgentService {
     ].join("\n");
   }
 
+  getExtensionsSummary(): string {
+    const result = this.resourceLoader.getExtensions();
+    const { extensions, errors } = result;
+
+    if (extensions.length === 0) {
+      return "Extensions: (none loaded)";
+    }
+
+    const lines = extensions.map((ext) => {
+      const toolCount = ext.tools.size;
+      const commandCount = ext.commands.size;
+      const parts: string[] = [];
+      if (toolCount > 0) {
+        parts.push(`${toolCount} tool${toolCount !== 1 ? "s" : ""}`);
+      }
+      if (commandCount > 0) {
+        parts.push(`${commandCount} command${commandCount !== 1 ? "s" : ""}`);
+      }
+      const summary = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+      return `  ${ext.path}${summary}`;
+    });
+
+    const header = `Extensions (${extensions.length}):`;
+    const errorLines =
+      errors.length > 0
+        ? [
+            `Errors (${errors.length}):`,
+            ...errors.map((e) => `  ${e.path}: ${e.error}`),
+          ]
+        : [];
+
+    return [header, ...lines, ...errorLines].join("\n");
+  }
+
   async compact(): Promise<string> {
     const session = this.requireSession();
     await session.compact();
@@ -332,7 +366,11 @@ export class AgentService {
     ].join("\n");
   }
 
-  async switchModel(provider: string, modelId: string, session?: AgentSession | null): Promise<string> {
+  async switchModel(
+    provider: string,
+    modelId: string,
+    session?: AgentSession | null,
+  ): Promise<string> {
     const effectiveSession = session ?? this.requireSession();
     const model = this.modelRegistry.find(provider, modelId);
 

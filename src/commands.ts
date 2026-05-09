@@ -1,4 +1,4 @@
-import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
 import type { ThinkingLevel } from "./types";
@@ -19,6 +19,7 @@ export type CommandContext = {
 function getSessionStatusText(
   session: AgentSession,
   promptQueue: PromptQueue,
+  extras?: { tools?: ToolInfo[]; extensionsSummary?: string },
 ): string {
   const model = session.model
     ? `${session.model.provider}/${session.model.id}`
@@ -34,7 +35,7 @@ function getSessionStatusText(
     : "thinking: not supported";
   const queueStatus = promptQueue.getSnapshot();
 
-  return [
+  const lines = [
     `model: ${model}`,
     `session-id: ${session.sessionId}`,
     `session-file: ${session.sessionFile ?? "(none)"}`,
@@ -43,7 +44,18 @@ function getSessionStatusText(
     contextLine,
     `queue-pending: ${queueStatus.pending}`,
     `queue-busy: ${queueStatus.busy}`,
-  ].join("\n");
+  ];
+
+  if (extras?.tools && extras.tools.length > 0) {
+    const toolLines = extras.tools.map((t) => `  ${t.name} - ${t.description}`);
+    lines.push("", `Tools (${extras.tools.length}):`, ...toolLines);
+  }
+
+  if (extras?.extensionsSummary) {
+    lines.push("", extras.extensionsSummary);
+  }
+
+  return lines.join("\n");
 }
 
 function getThinkingInfo(session: AgentSession): {
@@ -120,9 +132,15 @@ export async function handleCommand(
       };
     }
 
+    const tools = effectiveSession.getAllTools();
+    const extensionsSummary = agentService.getExtensionsSummary();
+
     return {
       handled: true,
-      response: getSessionStatusText(effectiveSession, promptQueue),
+      response: getSessionStatusText(effectiveSession, promptQueue, {
+        tools,
+        extensionsSummary,
+      }),
     };
   }
 
