@@ -1,7 +1,6 @@
 import type { Client } from "discord.js";
 import { AgentService } from "./agent-service";
 import { resolveConfig, resolveGatewayConfig } from "./config";
-import { startDiscordClient } from "./discord-client";
 import { startGatewayClient } from "./discord-gateway-client";
 import type { GatewayAuthConfig } from "./discord-gateway-client";
 import { createModuleLogger } from "./logger";

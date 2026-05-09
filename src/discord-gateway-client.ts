@@ -135,15 +135,26 @@ const TYPING_INTERVAL_MS = 9000;
 // concurrent onMessage calls hammering Discord's rate limit.
 const typingIntervals = new Map<string, { interval: NodeJS.Timeout; refs: number }>();
 
+function sendTypingSafe(channel: SendableChannels, channelKey: string): void {
+  logger.info({ channelKey }, "[TYPING] calling sendTyping()");
+  channel.sendTyping().then(() => {
+    logger.info({ channelKey }, "[TYPING] sendTyping() OK");
+  }).catch((error: unknown) => {
+    logger.warn({ channelKey, error }, "[TYPING] sendTyping() FAILED");
+  });
+}
+
 function startTypingForChannel(channel: SendableChannels, channelKey: string): void {
   const existing = typingIntervals.get(channelKey);
   if (existing) {
     existing.refs += 1;
+    logger.info({ channelKey, refs: existing.refs }, "[TYPING] ref++ (reusing existing interval)");
     return;
   }
-  void channel.sendTyping();
+  logger.info({ channelKey }, "[TYPING] started new interval");
+  sendTypingSafe(channel, channelKey);
   const interval = setInterval(() => {
-    void channel.sendTyping();
+    sendTypingSafe(channel, channelKey);
   }, TYPING_INTERVAL_MS);
   typingIntervals.set(channelKey, { interval, refs: 1 });
 }
@@ -151,12 +162,16 @@ function startTypingForChannel(channel: SendableChannels, channelKey: string): v
 function stopTypingForChannel(channelKey: string): void {
   const entry = typingIntervals.get(channelKey);
   if (!entry) {
+    logger.info({ channelKey }, "[TYPING] stop called but no entry found");
     return;
   }
   entry.refs -= 1;
   if (entry.refs <= 0) {
     clearInterval(entry.interval);
     typingIntervals.delete(channelKey);
+    logger.info({ channelKey }, "[TYPING] interval cleared (refs hit 0)");
+  } else {
+    logger.info({ channelKey, refs: entry.refs }, "[TYPING] ref-- (interval still active)");
   }
 }
 
@@ -346,8 +361,11 @@ async function onMessage(
 
   // Start typing indicator
   const channelKey = message.channel.id;
-  if (message.channel.isSendable()) {
+  const canSend = message.channel.isSendable();
+  logger.info({ channelKey, scope, canSend, channelType: message.channel.type }, "[TYPING] checking sendable");
+  if (canSend) {
     startTypingForChannel(message.channel, channelKey);
+    logger.info({ channelKey, scope }, "[TYPING] interval requested");
   }
 
   // Try commands first
@@ -429,6 +447,7 @@ async function onMessage(
         },
         "processing message",
       );
+      logger.info({ messageId: message.id, scope, channelKey }, "[TYPING] prompt enqueued, starting processing");
       const promptContent = buildDiscordPromptContent(
         message,
         scope,
@@ -436,12 +455,14 @@ async function onMessage(
         config,
       );
       const transformedPrompt = await config.promptTransform(promptContent);
+      logger.info({ messageId: message.id, scope, channelKey }, "[TYPING] about to call collectReply/session.prompt");
       return collectReply(session, transformedPrompt, {
         logPrefix: `[agent:${session.sessionId}]`,
       });
     });
   } finally {
     stopTypingForChannel(channelKey);
+    logger.info({ channelKey, scope }, "[TYPING] interval released");
     await removeWorkingReaction(message);
   }
   logger.info(
