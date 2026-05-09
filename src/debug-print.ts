@@ -6,10 +6,19 @@
  * @param title Optional label for the opening fence (defaults to "DEBUG").
  */
 export function debugPrint(body: string, title?: string): void {
+  const WIDTH = 80;
   const label = title ?? "DEBUG";
-  const fence = "=".repeat(label.length + 8);
 
-  console.info(`${fence} ${label} ${fence}`);
+  function centeredFence(text: string): string {
+    const inner = ` ${text} `;
+    const padLen = Math.floor((WIDTH - inner.length) / 2);
+    const pad = "=".repeat(padLen);
+    const result = pad + inner + pad;
+    // tack on one extra "=" if the width is odd
+    return result.length < WIDTH ? result + "=" : result;
+  }
+
+  console.info(centeredFence(label));
   console.info(body);
-  console.info(`${fence} END ${fence}`);
+  console.info(centeredFence("END"));
 }
