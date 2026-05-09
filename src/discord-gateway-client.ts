@@ -107,13 +107,16 @@ function isAuthorized(
   return false;
 }
 
-const WORKING_EMOJI = '\u2699\uFE0F'; // ⚙️ gear emoji
+const WORKING_EMOJI = "\u2699\uFE0F"; // ⚙️ gear emoji
 
 async function addWorkingReaction(message: Message): Promise<void> {
   try {
     await message.react(WORKING_EMOJI);
   } catch (error) {
-    logger.debug({ messageId: message.id, error }, "failed to add working reaction");
+    logger.debug(
+      { messageId: message.id, error },
+      "failed to add working reaction",
+    );
   }
 }
 
@@ -124,7 +127,10 @@ async function removeWorkingReaction(message: Message): Promise<void> {
       await reaction.users.remove(message.client.user!);
     }
   } catch (error) {
-    logger.debug({ messageId: message.id, error }, "failed to remove working reaction");
+    logger.debug(
+      { messageId: message.id, error },
+      "failed to remove working reaction",
+    );
   }
 }
 
@@ -133,28 +139,41 @@ const TYPING_INTERVAL_MS = 9000;
 
 // Per-channel typing tracker to prevent duplicate intervals from
 // concurrent onMessage calls hammering Discord's rate limit.
-const typingIntervals = new Map<string, { interval: NodeJS.Timeout; refs: number }>();
+const typingIntervals = new Map<
+  string,
+  { interval: NodeJS.Timeout; refs: number }
+>();
 
-function sendTypingSafe(channel: SendableChannels, channelKey: string): void {
+async function sendTypingSafe(
+  channel: SendableChannels,
+  channelKey: string,
+): Promise<void> {
   logger.info({ channelKey }, "[TYPING] calling sendTyping()");
-  channel.sendTyping().then(() => {
+  try {
+    await channel.sendTyping();
     logger.info({ channelKey }, "[TYPING] sendTyping() OK");
-  }).catch((error: unknown) => {
+  } catch (error: unknown) {
     logger.warn({ channelKey, error }, "[TYPING] sendTyping() FAILED");
-  });
+  }
 }
 
-function startTypingForChannel(channel: SendableChannels, channelKey: string): void {
+function startTypingForChannel(
+  channel: SendableChannels,
+  channelKey: string,
+): void {
   const existing = typingIntervals.get(channelKey);
   if (existing) {
     existing.refs += 1;
-    logger.info({ channelKey, refs: existing.refs }, "[TYPING] ref++ (reusing existing interval)");
+    logger.info(
+      { channelKey, refs: existing.refs },
+      "[TYPING] ref++ (reusing existing interval)",
+    );
     return;
   }
   logger.info({ channelKey }, "[TYPING] started new interval");
-  sendTypingSafe(channel, channelKey);
+  void sendTypingSafe(channel, channelKey);
   const interval = setInterval(() => {
-    sendTypingSafe(channel, channelKey);
+    void sendTypingSafe(channel, channelKey);
   }, TYPING_INTERVAL_MS);
   typingIntervals.set(channelKey, { interval, refs: 1 });
 }
@@ -171,7 +190,10 @@ function stopTypingForChannel(channelKey: string): void {
     typingIntervals.delete(channelKey);
     logger.info({ channelKey }, "[TYPING] interval cleared (refs hit 0)");
   } else {
-    logger.info({ channelKey, refs: entry.refs }, "[TYPING] ref-- (interval still active)");
+    logger.info(
+      { channelKey, refs: entry.refs },
+      "[TYPING] ref-- (interval still active)",
+    );
   }
 }
 
@@ -362,7 +384,10 @@ async function onMessage(
   // Start typing indicator
   const channelKey = message.channel.id;
   const canSend = message.channel.isSendable();
-  logger.info({ channelKey, scope, canSend, channelType: message.channel.type }, "[TYPING] checking sendable");
+  logger.info(
+    { channelKey, scope, canSend, channelType: message.channel.type },
+    "[TYPING] checking sendable",
+  );
   if (canSend) {
     startTypingForChannel(message.channel, channelKey);
     logger.info({ channelKey, scope }, "[TYPING] interval requested");
@@ -447,7 +472,10 @@ async function onMessage(
         },
         "processing message",
       );
-      logger.info({ messageId: message.id, scope, channelKey }, "[TYPING] prompt enqueued, starting processing");
+      logger.info(
+        { messageId: message.id, scope, channelKey },
+        "[TYPING] prompt enqueued, starting processing",
+      );
       const promptContent = buildDiscordPromptContent(
         message,
         scope,
@@ -455,7 +483,10 @@ async function onMessage(
         config,
       );
       const transformedPrompt = await config.promptTransform(promptContent);
-      logger.info({ messageId: message.id, scope, channelKey }, "[TYPING] about to call collectReply/session.prompt");
+      logger.info(
+        { messageId: message.id, scope, channelKey },
+        "[TYPING] about to call collectReply/session.prompt",
+      );
       return collectReply(session, transformedPrompt, {
         logPrefix: `[agent:${session.sessionId}]`,
       });
