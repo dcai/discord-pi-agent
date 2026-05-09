@@ -107,6 +107,27 @@ function isAuthorized(
   return false;
 }
 
+const WORKING_EMOJI = '\u2699\uFE0F'; // ⚙️ gear emoji
+
+async function addWorkingReaction(message: Message): Promise<void> {
+  try {
+    await message.react(WORKING_EMOJI);
+  } catch (error) {
+    logger.debug({ messageId: message.id, error }, "failed to add working reaction");
+  }
+}
+
+async function removeWorkingReaction(message: Message): Promise<void> {
+  try {
+    const reaction = message.reactions.cache.get(WORKING_EMOJI);
+    if (reaction) {
+      await reaction.users.remove(message.client.user!);
+    }
+  } catch (error) {
+    logger.debug({ messageId: message.id, error }, "failed to remove working reaction");
+  }
+}
+
 // 9 seconds keeps us clear of Discord's 10-second typing rate limit
 const TYPING_INTERVAL_MS = 9000;
 
@@ -379,6 +400,8 @@ async function onMessage(
     return;
   }
 
+  await addWorkingReaction(message);
+
   const queuePosition = promptQueue.getSnapshot().pending;
   logger.debug(
     {
@@ -419,6 +442,7 @@ async function onMessage(
     });
   } finally {
     stopTypingForChannel(channelKey);
+    await removeWorkingReaction(message);
   }
   logger.info(
     {
