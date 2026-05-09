@@ -102,7 +102,7 @@ export async function collectReply(
 
   if (finalText) {
     const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
-    debugPrint(finalText, "BEFORE");
+    debugPrint(finalText, "BEFORE TRANSFORM");
     debugPrint(transformed, "TRANSFORMED");
     return transformed;
   }
