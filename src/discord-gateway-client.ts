@@ -171,8 +171,8 @@ async function sendTypingSafe(
         // ignore parse errors
       }
       logger.warn(
-        { channelKey, retryMs },
-        "[TYPING] 429, retrying after delay",
+        { channelKey, retryMs, response: body },
+        `[TYPING] 429, retrying after ${retryMs}ms delay`,
       );
       await new Promise((resolve) => setTimeout(resolve, retryMs));
       await fetch(url, {
