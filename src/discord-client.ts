@@ -117,14 +117,15 @@ async function onMessage(
   );
 
   // Start typing before command handling so slow commands (!compact, etc.) show typing
-  const typingInterval = await startTypingInterval(message.channel);
+  const channelKey = message.channel.id;
+  startTypingForChannel(message.channel, channelKey);
 
   const commandResult = await handleCommand(content, {
     agentService,
     promptQueue,
   });
   if (commandResult.handled) {
-    stopTypingInterval(typingInterval);
+    stopTypingForChannel(channelKey);
     logger.info(
       {
         messageId: message.id,
@@ -142,7 +143,7 @@ async function onMessage(
   // Not a command — typing already started, keep it going
 
   if (!message.channel.isSendable()) {
-    stopTypingInterval(typingInterval);
+    stopTypingForChannel(channelKey);
     logger.debug({ messageId: message.id }, "channel is not sendable");
     return;
   }
@@ -169,7 +170,7 @@ async function onMessage(
       return agentService.prompt(content);
     });
   } finally {
-    stopTypingInterval(typingInterval);
+    stopTypingForChannel(channelKey);
   }
   logger.info(
     {
@@ -219,13 +220,31 @@ async function sendReply(message: Message, text: string): Promise<void> {
 // 9 seconds keeps us clear of Discord's 10-second typing rate limit
 const TYPING_INTERVAL_MS = 9000;
 
-function startTypingInterval(channel: SendableChannels): NodeJS.Timeout {
+// Per-channel typing tracker to prevent duplicate intervals from
+// concurrent onMessage calls hammering Discord's rate limit.
+const typingIntervals = new Map<string, { interval: NodeJS.Timeout; refs: number }>();
+
+function startTypingForChannel(channel: SendableChannels, channelKey: string): void {
+  const existing = typingIntervals.get(channelKey);
+  if (existing) {
+    existing.refs += 1;
+    return;
+  }
   void channel.sendTyping();
-  return setInterval(() => {
+  const interval = setInterval(() => {
     void channel.sendTyping();
   }, TYPING_INTERVAL_MS);
+  typingIntervals.set(channelKey, { interval, refs: 1 });
 }
 
-function stopTypingInterval(interval: NodeJS.Timeout): void {
-  clearInterval(interval);
+function stopTypingForChannel(channelKey: string): void {
+  const entry = typingIntervals.get(channelKey);
+  if (!entry) {
+    return;
+  }
+  entry.refs -= 1;
+  if (entry.refs <= 0) {
+    clearInterval(entry.interval);
+    typingIntervals.delete(channelKey);
+  }
 }

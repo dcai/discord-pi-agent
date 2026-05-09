@@ -110,16 +110,32 @@ function isAuthorized(
 // 9 seconds keeps us clear of Discord's 10-second typing rate limit
 const TYPING_INTERVAL_MS = 9000;
 
-function startTypingInterval(channel: SendableChannels): NodeJS.Timeout {
+// Per-channel typing tracker to prevent duplicate intervals from
+// concurrent onMessage calls hammering Discord's rate limit.
+const typingIntervals = new Map<string, { interval: NodeJS.Timeout; refs: number }>();
+
+function startTypingForChannel(channel: SendableChannels, channelKey: string): void {
+  const existing = typingIntervals.get(channelKey);
+  if (existing) {
+    existing.refs += 1;
+    return;
+  }
   void channel.sendTyping();
-  return setInterval(() => {
+  const interval = setInterval(() => {
     void channel.sendTyping();
   }, TYPING_INTERVAL_MS);
+  typingIntervals.set(channelKey, { interval, refs: 1 });
 }
 
-function stopTypingInterval(interval: NodeJS.Timeout | null): void {
-  if (interval) {
-    clearInterval(interval);
+function stopTypingForChannel(channelKey: string): void {
+  const entry = typingIntervals.get(channelKey);
+  if (!entry) {
+    return;
+  }
+  entry.refs -= 1;
+  if (entry.refs <= 0) {
+    clearInterval(entry.interval);
+    typingIntervals.delete(channelKey);
   }
 }
 
@@ -308,9 +324,9 @@ async function onMessage(
   }
 
   // Start typing indicator
-  let typingInterval: NodeJS.Timeout | null = null;
+  const channelKey = message.channel.id;
   if (message.channel.isSendable()) {
-    typingInterval = startTypingInterval(message.channel);
+    startTypingForChannel(message.channel, channelKey);
   }
 
   // Try commands first
@@ -321,7 +337,7 @@ async function onMessage(
   });
 
   if (commandResult.handled) {
-    stopTypingInterval(typingInterval);
+    stopTypingForChannel(channelKey);
 
     if (commandResult.archive && scope.startsWith("thread:")) {
       logger.info({ scope }, "archiving thread");
@@ -358,7 +374,7 @@ async function onMessage(
 
   // Not a command — enqueue as prompt
   if (!message.channel.isSendable()) {
-    stopTypingInterval(typingInterval);
+    stopTypingForChannel(channelKey);
     logger.debug({ messageId: message.id }, "channel not sendable");
     return;
   }
@@ -402,7 +418,7 @@ async function onMessage(
       });
     });
   } finally {
-    stopTypingInterval(typingInterval);
+    stopTypingForChannel(channelKey);
   }
   logger.info(
     {
