@@ -150,34 +150,20 @@ async function sendTypingSafe(
 ): Promise<void> {
   logger.info({ channelKey }, "[TYPING] calling sendTyping()");
   try {
-    // Race between discord.js sendTyping and a raw fetch call to isolate the issue
-    const rawFetchPromise = (async () => {
-      const token = channel.client.token;
-      const url = `https://discord.com/api/v10/channels/${channel.id}/typing`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { Authorization: `Bot ${token}` },
-      });
-      logger.info(
-        { channelKey, status: response.status },
-        "[TYPING] raw fetch status",
-      );
-      return "raw-ok" as const;
-    })();
-
-    const result = await Promise.race([
-      channel.sendTyping().then(() => "ok" as const),
-      rawFetchPromise,
-      new Promise<"timeout">((resolve) =>
-        setTimeout(() => resolve("timeout"), 5_000),
-      ),
-    ]);
-    if (result === "timeout") {
-      logger.warn({ channelKey }, "[TYPING] BOTH calls TIMEOUT after 5s");
-    } else if (result === "raw-ok") {
-      logger.info({ channelKey }, "[TYPING] raw fetch OK, discord.js STUCK");
-    } else {
-      logger.info({ channelKey }, "[TYPING] sendTyping() OK");
+    // One-shot raw fetch to diagnose the 429
+    const token = channel.client.token;
+    const url = `https://discord.com/api/v10/channels/${channel.id}/typing`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bot ${token}` },
+    });
+    const body = await res.text();
+    logger.info(
+      { channelKey, status: res.status, headers: Object.fromEntries(res.headers.entries()), body },
+      "[TYPING] raw fetch response",
+    );
+    if (res.ok) {
+      logger.info({ channelKey }, "[TYPING] raw fetch OK — Discord accepted typing");
     }
   } catch (error: unknown) {
     logger.warn({ channelKey, error }, "[TYPING] sendTyping() FAILED");
