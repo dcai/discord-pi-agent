@@ -55,9 +55,9 @@ export async function collectReply(
       logger.debug(
         {
           toolName: event.toolName,
-          input: truncateForLog(JSON.stringify(event.args)),
+          input: event.toolName === "bash" ? event.args.command : event.args,
         },
-        `tool [${event.toolName}] start`,
+        `tool start: [${event.toolName}] `,
       );
     }
 
@@ -66,9 +66,10 @@ export async function collectReply(
         {
           toolName: event.toolName,
           isError: event.isError,
-          output: truncateForLog(extractToolOutput(event.result)),
+          output: event.result,
+          // output: truncateForLog(extractToolOutput(event.result)),
         },
-        `tool [${event.toolName}] end`,
+        `tool end: [${event.toolName}]`,
       );
     }
 
