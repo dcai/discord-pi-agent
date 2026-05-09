@@ -27,7 +27,10 @@ export async function collectReply(
     ? `${session.model.provider}/${session.model.id}`
     : "none";
 
+  console.info(`=== Full Prompt ===`);
   console.info(prompt);
+  console.info(`=== END ===`);
+
   logger.debug(
     {
       logPrefix,

@@ -490,13 +490,13 @@ async function onMessage(
   let response: string;
   try {
     response = await promptQueue.enqueue(async () => {
-      logger.debug(
-        {
-          messageId: message.id,
-          scope,
-        },
-        "processing message",
-      );
+      // logger.debug(
+      //   {
+      //     messageId: message.id,
+      //     scope,
+      //   },
+      //   "processing message",
+      // );
       const promptContent = buildDiscordPromptContent(
         message,
         scope,
