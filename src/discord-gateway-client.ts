@@ -7,7 +7,6 @@ import {
   type Message,
   type SendableChannels,
 } from "discord.js";
-import { debugPrint } from "./debug-print";
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
 import { createModuleLogger } from "./logger";
@@ -244,7 +243,6 @@ async function sendReply(message: Message, text: string): Promise<void> {
     return;
   }
 
-  debugPrint(text, "Full Reply");
   const chunks = chunkMessage(text);
 
   const [firstChunk, ...remainingChunks] = chunks;

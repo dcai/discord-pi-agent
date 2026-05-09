@@ -7,9 +7,9 @@
  */
 export function debugPrint(body: string, title?: string): void {
   const label = title ?? "DEBUG";
-  const fence = "=".repeat(label.length + 12);
+  const fence = "=".repeat(label.length + 8);
 
-  console.info(`${fence}\n===== ${label} =====\n${fence}`);
+  console.info(`${fence} ${label} ${fence}`);
   console.info(body);
-  console.info(`${fence}\n===== END =====\n${fence}`);
+  console.info(`${fence} END ${fence}`);
 }
