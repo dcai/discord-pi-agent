@@ -18,11 +18,9 @@ export async function collectReply(
   prompt: string,
   options: CollectReplyOptions = {},
 ): Promise<string> {
-  const logPrefix = options.logPrefix ?? "[agent]";
   let streamedText = "";
   let eventCount = 0;
   let toolCount = 0;
-  let sawAgentEnd = false;
 
   const model = session.model
     ? `${session.model.provider}/${session.model.id}`
@@ -32,7 +30,6 @@ export async function collectReply(
 
   logger.debug(
     {
-      logPrefix,
       promptLength: prompt.length,
       model,
       prompt,
@@ -59,9 +56,8 @@ export async function collectReply(
         {
           toolName: event.toolName,
           input: truncateForLog(JSON.stringify(event.args)),
-          logPrefix,
         },
-        "tool start",
+        `tool [${event.toolName}] start`,
       );
     }
 
@@ -71,19 +67,18 @@ export async function collectReply(
           toolName: event.toolName,
           isError: event.isError,
           output: truncateForLog(extractToolOutput(event.result)),
-          logPrefix,
         },
-        "tool end",
+        `tool [${event.toolName}] end`,
       );
     }
 
     if (event.type === "agent_end") {
-      sawAgentEnd = true;
       logger.debug(
         {
           messageCount: event.messages.length,
           model,
-          logPrefix,
+          toolCount,
+          eventCount,
         },
         "agent end",
       );
