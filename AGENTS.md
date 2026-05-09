@@ -72,7 +72,6 @@ src/
   agent-service.ts
   commands.ts
   config.ts
-  discord-client.ts         # legacy DM client (kept for now)
   discord-gateway-client.ts # unified gateway (DM + forum threads)
   index.ts
   markdown-table-transformer.ts
