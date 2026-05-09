@@ -75,12 +75,12 @@ export async function collectReply(
 
     if (event.type === "agent_end") {
       logger.debug(
-        {
-          messageCount: event.messages.length,
-          model,
-          toolCount,
-          eventCount,
-        },
+        // {
+        //   messageCount: event.messages.length,
+        //   model,
+        //   toolCount,
+        //   eventCount,
+        // },
         "agent end",
       );
     }

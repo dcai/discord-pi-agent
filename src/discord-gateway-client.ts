@@ -156,7 +156,10 @@ async function sendTypingSafe(
       headers: { Authorization: `Bot ${token}` },
     });
     if (res.ok) {
-      logger.debug({ channelKey }, "[TYPING] OK");
+      logger.debug(
+        // { channelKey },
+        `[TYPING] STATUS UPDATED OK: ${await res.text()}`,
+      );
       return;
     }
     if (res.status === 429) {
@@ -204,7 +207,10 @@ function startTypingForChannel(
     );
     return;
   }
-  logger.debug({ channelKey }, "[TYPING] started new interval");
+  logger.debug(
+    // { channelKey },
+    "[TYPING] started new interval",
+  );
   void sendTypingSafe(channel, channelKey);
   const interval = setInterval(() => {
     void sendTypingSafe(channel, channelKey);
@@ -222,10 +228,13 @@ function stopTypingForChannel(channelKey: string): void {
   if (entry.refs <= 0) {
     clearInterval(entry.interval);
     typingIntervals.delete(channelKey);
-    logger.debug({ channelKey }, "[TYPING] interval cleared (refs hit 0)");
+    logger.debug(
+      // { channelKey },
+      "[TYPING] interval cleared (refs hit 0)",
+    );
   } else {
     logger.debug(
-      { channelKey, refs: entry.refs },
+      // { channelKey, refs: entry.refs },
       "[TYPING] ref-- (interval still active)",
     );
   }
@@ -342,7 +351,8 @@ async function onMessage(
   authConfig: GatewayAuthConfig,
 ): Promise<void> {
   if (message.author.bot) {
-    logger.debug({ messageId: message.id }, "ignored bot message");
+    // logger.debug({ messageId: message.id }, "ignored bot message");
+    logger.debug("ignored bot message");
     return;
   }
 
