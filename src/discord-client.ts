@@ -162,12 +162,15 @@ async function onMessage(
     );
   }
 
-  const response = await promptQueue.enqueue(async () => {
-    logger.debug({ messageId: message.id }, "processing message");
-    return agentService.prompt(content);
-  });
-
-  stopTypingInterval(typingInterval);
+  let response: string;
+  try {
+    response = await promptQueue.enqueue(async () => {
+      logger.debug({ messageId: message.id }, "processing message");
+      return agentService.prompt(content);
+    });
+  } finally {
+    stopTypingInterval(typingInterval);
+  }
   logger.info(
     {
       direction: "OUT",
@@ -213,7 +216,8 @@ async function sendReply(message: Message, text: string): Promise<void> {
   }
 }
 
-const TYPING_INTERVAL_MS = 8000;
+// 9 seconds keeps us clear of Discord's 10-second typing rate limit
+const TYPING_INTERVAL_MS = 9000;
 
 function startTypingInterval(channel: SendableChannels): NodeJS.Timeout {
   void channel.sendTyping();
