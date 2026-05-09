@@ -28,14 +28,14 @@ export async function collectReply(
 
   debugPrint(prompt, "Full Prompt");
 
-  logger.debug(
-    {
-      promptLength: prompt.length,
-      model,
-      prompt,
-    },
-    "prompt start",
-  );
+  // logger.debug(
+  //   {
+  //     promptLength: prompt.length,
+  //     model,
+  //     prompt,
+  //   },
+  //   "prompt start",
+  // );
 
   const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     eventCount += 1;
@@ -66,8 +66,8 @@ export async function collectReply(
         {
           toolName: event.toolName,
           isError: event.isError,
-          output: event.result,
-          // output: truncateForLog(extractToolOutput(event.result)),
+          // output: event.result,
+          output: truncateForLog(extractToolOutput(event.result)),
         },
         `tool end: [${event.toolName}]`,
       );
