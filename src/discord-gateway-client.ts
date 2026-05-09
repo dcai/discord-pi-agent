@@ -156,7 +156,7 @@ async function sendTypingSafe(
       headers: { Authorization: `Bot ${token}` },
     });
     if (res.ok) {
-      logger.info({ channelKey }, "[TYPING] OK");
+      logger.debug({ channelKey }, "[TYPING] OK");
       return;
     }
     if (res.status === 429) {
@@ -182,7 +182,10 @@ async function sendTypingSafe(
       logger.info({ channelKey }, "[TYPING] retry done");
       return;
     }
-    logger.warn({ channelKey, status: res.status }, "[TYPING] unexpected status");
+    logger.warn(
+      { channelKey, status: res.status },
+      "[TYPING] unexpected status",
+    );
   } catch (error: unknown) {
     logger.warn({ channelKey, error }, "[TYPING] FAILED");
   }
@@ -195,13 +198,13 @@ function startTypingForChannel(
   const existing = typingIntervals.get(channelKey);
   if (existing) {
     existing.refs += 1;
-    logger.info(
+    logger.debug(
       { channelKey, refs: existing.refs },
       "[TYPING] ref++ (reusing existing interval)",
     );
     return;
   }
-  logger.info({ channelKey }, "[TYPING] started new interval");
+  logger.debug({ channelKey }, "[TYPING] started new interval");
   void sendTypingSafe(channel, channelKey);
   const interval = setInterval(() => {
     void sendTypingSafe(channel, channelKey);
@@ -212,16 +215,16 @@ function startTypingForChannel(
 function stopTypingForChannel(channelKey: string): void {
   const entry = typingIntervals.get(channelKey);
   if (!entry) {
-    logger.info({ channelKey }, "[TYPING] stop called but no entry found");
+    logger.debug({ channelKey }, "[TYPING] stop called but no entry found");
     return;
   }
   entry.refs -= 1;
   if (entry.refs <= 0) {
     clearInterval(entry.interval);
     typingIntervals.delete(channelKey);
-    logger.info({ channelKey }, "[TYPING] interval cleared (refs hit 0)");
+    logger.debug({ channelKey }, "[TYPING] interval cleared (refs hit 0)");
   } else {
-    logger.info(
+    logger.debug(
       { channelKey, refs: entry.refs },
       "[TYPING] ref-- (interval still active)",
     );
@@ -241,15 +244,7 @@ async function sendReply(message: Message, text: string): Promise<void> {
   }
 
   const chunks = chunkMessage(text);
-  logger.debug(
-    {
-      direction: "OUT",
-      messageId: message.id,
-      chunkCount: chunks.length,
-      textLength: text.length,
-    },
-    "sending reply",
-  );
+  logger.debug("sending reply");
 
   const [firstChunk, ...remainingChunks] = chunks;
   if (!firstChunk) {
@@ -257,10 +252,14 @@ async function sendReply(message: Message, text: string): Promise<void> {
   }
 
   try {
+    console.info("=== Reply Start ===");
     await message.reply(firstChunk);
+    console.info(firstChunk);
     for (const chunk of remainingChunks) {
+      console.info(chunk);
       await channel.send(chunk);
     }
+    console.info("=== Reply End ===");
   } catch (error) {
     logger.error(
       {
@@ -472,14 +471,14 @@ async function onMessage(
   await addWorkingReaction(message);
 
   const queuePosition = promptQueue.getSnapshot().pending;
-  logger.debug(
-    {
-      scope,
-      messageId: message.id,
-      queuePosition,
-    },
-    "enqueue request",
-  );
+  // logger.debug(
+  //   {
+  //     scope,
+  //     messageId: message.id,
+  //     queuePosition,
+  //   },
+  //   "enqueue request",
+  // );
 
   if (queuePosition > 0) {
     await sendReply(
@@ -498,10 +497,6 @@ async function onMessage(
         },
         "processing message",
       );
-      logger.info(
-        { messageId: message.id, scope, channelKey },
-        "[TYPING] prompt enqueued, starting processing",
-      );
       const promptContent = buildDiscordPromptContent(
         message,
         scope,
@@ -509,28 +504,13 @@ async function onMessage(
         config,
       );
       const transformedPrompt = await config.promptTransform(promptContent);
-      logger.info(
-        { messageId: message.id, scope, channelKey },
-        "[TYPING] about to call collectReply/session.prompt",
-      );
       return collectReply(session, transformedPrompt, {
         logPrefix: `[agent:${session.sessionId}]`,
       });
     });
   } finally {
     stopTypingForChannel(channelKey);
-    logger.info({ channelKey, scope }, "[TYPING] interval released");
     await removeWorkingReaction(message);
   }
-  logger.info(
-    {
-      direction: "OUT",
-      scope,
-      messageId: message.id,
-      responseLength: response.length,
-      response,
-    },
-    "response ready",
-  );
   await sendReply(message, response);
 }

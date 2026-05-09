@@ -27,6 +27,7 @@ export async function collectReply(
     ? `${session.model.provider}/${session.model.id}`
     : "none";
 
+  console.info(prompt);
   logger.debug(
     {
       logPrefix,
@@ -97,38 +98,17 @@ export async function collectReply(
   const fallbackText = getLatestAssistantText(session.messages);
   const finalText = streamedText.trim() || fallbackText.trim();
 
-  logger.debug(
-    {
-      eventCount,
-      toolCount,
-      sawAgentEnd,
-      streamedTextLength: streamedText.trim().length,
-      fallbackTextLength: fallbackText.trim().length,
-      errorMessage,
-      model,
-      logPrefix,
-    },
-    "prompt done",
-  );
-
   if (errorMessage) {
     return errorMessage;
   }
 
   if (finalText) {
     const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
-    console.info(`========== reply-buffer BEFORE (${finalText.length} chars) ==========\n${finalText}\n========== reply-buffer BEFORE END ==========`);
-    console.info(`========== reply-buffer AFTER  (${transformed.length} chars) ==========\n${transformed}\n========== reply-buffer AFTER END ==========`);
-    logger.debug(
-      {
-        logPrefix,
-        model,
-        finalTextLength: finalText.length,
-        transformedTextLength: transformed.length,
-        transformed: transformed !== finalText,
-      },
-      "assistant text ready",
-    );
+    console.info(`========== BEFORE ==========`);
+    console.info(finalText);
+    console.info(`========== TRANSFORMED ==========`);
+    console.info(transformed);
+    console.info(`========== END ==========`);
     return transformed;
   }
 
