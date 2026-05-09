@@ -148,25 +148,43 @@ async function sendTypingSafe(
   channel: SendableChannels,
   channelKey: string,
 ): Promise<void> {
-  logger.info({ channelKey }, "[TYPING] calling sendTyping()");
   try {
-    // One-shot raw fetch to diagnose the 429
     const token = channel.client.token;
     const url = `https://discord.com/api/v10/channels/${channel.id}/typing`;
     const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bot ${token}` },
     });
-    const body = await res.text();
-    logger.info(
-      { channelKey, status: res.status, headers: Object.fromEntries(res.headers.entries()), body },
-      "[TYPING] raw fetch response",
-    );
     if (res.ok) {
-      logger.info({ channelKey }, "[TYPING] raw fetch OK — Discord accepted typing");
+      logger.info({ channelKey }, "[TYPING] OK");
+      return;
     }
+    if (res.status === 429) {
+      const body = await res.text();
+      let retryMs = 3_000;
+      try {
+        const parsed = JSON.parse(body);
+        if (typeof parsed.retry_after === "number") {
+          retryMs = parsed.retry_after * 1_000 + 500;
+        }
+      } catch {
+        // ignore parse errors
+      }
+      logger.warn(
+        { channelKey, retryMs },
+        "[TYPING] 429, retrying after delay",
+      );
+      await new Promise((resolve) => setTimeout(resolve, retryMs));
+      await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bot ${token}` },
+      });
+      logger.info({ channelKey }, "[TYPING] retry done");
+      return;
+    }
+    logger.warn({ channelKey, status: res.status }, "[TYPING] unexpected status");
   } catch (error: unknown) {
-    logger.warn({ channelKey, error }, "[TYPING] sendTyping() FAILED");
+    logger.warn({ channelKey, error }, "[TYPING] FAILED");
   }
 }
 
@@ -381,6 +399,13 @@ async function onMessage(
     "message received",
   );
 
+  // Start typing BEFORE session creation to give 429 retry a head start
+  const channelKey = message.channel.id;
+  const canSend = message.channel.isSendable();
+  if (canSend) {
+    startTypingForChannel(message.channel, channelKey);
+  }
+
   const { entry, created } = await sessionRegistry.getOrCreate(scope);
   const { session, promptQueue } = entry;
 
@@ -392,18 +417,6 @@ async function onMessage(
       },
       "new thread session",
     );
-  }
-
-  // Start typing indicator
-  const channelKey = message.channel.id;
-  const canSend = message.channel.isSendable();
-  logger.info(
-    { channelKey, scope, canSend, channelType: message.channel.type },
-    "[TYPING] checking sendable",
-  );
-  if (canSend) {
-    startTypingForChannel(message.channel, channelKey);
-    logger.info({ channelKey, scope }, "[TYPING] interval requested");
   }
 
   // Try commands first
