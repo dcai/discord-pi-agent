@@ -3,6 +3,7 @@ import type {
   AgentSession,
   AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
+import { debugPrint } from "./debug-print";
 import { createModuleLogger } from "./logger";
 import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
 
@@ -27,9 +28,7 @@ export async function collectReply(
     ? `${session.model.provider}/${session.model.id}`
     : "none";
 
-  console.info(`=== Full Prompt ===`);
-  console.info(prompt);
-  console.info(`=== END ===`);
+  debugPrint(prompt, "Full Prompt");
 
   logger.debug(
     {
@@ -107,11 +106,8 @@ export async function collectReply(
 
   if (finalText) {
     const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
-    console.info(`========== BEFORE ==========`);
-    console.info(finalText);
-    console.info(`========== TRANSFORMED ==========`);
-    console.info(transformed);
-    console.info(`========== END ==========`);
+    debugPrint(finalText, "BEFORE");
+    debugPrint(transformed, "TRANSFORMED");
     return transformed;
   }
 

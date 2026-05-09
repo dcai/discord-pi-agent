@@ -7,6 +7,7 @@ import {
   type Message,
   type SendableChannels,
 } from "discord.js";
+import { debugPrint } from "./debug-print";
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
 import { createModuleLogger } from "./logger";
@@ -243,8 +244,8 @@ async function sendReply(message: Message, text: string): Promise<void> {
     return;
   }
 
+  debugPrint(text, "Full Reply");
   const chunks = chunkMessage(text);
-  logger.debug("sending reply");
 
   const [firstChunk, ...remainingChunks] = chunks;
   if (!firstChunk) {
@@ -252,14 +253,10 @@ async function sendReply(message: Message, text: string): Promise<void> {
   }
 
   try {
-    console.info("=== Reply Start ===");
     await message.reply(firstChunk);
-    console.info(firstChunk);
     for (const chunk of remainingChunks) {
-      console.info(chunk);
       await channel.send(chunk);
     }
-    console.info("=== Reply End ===");
   } catch (error) {
     logger.error(
       {
