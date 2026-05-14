@@ -156,10 +156,7 @@ async function sendTypingSafe(
       headers: { Authorization: `Bot ${token}` },
     });
     if (res.ok) {
-      logger.debug(
-        // { channelKey },
-        `[TYPING] STATUS UPDATED OK: ${await res.text()}`,
-      );
+      logger.debug(`[TYPING] STATUS UPDATED OK`);
       return;
     }
     if (res.status === 429) {
@@ -456,7 +453,7 @@ async function onMessage(
         command: content,
         hasResponse: Boolean(commandResult.response),
       },
-      "command handled",
+      `command handled: ${content}`,
     );
 
     if (commandResult.response) {
