@@ -20,5 +20,5 @@ export function debugPrint(body: string, title?: string): void {
 
   console.info(centeredFence(label));
   console.info(body);
-  console.info(centeredFence("END"));
+  console.info(centeredFence(`${label} END`));
 }
