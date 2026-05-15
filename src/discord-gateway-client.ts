@@ -272,6 +272,71 @@ async function sendReply(message: Message, text: string): Promise<void> {
   }
 }
 
+const TEXT_ATTACHMENT_EXTENSIONS = [".txt", ".md", ".json", ".csv", ".log", ".yml", ".yaml", ".xml", ".toml", ".ini", ".cfg"];
+const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024; // Discord's attachment limit
+
+type AttachmentContent = {
+  filename: string;
+  content: string;
+};
+
+async function readTextAttachments(
+  message: Message,
+): Promise<AttachmentContent[]> {
+  const attachments = message.attachments;
+  if (attachments.size === 0) {
+    return [];
+  }
+
+  const results: AttachmentContent[] = [];
+
+  for (const [, attachment] of attachments) {
+    const ext = attachment.name
+      ?.slice(attachment.name.lastIndexOf("."))
+      .toLowerCase();
+
+    if (!ext || !TEXT_ATTACHMENT_EXTENSIONS.includes(ext)) {
+      logger.debug(
+        { messageId: message.id, filename: attachment.name, ext },
+        "skipping non-text attachment",
+      );
+      continue;
+    }
+
+    if (attachment.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      logger.warn(
+        { messageId: message.id, filename: attachment.name, size: attachment.size },
+        "attachment too large, skipping",
+      );
+      continue;
+    }
+
+    try {
+      logger.info(
+        { messageId: message.id, filename: attachment.name, size: attachment.size },
+        "fetching attachment",
+      );
+      const response = await fetch(attachment.url);
+      if (!response.ok) {
+        logger.warn(
+          { messageId: message.id, filename: attachment.name, status: response.status },
+          "failed to fetch attachment",
+        );
+        continue;
+      }
+      const content = await response.text();
+      results.push({ filename: attachment.name, content });
+    } catch (error) {
+      logger.error(
+        { messageId: message.id, filename: attachment.name, error },
+        "error fetching attachment",
+      );
+    }
+  }
+
+  return results;
+}
+
 export async function startGatewayClient(
   config: ResolvedDiscordPiBridgeConfig,
   agentService: AgentService,
@@ -382,7 +447,19 @@ async function onMessage(
     return;
   }
 
-  const content = message.content.trim();
+  let content = message.content.trim();
+
+  // If message has .txt / .md attachments, fetch and inline their content.
+  // This lets users bypass Discord's 2000-char free-tier message limit by
+  // attaching long prompts or data files directly instead of pasting them.
+  const attachmentContents = await readTextAttachments(message);
+  if (attachmentContents.length > 0) {
+    const suffix = attachmentContents
+      .map((a) => `\n\n--- Attachment: ${a.filename} ---\n${a.content}`)
+      .join("");
+    content = content ? content + suffix : attachmentContents[0]!.content;
+  }
+
   if (!content) {
     logger.debug({ messageId: message.id }, "ignored empty message");
     return;
