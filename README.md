@@ -132,7 +132,6 @@ Pretty console logs use:
 
 - `discordAllowedForumChannelIds` — string array of forum channel IDs to respond in
 - `discordAllowedUserIds` — string array of allowed user IDs (defaults to `[discordAllowedUserId]`)
-- `sessionIdleTimeoutMs` — auto-shutdown idle thread sessions (null = never)
 
 ## Env helpers
 
@@ -149,7 +148,6 @@ Pretty console logs use:
 - `DISCORD_STARTUP_MESSAGE`
 - `DISCORD_FORUM_CHANNEL_IDS` — comma-separated forum channel IDs
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated allowed user IDs
-- `DISCORD_SESSION_IDLE_TIMEOUT_MS` — idle timeout in ms
 
 If `PI_AGENT_CWD` is missing it falls back to `process.cwd()`.
 Set `DISCORD_STARTUP_MESSAGE=false` to disable the startup DM.

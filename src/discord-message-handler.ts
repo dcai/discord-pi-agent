@@ -234,7 +234,6 @@ export async function handleDiscordMessage(
       );
       const transformedPrompt = await config.promptTransform(wrappedContent);
       return runPromptAndCollectReply(session, transformedPrompt, {
-        logPrefix: `[agent:${session.sessionId}]`,
         images: promptImages,
       });
     });

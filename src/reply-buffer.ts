@@ -11,7 +11,6 @@ import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transforme
 const logger = createModuleLogger("reply-buffer");
 
 type CollectReplyOptions = {
-  logPrefix?: string;
   images?: ImageContent[];
 };
 

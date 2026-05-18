@@ -139,9 +139,7 @@ export class AgentService {
   async prompt(text: string): Promise<string> {
     const session = this.requireSession();
     const transformedPrompt = await this.config.promptTransform(text);
-    return runPromptAndCollectReply(session, transformedPrompt, {
-      logPrefix: `[agent:${session.sessionId}]`,
-    });
+    return runPromptAndCollectReply(session, transformedPrompt);
   }
 
   getSkillsSummary(): string {
@@ -355,10 +353,6 @@ export class AgentService {
     }
 
     return this.session;
-  }
-
-  private async applyConfiguredThinkingLevel(): Promise<void> {
-    await this.applyConfiguredThinkingLevelForSession(this.requireSession());
   }
 
   private async applyConfiguredThinkingLevelForSession(

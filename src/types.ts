@@ -34,8 +34,6 @@ export type DiscordGatewayConfig = {
   discordAllowedForumChannelIds?: string[];
   /** Which users can interact in forum threads (defaults to [discordAllowedUserId]). */
   discordAllowedUserIds?: string[];
-  /** Auto-shutdown idle thread sessions after this many ms. */
-  sessionIdleTimeoutMs?: number;
 };
 
 export type ResolvedDiscordGatewayConfig = {
@@ -55,7 +53,6 @@ export type ResolvedDiscordGatewayConfig = {
   visionModelId: string | null;
   discordAllowedForumChannelIds: string[];
   discordAllowedUserIds: string[];
-  sessionIdleTimeoutMs: number | null;
 };
 
 export type ContextUsageStatus = {

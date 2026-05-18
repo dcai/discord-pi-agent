@@ -36,7 +36,6 @@ export function resolveConfig(
     visionModelId: config.visionModelId?.trim() || null,
     discordAllowedForumChannelIds: config.discordAllowedForumChannelIds ?? [],
     discordAllowedUserIds: config.discordAllowedUserIds ?? [discordAllowedUserId],
-    sessionIdleTimeoutMs: config.sessionIdleTimeoutMs ?? null,
   };
 }
 
@@ -72,10 +71,6 @@ export function loadDiscordGatewayConfigFromEnv(
     discordAllowedUserIds:
       overrides.discordAllowedUserIds ??
       parseStringArrayFromEnv("DISCORD_ALLOWED_USER_IDS"),
-    sessionIdleTimeoutMs:
-      overrides.sessionIdleTimeoutMs ??
-      parseOptionalIntFromEnv("DISCORD_SESSION_IDLE_TIMEOUT_MS") ??
-      undefined,
   });
 }
 
@@ -144,12 +139,3 @@ function parseStringArrayFromEnv(key: string): string[] | undefined {
     .filter(Boolean);
 }
 
-function parseOptionalIntFromEnv(key: string): number | undefined {
-  const value = process.env[key];
-  if (!value) {
-    return undefined;
-  }
-
-  const parsed = parseInt(value, 10);
-  return Number.isNaN(parsed) ? undefined : parsed;
-}

@@ -119,7 +119,6 @@ Main exports live in `src/index.ts`.
 Current public surface:
 
 - `startDiscordGateway` — unified entry point (DM + forum threads)
-- `startDiscordGateway`
 - `loadDiscordGatewayConfigFromEnv`
 - `resolveConfig`
 - `buildDiscordMessageContextPrompt`
