@@ -19,7 +19,11 @@ export type CommandContext = {
 function getSessionStatusText(
   session: AgentSession,
   promptQueue: PromptQueue,
-  extras?: { tools?: ToolInfo[]; extensionsSummary?: string },
+  extras?: {
+    tools?: ToolInfo[];
+    extensionsSummary?: string;
+    skillsSummary?: string;
+  },
 ): string {
   const model = session.model
     ? `${session.model.provider}/${session.model.id}`
@@ -47,8 +51,12 @@ function getSessionStatusText(
   ];
 
   if (extras?.tools && extras.tools.length > 0) {
-    const toolLines = extras.tools.map((t) => `  ${t.name} - ${t.description}`);
-    lines.push("", `Tools (${extras.tools.length}):`, ...toolLines);
+    const toolNames = extras.tools.map((t) => t.name);
+    lines.push("", `Tools (${extras.tools.length}): ${toolNames.join(", ")}`);
+  }
+
+  if (extras?.skillsSummary) {
+    lines.push("", extras.skillsSummary);
   }
 
   if (extras?.extensionsSummary) {
@@ -134,12 +142,14 @@ export async function handleCommand(
 
     const tools = effectiveSession.getAllTools();
     const extensionsSummary = agentService.getExtensionsSummary();
+    const skillsSummary = agentService.getSkillsSummary();
 
     return {
       handled: true,
       response: getSessionStatusText(effectiveSession, promptQueue, {
         tools,
         extensionsSummary,
+        skillsSummary,
       }),
     };
   }

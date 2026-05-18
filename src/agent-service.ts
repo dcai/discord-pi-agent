@@ -144,11 +144,25 @@ export class AgentService {
     });
   }
 
+  getSkillsSummary(): string {
+    const result = this.resourceLoader.getSkills();
+    const { skills } = result;
+
+    if (skills.length === 0) {
+      return "Skills: (none loaded)";
+    }
+
+    const names = skills.map((s) => s.name);
+    return `Skills (${skills.length}): ${names.join(", ") || "(none)"}`;
+  }
+
   async reloadResources(): Promise<string> {
     await this.resourceLoader.reload();
     const extensions = this.resourceLoader
       .getExtensions()
       .extensions.map((ext) => ext.path);
+    const skills = this.resourceLoader.getSkills();
+    const skillNames = skills.skills.map((s) => s.name);
     const agentsFiles = this.resourceLoader
       .getAgentsFiles()
       .agentsFiles.map((f) => f.path);
@@ -156,6 +170,7 @@ export class AgentService {
     return [
       "Resources reloaded.",
       `Extensions (${extensions.length}): ${extensions.join(", ") || "(none)"}`,
+      `Skills (${skills.skills.length}): ${skillNames.join(", ") || "(none)"}`,
       `AGENTS.md files (${agentsFiles.length}): ${agentsFiles.join(", ") || "(none)"}`,
     ].join("\n");
   }
