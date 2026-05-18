@@ -363,46 +363,64 @@ async function readTextAttachments(
   return results;
 }
 
-const IMAGE_ATTACHMENT_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
-const MAX_IMAGE_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB
+const MEDIA_ATTACHMENT_EXTENSIONS = [
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".pdf",
+];
+const MAX_MEDIA_ATTACHMENT_SIZE = 25 * 1024 * 1024; // 25 MB (Discord's free-tier file limit)
 
-type ImageAttachmentContent = {
+type MediaAttachmentContent = {
   filename: string;
   data: string;
   mimeType: string;
 };
 
-async function readImageAttachments(
+function isMediaAttachment(attachment: {
+  name: string | null;
+  contentType: string | null;
+}): boolean {
+  const ext = attachment.name
+    ?.slice(attachment.name.lastIndexOf("."))
+    .toLowerCase();
+  if (!ext || !MEDIA_ATTACHMENT_EXTENSIONS.includes(ext)) {
+    return false;
+  }
+
+  const ct = attachment.contentType;
+  if (!ct) {
+    return false;
+  }
+
+  return ct.startsWith("image/") || ct === "application/pdf";
+}
+
+async function readMediaAttachments(
   message: Message,
-): Promise<ImageAttachmentContent[]> {
+): Promise<MediaAttachmentContent[]> {
   const attachments = message.attachments;
   if (attachments.size === 0) {
     return [];
   }
 
-  const results: ImageAttachmentContent[] = [];
+  const results: MediaAttachmentContent[] = [];
 
   for (const [, attachment] of attachments) {
-    const ext = attachment.name
-      ?.slice(attachment.name.lastIndexOf("."))
-      .toLowerCase();
-
-    if (!ext || !IMAGE_ATTACHMENT_EXTENSIONS.includes(ext)) {
+    if (!isMediaAttachment(attachment)) {
       continue;
     }
 
-    if (!attachment.contentType?.startsWith("image/")) {
-      continue;
-    }
-
-    if (attachment.size > MAX_IMAGE_ATTACHMENT_SIZE) {
+    if (attachment.size > MAX_MEDIA_ATTACHMENT_SIZE) {
       logger.warn(
         {
           messageId: message.id,
           filename: attachment.name,
           size: attachment.size,
         },
-        "image attachment too large, skipping",
+        "media attachment too large, skipping",
       );
       continue;
     }
@@ -414,7 +432,7 @@ async function readImageAttachments(
           filename: attachment.name,
           size: attachment.size,
         },
-        "fetching image attachment",
+        "fetching media attachment",
       );
       const response = await fetch(attachment.url);
       if (!response.ok) {
@@ -424,7 +442,7 @@ async function readImageAttachments(
             filename: attachment.name,
             status: response.status,
           },
-          "failed to fetch image attachment",
+          "failed to fetch media attachment",
         );
         continue;
       }
@@ -433,12 +451,12 @@ async function readImageAttachments(
       results.push({
         filename: attachment.name,
         data: base64,
-        mimeType: attachment.contentType ?? "image/png",
+        mimeType: attachment.contentType ?? "application/octet-stream",
       });
     } catch (error) {
       logger.error(
         { messageId: message.id, filename: attachment.name, error },
-        "error fetching image attachment",
+        "error fetching media attachment",
       );
     }
   }
@@ -483,11 +501,12 @@ type ResolvedImages = {
 };
 
 /**
- * Resolve image attachments into prompt text and/or native image content.
- * Strategy depends on whether the current model supports vision natively.
+ * Resolve media attachments (images, PDFs) into prompt text and/or native
+ * content blocks. Strategy depends on whether the current model supports
+ * vision natively.
  */
-async function resolveImageAttachments(
-  imageAttachments: ImageAttachmentContent[],
+async function resolveMediaAttachments(
+  media: MediaAttachmentContent[],
   content: string,
   currentModel: Model<any> | undefined,
   config: ResolvedDiscordPiBridgeConfig,
@@ -496,34 +515,36 @@ async function resolveImageAttachments(
   const modelSupportsVision = currentModel?.input.includes("image") ?? false;
 
   if (modelSupportsVision) {
-    // Native image passthrough — pass images directly to the model.
+    // Native media passthrough — pass images/PDFs directly to the model.
+    const names = media.map((m) => m.filename).join(", ");
     logger.info(
       {
-        imageCount: imageAttachments.length,
+        count: media.length,
+        filenames: names,
         model: currentModel
           ? `${currentModel.provider}/${currentModel.id}`
           : "none",
       },
-      "passing images natively to vision-capable model",
+      "passing media natively to vision-capable model",
     );
-    const images: ImageContent[] = imageAttachments.map((img) => ({
+    const images: ImageContent[] = media.map((m) => ({
       type: "image",
-      data: img.data,
-      mimeType: img.mimeType,
+      data: m.data,
+      mimeType: m.mimeType,
     }));
     return { content, images };
   }
 
   if (!config.visionModelId) {
     // No vision model configured — graceful degradation.
-    const imageNames = imageAttachments.map((i) => i.filename).join(", ");
+    const names = media.map((m) => m.filename).join(", ");
     logger.info(
-      { imageNames },
-      "image attachments received but vision model not configured",
+      { filenames: names },
+      "media attachments received but vision model not configured",
     );
     const note =
-      `\n\n[User sent image attachment(s): ${imageNames}]\n` +
-      "(Image vision not configured. Set visionModelId to enable image understanding.)";
+      `\n\n[User sent media attachment(s): ${names}]\n` +
+      "(Media vision not configured. Set visionModelId to enable image/PDF understanding.)";
     return { content: content ? content + note : note, images: [] };
   }
 
@@ -538,29 +559,31 @@ async function resolveImageAttachments(
       { visionModelId: config.visionModelId },
       "vision model not found in registry",
     );
-    const imageNames = imageAttachments.map((i) => i.filename).join(", ");
-    const note = `\n\n[User sent image attachment(s): ${imageNames}]\n(Vision model not found: ${config.visionModelId})`;
+    const names = media.map((m) => m.filename).join(", ");
+    const note = `\n\n[User sent media attachment(s): ${names}]\n(Vision model not found: ${config.visionModelId})`;
     return { content: content ? content + note : note, images: [] };
   }
 
   logger.info(
     {
-      imageCount: imageAttachments.length,
+      count: media.length,
       visionModel: `${visionModel.provider}/${visionModel.id}`,
     },
-    "describing images with vision model",
+    "describing media with vision model",
   );
 
   const descriptions: string[] = [];
-  for (const img of imageAttachments) {
+  for (const m of media) {
+    const isPdf = m.mimeType === "application/pdf";
     const description = await describeImage(
       agentService,
-      img.data,
-      img.mimeType,
+      m.data,
+      m.mimeType,
       content,
       visionModel,
     );
-    descriptions.push(`[Image: ${img.filename}]\n${description}`);
+    const label = isPdf ? `[PDF: ${m.filename}]` : `[Image: ${m.filename}]`;
+    descriptions.push(`${label}\n${description}`);
   }
 
   if (descriptions.length > 0) {
@@ -697,12 +720,12 @@ async function onMessage(
     content = content ? content + suffix : attachmentContents[0]!.content;
   }
 
-  // Fetch image attachments upfront (lightweight — just downloads).
+  // Fetch media attachments (images, PDFs) upfront (lightweight — just downloads).
   // The actual vision processing is deferred to the prompt queue callback
   // where we have access to the session's current model.
-  const imageAttachments = await readImageAttachments(message);
+  const mediaAttachments = await readMediaAttachments(message);
 
-  if (!content && imageAttachments.length === 0) {
+  if (!content && mediaAttachments.length === 0) {
     logger.debug(
       { messageId: message.id },
       "ignored empty message (no text or images)",
@@ -822,13 +845,13 @@ async function onMessage(
       //   "processing message",
       // );
 
-      // Process image attachments inside the queue callback so we have
+      // Process media attachments inside the queue callback so we have
       // access to the session's current model for vision capability check.
       let promptContent = content;
       let promptImages: ImageContent[] | undefined;
-      if (imageAttachments.length > 0) {
-        const resolved = await resolveImageAttachments(
-          imageAttachments,
+      if (mediaAttachments.length > 0) {
+        const resolved = await resolveMediaAttachments(
+          mediaAttachments,
           promptContent,
           session.model,
           config,

@@ -6,10 +6,11 @@ import { createModuleLogger } from "./logger";
 const logger = createModuleLogger("image-description");
 
 /**
- * Use a vision-capable model to describe an image, returning a text
- * description that can be inlined into a prompt for a non-vision model.
+ * Use a vision-capable model to describe a media attachment (image or PDF),
+ * returning a text description that can be inlined into a prompt for a
+ * non-vision model.
  *
- * Creates a temporary in-memory session, sends the image, extracts the
+ * Creates a temporary in-memory session, sends the media, extracts the
  * assistant's text reply, then disposes the session.
  */
 export async function describeImage(
@@ -22,16 +23,26 @@ export async function describeImage(
   const session = await agentService.createTemporarySession();
   await session.setModel(visionModel);
 
+  const isPdf = mimeType === "application/pdf";
+
   const imageContent: ImageContent = {
     type: "image",
     data: imageData,
     mimeType,
   };
 
-  const promptText =
-    userText.trim().length > 0
-      ? `The user sent this image with the following message: "${userText}". Please describe the image in detail and address any questions from the user's message.`
-      : "Please describe this image in detail. What do you see?";
+  let promptText: string;
+  if (isPdf) {
+    promptText =
+      userText.trim().length > 0
+        ? `The user sent a PDF document with the following message: "${userText}". Please extract and summarize the text content of this PDF. Be thorough — include all important details, sections, and data from the document.`
+        : "Please extract and summarize the text content of this PDF document. Be thorough — include all important details, sections, data, and key points.";
+  } else {
+    promptText =
+      userText.trim().length > 0
+        ? `The user sent this image with the following message: "${userText}". Please describe the image in detail and address any questions from the user's message.`
+        : "Please describe this image in detail. What do you see?";
+  }
 
   let text = "";
 
@@ -39,8 +50,8 @@ export async function describeImage(
     await session.prompt(promptText, { images: [imageContent] });
     text = extractLastAssistantText(session);
   } catch (error) {
-    logger.error({ error }, "vision model prompt failed");
-    text = "(Vision model failed to process the image.)";
+    logger.error({ error, mimeType }, "vision model prompt failed");
+    text = "(Vision model failed to process the file.)";
   } finally {
     session.dispose();
   }
@@ -49,7 +60,7 @@ export async function describeImage(
     return "(Vision model returned no description.)";
   }
 
-  logger.debug({ textLength: text.length }, "image described");
+  logger.debug({ textLength: text.length, mimeType }, "media described");
 
   return text;
 }
