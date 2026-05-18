@@ -26,10 +26,40 @@ jobs:
             - name: Install dependencies
               run: bun install --frozen-lockfile
 
-            - name: Test
+            - name: Test with coverage
               run: |
                   bun run typecheck
-                  bun run test
+                  bun run test:coverage
+
+            - name: Add coverage summary
+              run: |
+                  node --input-type=module <<'EOF'
+                  import fs from "node:fs";
+
+                  const summary = JSON.parse(
+                    fs.readFileSync("coverage/coverage-summary.json", "utf8"),
+                  );
+                  const total = summary.total;
+                  const markdown = [
+                    "## Test Coverage",
+                    "",
+                    "| Metric | pct | covered/total |",
+                    "|---|---:|---:|",
+                    `| Lines | ${total.lines.pct}% | ${total.lines.covered}/${total.lines.total} |`,
+                    `| Statements | ${total.statements.pct}% | ${total.statements.covered}/${total.statements.total} |`,
+                    `| Functions | ${total.functions.pct}% | ${total.functions.covered}/${total.functions.total} |`,
+                    `| Branches | ${total.branches.pct}% | ${total.branches.covered}/${total.branches.total} |`,
+                    "",
+                  ].join("\n");
+
+                  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
+                  EOF
+
+            - name: Upload coverage report
+              uses: actions/upload-artifact@v4
+              with:
+                  name: coverage-report
+                  path: coverage/
 
             - name: Build
               run: bun run build

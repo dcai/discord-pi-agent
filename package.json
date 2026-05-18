@@ -27,6 +27,7 @@
   "scripts": {
     "test:watch": "vitest",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "format": "prettier --write .",
     "build:01-clean": "rm -rf dist",
     "build:02-tsgo": "tsgo -p tsconfig.json --emitDeclarationOnly --declaration --declarationMap false",
@@ -47,6 +48,7 @@
   "devDependencies": {
     "@types/node": "^25.8.0",
     "@typescript/native-preview": "^7.0.0-dev.20260517.1",
+    "@vitest/coverage-v8": "^4.1.6",
     "@vitest/ui": "^4.1.6",
     "vitest": "^4.1.6"
   }
