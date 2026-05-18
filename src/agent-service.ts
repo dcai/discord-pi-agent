@@ -12,7 +12,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import { createModuleLogger } from "./logger";
-import { collectReply } from "./reply-buffer";
+import { runPromptAndCollectReply } from "./reply-buffer";
 import type {
   AgentStatus,
   ResolvedDiscordGatewayConfig,
@@ -139,7 +139,7 @@ export class AgentService {
   async prompt(text: string): Promise<string> {
     const session = this.requireSession();
     const transformedPrompt = await this.config.promptTransform(text);
-    return collectReply(session, transformedPrompt, {
+    return runPromptAndCollectReply(session, transformedPrompt, {
       logPrefix: `[agent:${session.sessionId}]`,
     });
   }

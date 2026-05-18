@@ -1,7 +1,7 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { Message } from "discord.js";
 import type { AgentService } from "./agent-service";
-import { handleCommand } from "./commands";
+import { executeCommand } from "./commands";
 import {
   readMediaAttachments,
   readTextAttachments,
@@ -26,7 +26,7 @@ import {
   buildDiscordMessageContextPrompt,
   formatDiscordPromptTime,
 } from "./prompt-context";
-import { collectReply } from "./reply-buffer";
+import { runPromptAndCollectReply } from "./reply-buffer";
 import type { SessionRegistry } from "./session-registry";
 import type { ResolvedDiscordGatewayConfig } from "./types";
 import type { GatewayAuthConfig } from "./discord-gateway-client";
@@ -148,7 +148,7 @@ export async function handleDiscordMessage(
     );
   }
 
-  const commandResult = await handleCommand(content, {
+  const commandResult = await executeCommand(content, {
     agentService,
     promptQueue,
     session,
@@ -233,7 +233,7 @@ export async function handleDiscordMessage(
         config,
       );
       const transformedPrompt = await config.promptTransform(wrappedContent);
-      return collectReply(session, transformedPrompt, {
+      return runPromptAndCollectReply(session, transformedPrompt, {
         logPrefix: `[agent:${session.sessionId}]`,
         images: promptImages,
       });

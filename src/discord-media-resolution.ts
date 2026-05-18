@@ -1,6 +1,6 @@
 import type { ImageContent, Model } from "@earendil-works/pi-ai";
 import type { AgentService } from "./agent-service";
-import { describeImage } from "./image-description";
+import { describeMediaAttachment } from "./image-description";
 import { createModuleLogger } from "./logger";
 import type { MediaAttachmentContent } from "./discord-attachments";
 import type { ResolvedDiscordGatewayConfig } from "./types";
@@ -153,7 +153,7 @@ export async function resolveMediaAttachmentsForPrompt(
 
   const descriptions: string[] = [];
   for (const media of mediaAttachments) {
-    const description = await describeImage(
+    const description = await describeMediaAttachment(
       agentService,
       media.data,
       media.mimeType,

@@ -18,7 +18,7 @@ export class PromptQueue {
           reject(error);
         }
       });
-      this.kick();
+      this.runNextTask();
     });
   }
 
@@ -29,7 +29,7 @@ export class PromptQueue {
     };
   }
 
-  private kick(): void {
+  private runNextTask(): void {
     if (this.running) {
       return;
     }
@@ -42,7 +42,7 @@ export class PromptQueue {
     this.running = true;
     void next().finally(() => {
       this.running = false;
-      this.kick();
+      this.runNextTask();
     });
   }
 }

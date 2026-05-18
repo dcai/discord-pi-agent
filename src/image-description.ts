@@ -13,7 +13,7 @@ const logger = createModuleLogger("image-description");
  * Creates a temporary in-memory session, sends the media, extracts the
  * assistant's text reply, then disposes the session.
  */
-export async function describeImage(
+export async function describeMediaAttachment(
   agentService: AgentService,
   imageData: string,
   mimeType: string,

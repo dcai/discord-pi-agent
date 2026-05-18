@@ -15,7 +15,7 @@ type CollectReplyOptions = {
   images?: ImageContent[];
 };
 
-export async function collectReply(
+export async function runPromptAndCollectReply(
   session: AgentSession,
   prompt: string,
   options: CollectReplyOptions = {},
