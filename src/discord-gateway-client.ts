@@ -1,9 +1,4 @@
-import {
-  Client,
-  Events,
-  GatewayIntentBits,
-  Partials,
-} from "discord.js";
+import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { handleDiscordMessage } from "./discord-message-handler";
 import { sendReply } from "./discord-replies";

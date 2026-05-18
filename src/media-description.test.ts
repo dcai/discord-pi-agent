@@ -51,7 +51,9 @@ describe("describeMediaAttachment", () => {
 
     expect(session.setModel).toHaveBeenCalledWith(visionModel);
     expect(session.prompt).toHaveBeenCalledWith(
-      expect.stringContaining('The user sent this image with the following message: "what do you see?"'),
+      expect.stringContaining(
+        'The user sent this image with the following message: "what do you see?"',
+      ),
       {
         images: [
           {
@@ -84,7 +86,9 @@ describe("describeMediaAttachment", () => {
     );
 
     expect(session.prompt).toHaveBeenCalledWith(
-      expect.stringContaining("Please extract and summarize the text content of this document."),
+      expect.stringContaining(
+        "Please extract and summarize the text content of this document.",
+      ),
       expect.anything(),
     );
   });

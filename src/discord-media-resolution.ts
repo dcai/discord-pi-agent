@@ -170,7 +170,9 @@ export async function resolveMediaAttachmentsForPrompt(
 
   const descriptionPrefix = descriptions.join("\n\n");
   return {
-    content: content ? `${descriptionPrefix}\n\n---\n${content}` : descriptionPrefix,
+    content: content
+      ? `${descriptionPrefix}\n\n---\n${content}`
+      : descriptionPrefix,
     images: [],
   };
 }

@@ -70,7 +70,9 @@ beforeEach(() => {
 describe("discord-media-resolution", () => {
   describe("parseProviderModelId", () => {
     it("parses provider and model id with extra slashes in model id", () => {
-      expect(parseProviderModelId("openrouter/google/gemini-2.5-flash")).toEqual({
+      expect(
+        parseProviderModelId("openrouter/google/gemini-2.5-flash"),
+      ).toEqual({
         provider: "openrouter",
         modelId: "google/gemini-2.5-flash",
       });
@@ -108,7 +110,11 @@ describe("discord-media-resolution", () => {
         resolveMediaAttachmentsForPrompt(
           mediaAttachments,
           "hello",
-          { input: ["text", "image"], provider: "openrouter", id: "vision" } as never,
+          {
+            input: ["text", "image"],
+            provider: "openrouter",
+            id: "vision",
+          } as never,
           createConfig(),
           createAgentService() as never,
         ),
@@ -180,7 +186,10 @@ describe("discord-media-resolution", () => {
           "user text",
           undefined,
           createConfig({ visionModelId: "openrouter/google/gemini-2.5-flash" }),
-          createAgentService({ provider: "openrouter", id: "google/gemini-2.5-flash" }) as never,
+          createAgentService({
+            provider: "openrouter",
+            id: "google/gemini-2.5-flash",
+          }) as never,
         ),
       ).resolves.toEqual({
         content: [

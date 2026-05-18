@@ -367,13 +367,9 @@ describe("handleDiscordMessage", () => {
       config,
       expect.anything(),
     );
-    expect(runAgentTurnMock).toHaveBeenCalledWith(
-      session,
-      expect.any(String),
-      {
-        images: [{ type: "image", data: "base64-data", mimeType: "image/png" }],
-      },
-    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(session, expect.any(String), {
+      images: [{ type: "image", data: "base64-data", mimeType: "image/png" }],
+    });
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
     expect(removeWorkingReactionMock).toHaveBeenCalledWith(message);
   });

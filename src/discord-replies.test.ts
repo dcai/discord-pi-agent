@@ -66,7 +66,9 @@ describe("discord-replies", () => {
     });
 
     await expect(addWorkingReaction(message as never)).resolves.toBeUndefined();
-    await expect(removeWorkingReaction(message as never)).resolves.toBeUndefined();
+    await expect(
+      removeWorkingReaction(message as never),
+    ).resolves.toBeUndefined();
   });
 
   it("skips replies for non-sendable channels", async () => {
@@ -103,7 +105,9 @@ describe("discord-replies", () => {
     });
 
     await expect(sendReply(message as never, "empty")).resolves.toBeUndefined();
-    await expect(sendReply(message as never, "broken")).resolves.toBeUndefined();
+    await expect(
+      sendReply(message as never, "broken"),
+    ).resolves.toBeUndefined();
 
     expect(message.channel.send).not.toHaveBeenCalled();
   });

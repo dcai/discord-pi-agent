@@ -5,14 +5,16 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { runAgentTurn } from "./agent-turn-runner";
 
-const { debugPrintMock, transformMarkdownTablesToCodeBlocksMock } = vi.hoisted(() => {
-  return {
-    debugPrintMock: vi.fn(),
-    transformMarkdownTablesToCodeBlocksMock: vi.fn(async (text: string) => {
-      return `transformed:${text}`;
-    }),
-  };
-});
+const { debugPrintMock, transformMarkdownTablesToCodeBlocksMock } = vi.hoisted(
+  () => {
+    return {
+      debugPrintMock: vi.fn(),
+      transformMarkdownTablesToCodeBlocksMock: vi.fn(async (text: string) => {
+        return `transformed:${text}`;
+      }),
+    };
+  },
+);
 
 vi.mock("./debug-print", () => {
   return {
@@ -22,7 +24,8 @@ vi.mock("./debug-print", () => {
 
 vi.mock("./markdown-table-transformer", () => {
   return {
-    transformMarkdownTablesToCodeBlocks: transformMarkdownTablesToCodeBlocksMock,
+    transformMarkdownTablesToCodeBlocks:
+      transformMarkdownTablesToCodeBlocksMock,
   };
 });
 
@@ -46,7 +49,11 @@ function createSession(overrides: Partial<AgentSession> = {}): AgentSession {
 }
 
 function emit(session: AgentSession, event: AgentSessionEvent): void {
-  const listeners = (session as unknown as { __listeners: Array<(event: AgentSessionEvent) => void> }).__listeners;
+  const listeners = (
+    session as unknown as {
+      __listeners: Array<(event: AgentSessionEvent) => void>;
+    }
+  ).__listeners;
   listeners.forEach((listener) => {
     listener(event);
   });
@@ -89,7 +96,9 @@ describe("runAgentTurn", () => {
     await expect(runAgentTurn(session, "prompt")).resolves.toBe(
       "transformed:Hello world",
     );
-    expect(session.prompt).toHaveBeenCalledWith("prompt", { images: undefined });
+    expect(session.prompt).toHaveBeenCalledWith("prompt", {
+      images: undefined,
+    });
     expect(transformMarkdownTablesToCodeBlocksMock).toHaveBeenCalledWith(
       "Hello world",
     );
@@ -153,9 +162,7 @@ describe("runAgentTurn", () => {
       }),
     });
 
-    await expect(runAgentTurn(session, "prompt")).rejects.toThrow(
-      "boom",
-    );
+    await expect(runAgentTurn(session, "prompt")).rejects.toThrow("boom");
     expect(unsubscribe).toHaveBeenCalled();
   });
 });

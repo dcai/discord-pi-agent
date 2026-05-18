@@ -72,9 +72,9 @@ describe("discord-attachments", () => {
 
   describe("readTextAttachments", () => {
     it("returns empty when the message has no attachments", async () => {
-      await expect(readTextAttachments(createMessage([]) as never)).resolves.toEqual(
-        [],
-      );
+      await expect(
+        readTextAttachments(createMessage([]) as never),
+      ).resolves.toEqual([]);
     });
 
     it("fetches only supported text attachments", async () => {

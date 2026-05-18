@@ -8,22 +8,21 @@ import type {
   ResolvedDiscordGatewayConfig,
 } from "./types";
 
-const {
-  clientState,
-  handleDiscordMessageMock,
-  sendReplyMock,
-} = vi.hoisted(() => {
-  return {
-    clientState: {
-      instances: [] as Array<Record<string, unknown>>,
-    },
-    handleDiscordMessageMock: vi.fn(),
-    sendReplyMock: vi.fn(),
-  };
-});
+const { clientState, handleDiscordMessageMock, sendReplyMock } = vi.hoisted(
+  () => {
+    return {
+      clientState: {
+        instances: [] as Array<Record<string, unknown>>,
+      },
+      handleDiscordMessageMock: vi.fn(),
+      sendReplyMock: vi.fn(),
+    };
+  },
+);
 
 vi.mock("discord.js", async () => {
-  const actual = await vi.importActual<typeof import("discord.js")>("discord.js");
+  const actual =
+    await vi.importActual<typeof import("discord.js")>("discord.js");
 
   class ClientMock {
     options: unknown;

@@ -20,11 +20,15 @@ const {
     createAgentSessionMock: vi.fn(),
     authStorageCreateMock: vi.fn(() => ({ kind: "auth-storage" })),
     modelRegistryCreateMock: vi.fn(() => ({ kind: "model-registry" })),
-    settingsManagerCreateMock: vi.fn(() => ({ flush: vi.fn(async () => undefined) })),
+    settingsManagerCreateMock: vi.fn(() => ({
+      flush: vi.fn(async () => undefined),
+    })),
     sessionManagerInMemoryMock: vi.fn(() => ({ kind: "in-memory" })),
-    sessionManagerContinueRecentMock: vi.fn((cwd: string, sessionDir: string) => {
-      return { kind: "continue-recent", cwd, sessionDir };
-    }),
+    sessionManagerContinueRecentMock: vi.fn(
+      (cwd: string, sessionDir: string) => {
+        return { kind: "continue-recent", cwd, sessionDir };
+      },
+    ),
     sessionManagerCreateMock: vi.fn((cwd: string, sessionDir: string) => {
       return { kind: "create", cwd, sessionDir };
     }),
@@ -108,9 +112,7 @@ function createConfig(
   };
 }
 
-function createSession(
-  overrides: Partial<AgentSession> = {},
-): AgentSession {
+function createSession(overrides: Partial<AgentSession> = {}): AgentSession {
   return {
     sessionId: "session-1",
     sessionFile: "/repo/.pi-agent/sessions/session-1.jsonl",
@@ -123,7 +125,11 @@ function createSession(
     prompt: vi.fn(async () => undefined),
     supportsThinking: vi.fn(() => true),
     getAvailableThinkingLevels: vi.fn(() => ["low", "medium", "high"]),
-    getContextUsage: vi.fn(() => ({ tokens: 123, contextWindow: 1000, percent: 12.3 })),
+    getContextUsage: vi.fn(() => ({
+      tokens: 123,
+      contextWindow: 1000,
+      percent: 12.3,
+    })),
     ...overrides,
   } as unknown as AgentSession;
 }
@@ -145,7 +151,9 @@ describe("AgentService", () => {
 
     await service.initialize();
 
-    expect(mkdirMock).toHaveBeenCalledWith("/repo/.pi-agent", { recursive: true });
+    expect(mkdirMock).toHaveBeenCalledWith("/repo/.pi-agent", {
+      recursive: true,
+    });
     expect(mkdirMock).toHaveBeenCalledWith("/repo/.pi-agent/sessions", {
       recursive: true,
     });
@@ -174,7 +182,10 @@ describe("AgentService", () => {
     await expect(service.createTemporarySession()).resolves.toBe(tempSession);
     expect(sessionManagerInMemoryMock).toHaveBeenCalled();
     expect(createAgentSessionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ thinkingLevel: "off", sessionManager: { kind: "in-memory" } }),
+      expect.objectContaining({
+        thinkingLevel: "off",
+        sessionManager: { kind: "in-memory" },
+      }),
     );
   });
 
@@ -186,13 +197,16 @@ describe("AgentService", () => {
       .spyOn(service.models, "ensureSessionHasConfiguredModel")
       .mockResolvedValue(undefined);
 
-    await expect(service.createSession("/repo/.pi-agent/sessions/thread-1")).resolves.toBe(
-      scopedSession,
-    );
+    await expect(
+      service.createSession("/repo/.pi-agent/sessions/thread-1"),
+    ).resolves.toBe(scopedSession);
 
-    expect(mkdirMock).toHaveBeenCalledWith("/repo/.pi-agent/sessions/thread-1", {
-      recursive: true,
-    });
+    expect(mkdirMock).toHaveBeenCalledWith(
+      "/repo/.pi-agent/sessions/thread-1",
+      {
+        recursive: true,
+      },
+    );
     expect(sessionManagerContinueRecentMock).toHaveBeenCalledWith(
       "/repo",
       "/repo/.pi-agent/sessions/thread-1",
@@ -204,15 +218,15 @@ describe("AgentService", () => {
     const service = new AgentService(createConfig());
     const session = createSession();
     createAgentSessionMock.mockResolvedValueOnce({ session });
-    vi.spyOn(service.models, "ensureSessionHasConfiguredModel").mockResolvedValue(undefined);
+    vi.spyOn(
+      service.models,
+      "ensureSessionHasConfiguredModel",
+    ).mockResolvedValue(undefined);
 
     await service.initialize();
 
     await expect(service.prompt("hello")).resolves.toBe("agent reply");
-    expect(runAgentTurnMock).toHaveBeenCalledWith(
-      session,
-      "wrapped:hello",
-    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(session, "wrapped:hello");
   });
 
   it("compacts, reports status, resets, and shuts down", async () => {
@@ -227,7 +241,10 @@ describe("AgentService", () => {
       .mockResolvedValueOnce({ session: firstSession })
       .mockResolvedValueOnce({ session: secondSession });
 
-    vi.spyOn(service.models, "ensureSessionHasConfiguredModel").mockResolvedValue(undefined);
+    vi.spyOn(
+      service.models,
+      "ensureSessionHasConfiguredModel",
+    ).mockResolvedValue(undefined);
     vi.spyOn(service.models, "getCurrentModelDisplay").mockReturnValue(
       "openrouter/model-1",
     );
@@ -257,7 +274,8 @@ describe("AgentService", () => {
       "/repo/.pi-agent/sessions",
     );
 
-    const settingsManager = settingsManagerCreateMock.mock.results[0]?.value as {
+    const settingsManager = settingsManagerCreateMock.mock.results[0]
+      ?.value as {
       flush: ReturnType<typeof vi.fn>;
     };
 

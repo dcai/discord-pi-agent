@@ -1,4 +1,7 @@
-import type { AgentSession, ModelRegistry as ModelRegistryType } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentSession,
+  ModelRegistry as ModelRegistryType,
+} from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import { createModuleLogger } from "./logger";
 import type { ResolvedDiscordGatewayConfig, ThinkingLevel } from "./types";

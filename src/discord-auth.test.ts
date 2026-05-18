@@ -74,7 +74,9 @@ describe("discord-auth", () => {
     });
 
     it("returns thread scope for thread messages", () => {
-      expect(resolveMessageScope(createThreadMessage())).toBe("thread:thread-1");
+      expect(resolveMessageScope(createThreadMessage())).toBe(
+        "thread:thread-1",
+      );
     });
 
     it("returns null for unsupported channels", () => {
@@ -91,16 +93,24 @@ describe("discord-auth", () => {
 
   describe("isAuthorizedMessage", () => {
     it("authorizes allowed DM user", () => {
-      expect(isAuthorizedMessage(createDmMessage(), "dm", accessConfig)).toBe(true);
+      expect(isAuthorizedMessage(createDmMessage(), "dm", accessConfig)).toBe(
+        true,
+      );
     });
 
     it("rejects unauthorized DM user", () => {
-      expect(isAuthorizedMessage(createDmMessage("user-9"), "dm", accessConfig)).toBe(false);
+      expect(
+        isAuthorizedMessage(createDmMessage("user-9"), "dm", accessConfig),
+      ).toBe(false);
     });
 
     it("authorizes allowed thread user in allowed forum", () => {
       expect(
-        isAuthorizedMessage(createThreadMessage(), "thread:thread-1", accessConfig),
+        isAuthorizedMessage(
+          createThreadMessage(),
+          "thread:thread-1",
+          accessConfig,
+        ),
       ).toBe(true);
     });
 

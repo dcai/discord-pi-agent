@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DiscordGatewayConfig, ResolvedDiscordGatewayConfig } from "./types";
+import type {
+  DiscordGatewayConfig,
+  ResolvedDiscordGatewayConfig,
+} from "./types";
 
 const {
   resolveConfigMock,
@@ -37,11 +40,16 @@ vi.mock("./discord-gateway-client", () => {
 vi.mock("./agent-service", () => {
   class AgentServiceMock {
     initialize = vi.fn(async () => undefined);
-    getStatus = vi.fn(() => ({ sessionId: "session-1", model: "openrouter/model-1" }));
+    getStatus = vi.fn(() => ({
+      sessionId: "session-1",
+      model: "openrouter/model-1",
+    }));
     shutdown = vi.fn(async () => undefined);
 
     constructor(config: unknown) {
-      agentServiceState.instances.push(this as unknown as Record<string, unknown>);
+      agentServiceState.instances.push(
+        this as unknown as Record<string, unknown>,
+      );
       (this as unknown as { config: unknown }).config = config;
     }
   }
@@ -56,8 +64,11 @@ vi.mock("./session-registry", () => {
     shutdownAll = vi.fn(async () => undefined);
 
     constructor(agentService: unknown) {
-      sessionRegistryState.instances.push(this as unknown as Record<string, unknown>);
-      (this as unknown as { agentService: unknown }).agentService = agentService;
+      sessionRegistryState.instances.push(
+        this as unknown as Record<string, unknown>,
+      );
+      (this as unknown as { agentService: unknown }).agentService =
+        agentService;
     }
   }
 
@@ -151,8 +162,14 @@ describe("startDiscordGateway", () => {
     expect(client.destroy).toHaveBeenCalledTimes(1);
     expect(sessionRegistry.shutdownAll).toHaveBeenCalledTimes(1);
     expect(agentService.shutdown).toHaveBeenCalledTimes(1);
-    expect(processOnMock).not.toHaveBeenCalledWith("SIGINT", expect.any(Function));
-    expect(processOnMock).not.toHaveBeenCalledWith("SIGTERM", expect.any(Function));
+    expect(processOnMock).not.toHaveBeenCalledWith(
+      "SIGINT",
+      expect.any(Function),
+    );
+    expect(processOnMock).not.toHaveBeenCalledWith(
+      "SIGTERM",
+      expect.any(Function),
+    );
   });
 
   it("registers signal handlers when shutdownOnSignals is enabled", async () => {

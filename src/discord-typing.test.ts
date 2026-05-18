@@ -62,7 +62,11 @@ describe("discord-typing", () => {
       "fetch",
       vi
         .fn()
-        .mockResolvedValueOnce({ ok: false, status: 500, text: async () => "err" })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          text: async () => "err",
+        })
         .mockRejectedValueOnce(new Error("network down")),
     );
 

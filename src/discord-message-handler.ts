@@ -17,10 +17,7 @@ import {
   sendReply,
 } from "./discord-replies";
 import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
-import {
-  startTypingForChannel,
-  stopTypingForChannel,
-} from "./discord-typing";
+import { startTypingForChannel, stopTypingForChannel } from "./discord-typing";
 import { createModuleLogger } from "./logger";
 import {
   buildDiscordMessageContextPrompt,
@@ -108,7 +105,9 @@ export async function handleDiscordMessage(
         return `\n\n--- Attachment: ${attachment.filename} ---\n${attachment.content}`;
       })
       .join("");
-    content = content ? content + attachmentSuffix : textAttachments[0]!.content;
+    content = content
+      ? content + attachmentSuffix
+      : textAttachments[0]!.content;
   }
 
   const mediaAttachments = await readMediaAttachments(message);

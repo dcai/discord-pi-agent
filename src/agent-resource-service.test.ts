@@ -30,7 +30,10 @@ describe("AgentResourceService", () => {
         {
           path: "/ext/one",
           tools: new Map([["bash", {}]]),
-          commands: new Map([["help", {}], ["status", {}]]),
+          commands: new Map([
+            ["help", {}],
+            ["status", {}],
+          ]),
         },
         {
           path: "/ext/two",

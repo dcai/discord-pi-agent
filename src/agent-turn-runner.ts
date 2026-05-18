@@ -63,8 +63,9 @@ export async function runAgentTurn(
           {
             toolName: event.toolName,
           },
-          `agent tool start: [${event.toolName}] ${String(input)}`,
+          `agent tool start: [${event.toolName}]`,
         );
+        debugPrint(input, "CMD");
       } else {
         logger.debug(
           {
@@ -81,15 +82,15 @@ export async function runAgentTurn(
       toolInputsByCallId.delete(event.toolCallId);
 
       if (event.toolName === "bash") {
-        logger.debug(
-          {
-            toolName: event.toolName,
-            isError: event.isError,
-          },
-          `agent tool end: [${event.toolName}] ${truncateForLog(
-            typeof input === "string" ? input : "",
-          )}`,
-        );
+        // logger.debug(
+        //   {
+        //     toolName: event.toolName,
+        //     isError: event.isError,
+        //   },
+        //   `agent tool end: [${event.toolName}] ${truncateForLog(
+        //     typeof input === "string" ? input : "",
+        //   )}`,
+        // );
         debugPrint(
           extractToolOutput(event.result),
           event.isError ? "BASH TOOL ERROR OUTPUT" : "BASH TOOL OUTPUT",
@@ -153,16 +154,65 @@ function truncateForLog(value: string, maxLength = 400): string {
   return `${value.slice(0, maxLength)}...`;
 }
 
+/**
+ * Priority order for extracting text from a JSON object:
+ * 1. Check common text-bearing fields: text, content, message, output, result
+ * 2. If none found, pretty-print the JSON
+ */
 function extractToolOutput(output: unknown): string {
   if (typeof output === "string") {
+    const parsed = tryParseJson(output);
+    if (parsed !== undefined && typeof parsed === "object" && parsed !== null) {
+      return extractTextFromObject(parsed) ?? output;
+    }
+
     return output;
   }
 
-  try {
-    return JSON.stringify(output);
-  } catch {
-    return String(output);
+  if (typeof output === "object" && output !== null) {
+    return extractTextFromObject(output) ?? JSON.stringify(output);
   }
+
+  return String(output);
+}
+
+function tryParseJson(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+const TEXT_BEARING_FIELDS = [
+  "text",
+  "content",
+  "message",
+  "output",
+  "result",
+] as const;
+
+function extractTextFromObject(obj: object): string | null {
+  // Check for common text-bearing fields (in order of priority)
+  for (const field of TEXT_BEARING_FIELDS) {
+    if (field in obj) {
+      const value = (obj as Record<string, unknown>)[field];
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value;
+      }
+
+      // If the field value is itself an object (e.g. { result: { text: "..." } }),
+      // try extracting text from it recursively
+      if (typeof value === "object" && value !== null) {
+        const nested = extractTextFromObject(value);
+        if (nested !== null) {
+          return nested;
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function getLatestAssistantText(messages: AgentMessage[]): string {
