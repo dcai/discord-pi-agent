@@ -115,6 +115,19 @@ Put message-flow logic in focused helpers like:
 
 If `discord-gateway-client.ts` starts growing again, move logic out instead of piling more into it.
 
+## Debug logging note
+
+The loud debug output in `src/reply-buffer.ts` is intentional for now.
+This package is still used mostly by the repo owner, and the extra lifecycle visibility is useful when monitoring Discord message handling.
+
+So for now:
+
+- do not remove that debug output just because it is noisy
+- do not "clean it up" as a library polish task by default
+- treat it as deliberate local-operability tooling
+
+Revisit this later, when the package is more mature and the shared-library tradeoff matters more.
+
 ## Public API expectations
 
 Main exports live in `src/index.ts`.

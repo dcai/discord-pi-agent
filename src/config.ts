@@ -9,18 +9,18 @@ import type {
 export function resolveConfig(
   config: DiscordGatewayConfig,
 ): ResolvedDiscordGatewayConfig {
-  const discordAllowedUserId = readRequiredValue(
+  const discordAllowedUserId = requireNonEmptyConfigValue(
     "discordAllowedUserId",
     config.discordAllowedUserId,
   );
 
   return {
-    discordBotToken: readRequiredValue(
+    discordBotToken: requireNonEmptyConfigValue(
       "discordBotToken",
       config.discordBotToken,
     ),
     discordAllowedUserId,
-    cwd: readRequiredValue("cwd", config.cwd),
+    cwd: requireNonEmptyConfigValue("cwd", config.cwd),
     agentDir: config.agentDir?.trim() || path.join(config.cwd, ".pi-agent"),
     modelProvider: config.modelProvider?.trim() || "openrouter",
     modelId: config.modelId?.trim() || "anthropic/claude-3.5-haiku",
@@ -74,7 +74,7 @@ export function loadDiscordGatewayConfigFromEnv(
   });
 }
 
-function readRequiredValue(name: string, value: string): string {
+function requireNonEmptyConfigValue(name: string, value: string): string {
   const trimmedValue = value.trim();
 
   if (!trimmedValue) {

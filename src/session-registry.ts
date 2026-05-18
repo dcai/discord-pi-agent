@@ -6,7 +6,7 @@ import { PromptQueue } from "./prompt-queue";
 
 export type SessionScope = string;
 
-export type ScopeEntry = {
+export type ScopedSessionEntry = {
   session: AgentSession;
   promptQueue: PromptQueue;
   createdAt: Date;
@@ -37,7 +37,7 @@ export function sessionDirForScope(
 const logger = createModuleLogger("session-registry");
 
 export class SessionRegistry {
-  private readonly scopes = new Map<SessionScope, ScopeEntry>();
+  private readonly scopes = new Map<SessionScope, ScopedSessionEntry>();
   private readonly agentService: AgentService;
 
   constructor(agentService: AgentService) {
@@ -46,7 +46,7 @@ export class SessionRegistry {
 
   async getOrCreate(
     scope: SessionScope,
-  ): Promise<{ entry: ScopeEntry; created: boolean }> {
+  ): Promise<{ entry: ScopedSessionEntry; created: boolean }> {
     const existing = this.scopes.get(scope);
     if (existing) {
       return { entry: existing, created: false };
@@ -59,7 +59,7 @@ export class SessionRegistry {
     const session = await this.agentService.createSession(sessionDir);
     const promptQueue = new PromptQueue();
 
-    const entry: ScopeEntry = {
+    const entry: ScopedSessionEntry = {
       session,
       promptQueue,
       createdAt: new Date(),
@@ -90,7 +90,7 @@ export class SessionRegistry {
     this.scopes.delete(scope);
   }
 
-  get(scope: SessionScope): ScopeEntry | undefined {
+  get(scope: SessionScope): ScopedSessionEntry | undefined {
     return this.scopes.get(scope);
   }
 
