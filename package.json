@@ -30,7 +30,7 @@
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write .",
     "build:01-clean": "rm -rf dist",
-    "build:02-tsgo": "tsgo -p tsconfig.json --emitDeclarationOnly --declaration --declarationMap false",
+    "build:02-tsgo": "tsgo -p tsconfig.build.json --emitDeclarationOnly --declaration --declarationMap false",
     "build:03-build": "bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external",
     "build": "bun run --sequential 'build:*'",
     "typecheck": "tsgo --noEmit -p tsconfig.json"
