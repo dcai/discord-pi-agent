@@ -53,11 +53,11 @@ jobs:
                   fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
                   EOF
 
-            - name: Upload coverage report
-              uses: actions/upload-artifact@v4
-              with:
-                  name: coverage-report
-                  path: coverage/
+            # - name: Upload coverage report
+            #   uses: actions/upload-artifact@v4
+            #   with:
+            #       name: coverage-report
+            #       path: coverage/
 
             - name: Build
               run: bun run build
