@@ -33,6 +33,7 @@ export function resolveConfig(
         ? "Bot is online and ready."
         : config.startupMessage,
     shutdownOnSignals: config.shutdownOnSignals ?? true,
+    visionModelId: config.visionModelId?.trim() || null,
   };
 }
 
@@ -60,6 +61,7 @@ export function loadDiscordPiBridgeConfigFromEnv(
     promptTransform: overrides.promptTransform,
     startupMessage: overrides.startupMessage ?? readStartupMessageFromEnv(),
     shutdownOnSignals: overrides.shutdownOnSignals,
+    visionModelId: overrides.visionModelId ?? process.env.PI_VISION_MODEL_ID,
   });
 }
 

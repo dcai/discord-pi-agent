@@ -23,6 +23,13 @@ export type DiscordPiBridgeConfig = {
   promptTransform?: PromptTransform;
   startupMessage?: string | false;
   shutdownOnSignals?: boolean;
+  /**
+   * Vision model to use for describing images when the main model
+   * lacks vision support. Format: "provider/modelId"
+   * (e.g. "openrouter/google/gemini-2.5-flash").
+   * Defaults to null (image handling disabled).
+   */
+  visionModelId?: string | null;
 };
 
 export type ResolvedDiscordPiBridgeConfig = {
@@ -38,6 +45,8 @@ export type ResolvedDiscordPiBridgeConfig = {
   promptTransform: PromptTransform;
   startupMessage: string | false;
   shutdownOnSignals: boolean;
+  /** Vision model provider/modelId for image description (null = disabled). */
+  visionModelId: string | null;
 };
 
 export type ContextUsageStatus = {

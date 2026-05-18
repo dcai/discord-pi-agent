@@ -7,8 +7,10 @@ import {
   type Message,
   type SendableChannels,
 } from "discord.js";
+import type { Model } from "@earendil-works/pi-ai";
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
+import { describeImage } from "./image-description";
 import { createModuleLogger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import {
@@ -272,7 +274,19 @@ async function sendReply(message: Message, text: string): Promise<void> {
   }
 }
 
-const TEXT_ATTACHMENT_EXTENSIONS = [".txt", ".md", ".json", ".csv", ".log", ".yml", ".yaml", ".xml", ".toml", ".ini", ".cfg"];
+const TEXT_ATTACHMENT_EXTENSIONS = [
+  ".txt",
+  ".md",
+  ".json",
+  ".csv",
+  ".log",
+  ".yml",
+  ".yaml",
+  ".xml",
+  ".toml",
+  ".ini",
+  ".cfg",
+];
 const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024; // Discord's attachment limit
 
 type AttachmentContent = {
@@ -305,7 +319,11 @@ async function readTextAttachments(
 
     if (attachment.size > MAX_ATTACHMENT_SIZE_BYTES) {
       logger.warn(
-        { messageId: message.id, filename: attachment.name, size: attachment.size },
+        {
+          messageId: message.id,
+          filename: attachment.name,
+          size: attachment.size,
+        },
         "attachment too large, skipping",
       );
       continue;
@@ -313,13 +331,21 @@ async function readTextAttachments(
 
     try {
       logger.info(
-        { messageId: message.id, filename: attachment.name, size: attachment.size },
+        {
+          messageId: message.id,
+          filename: attachment.name,
+          size: attachment.size,
+        },
         "fetching attachment",
       );
       const response = await fetch(attachment.url);
       if (!response.ok) {
         logger.warn(
-          { messageId: message.id, filename: attachment.name, status: response.status },
+          {
+            messageId: message.id,
+            filename: attachment.name,
+            status: response.status,
+          },
           "failed to fetch attachment",
         );
         continue;
@@ -335,6 +361,196 @@ async function readTextAttachments(
   }
 
   return results;
+}
+
+const IMAGE_ATTACHMENT_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
+const MAX_IMAGE_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10 MB
+
+type ImageAttachmentContent = {
+  filename: string;
+  data: string;
+  mimeType: string;
+};
+
+async function readImageAttachments(
+  message: Message,
+): Promise<ImageAttachmentContent[]> {
+  const attachments = message.attachments;
+  if (attachments.size === 0) {
+    return [];
+  }
+
+  const results: ImageAttachmentContent[] = [];
+
+  for (const [, attachment] of attachments) {
+    const ext = attachment.name
+      ?.slice(attachment.name.lastIndexOf("."))
+      .toLowerCase();
+
+    if (!ext || !IMAGE_ATTACHMENT_EXTENSIONS.includes(ext)) {
+      continue;
+    }
+
+    if (!attachment.contentType?.startsWith("image/")) {
+      continue;
+    }
+
+    if (attachment.size > MAX_IMAGE_ATTACHMENT_SIZE) {
+      logger.warn(
+        {
+          messageId: message.id,
+          filename: attachment.name,
+          size: attachment.size,
+        },
+        "image attachment too large, skipping",
+      );
+      continue;
+    }
+
+    try {
+      logger.info(
+        {
+          messageId: message.id,
+          filename: attachment.name,
+          size: attachment.size,
+        },
+        "fetching image attachment",
+      );
+      const response = await fetch(attachment.url);
+      if (!response.ok) {
+        logger.warn(
+          {
+            messageId: message.id,
+            filename: attachment.name,
+            status: response.status,
+          },
+          "failed to fetch image attachment",
+        );
+        continue;
+      }
+      const buffer = await response.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString("base64");
+      results.push({
+        filename: attachment.name,
+        data: base64,
+        mimeType: attachment.contentType ?? "image/png",
+      });
+    } catch (error) {
+      logger.error(
+        { messageId: message.id, filename: attachment.name, error },
+        "error fetching image attachment",
+      );
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Parse a "provider/modelId" string, handling model IDs that contain slashes
+ * (e.g. "openrouter/google/gemini-2.5-flash" splits into
+ *  provider="openrouter", modelId="google/gemini-2.5-flash").
+ */
+function parseVisionModelId(visionModelId: string): {
+  provider: string;
+  modelId: string;
+} | null {
+  const trimmed = visionModelId.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const slashIndex = trimmed.indexOf("/");
+  if (slashIndex === -1) {
+    return null;
+  }
+
+  return {
+    provider: trimmed.substring(0, slashIndex),
+    modelId: trimmed.substring(slashIndex + 1),
+  };
+}
+
+/**
+ * Resolve image attachments into prompt text. Strategy depends on whether
+ * the current model supports vision natively.
+ */
+async function resolveImageAttachments(
+  imageAttachments: ImageAttachmentContent[],
+  content: string,
+  currentModel: Model<any> | undefined,
+  config: ResolvedDiscordPiBridgeConfig,
+  agentService: AgentService,
+): Promise<string> {
+  const modelSupportsVision = currentModel?.input.includes("image") ?? false;
+
+  if (modelSupportsVision) {
+    // Phase 2: native image passthrough not yet implemented.
+    // For now, note the images were received but pass through as text.
+    const imageNames = imageAttachments.map((i) => i.filename).join(", ");
+    logger.info(
+      { imageNames, modelSupportsVision: true },
+      "native vision supported but not yet wired — noting images in prompt",
+    );
+    const note = `\n\n[User sent image attachment(s): ${imageNames}]`;
+    return content ? content + note : note;
+  }
+
+  if (!config.visionModelId) {
+    // No vision model configured — graceful degradation.
+    const imageNames = imageAttachments.map((i) => i.filename).join(", ");
+    logger.info(
+      { imageNames },
+      "image attachments received but vision model not configured",
+    );
+    const note =
+      `\n\n[User sent image attachment(s): ${imageNames}]\n` +
+      "(Image vision not configured. Set visionModelId to enable image understanding.)";
+    return content ? content + note : note;
+  }
+
+  const parsed = parseVisionModelId(config.visionModelId);
+  if (!parsed) {
+    return content;
+  }
+
+  const visionModel = agentService.findModel(parsed.provider, parsed.modelId);
+  if (!visionModel) {
+    logger.warn(
+      { visionModelId: config.visionModelId },
+      "vision model not found in registry",
+    );
+    const imageNames = imageAttachments.map((i) => i.filename).join(", ");
+    const note = `\n\n[User sent image attachment(s): ${imageNames}]\n(Vision model not found: ${config.visionModelId})`;
+    return content ? content + note : note;
+  }
+
+  logger.info(
+    {
+      imageCount: imageAttachments.length,
+      visionModel: `${visionModel.provider}/${visionModel.id}`,
+    },
+    "describing images with vision model",
+  );
+
+  const descriptions: string[] = [];
+  for (const img of imageAttachments) {
+    const description = await describeImage(
+      agentService,
+      img.data,
+      img.mimeType,
+      content,
+      visionModel,
+    );
+    descriptions.push(`[Image: ${img.filename}]\n${description}`);
+  }
+
+  if (descriptions.length > 0) {
+    const prefix = descriptions.join("\n\n");
+    return content ? `${prefix}\n\n---\n${content}` : prefix;
+  }
+
+  return content;
 }
 
 export async function startGatewayClient(
@@ -460,8 +676,16 @@ async function onMessage(
     content = content ? content + suffix : attachmentContents[0]!.content;
   }
 
-  if (!content) {
-    logger.debug({ messageId: message.id }, "ignored empty message");
+  // Fetch image attachments upfront (lightweight — just downloads).
+  // The actual vision processing is deferred to the prompt queue callback
+  // where we have access to the session's current model.
+  const imageAttachments = await readImageAttachments(message);
+
+  if (!content && imageAttachments.length === 0) {
+    logger.debug(
+      { messageId: message.id },
+      "ignored empty message (no text or images)",
+    );
     return;
   }
 
@@ -576,13 +800,27 @@ async function onMessage(
       //   },
       //   "processing message",
       // );
-      const promptContent = buildDiscordPromptContent(
+
+      // Process image attachments inside the queue callback so we have
+      // access to the session's current model for vision capability check.
+      let promptContent = content;
+      if (imageAttachments.length > 0) {
+        promptContent = await resolveImageAttachments(
+          imageAttachments,
+          promptContent,
+          session.model,
+          config,
+          agentService,
+        );
+      }
+
+      const wrappedContent = buildDiscordPromptContent(
         message,
         scope,
-        content,
+        promptContent,
         config,
       );
-      const transformedPrompt = await config.promptTransform(promptContent);
+      const transformedPrompt = await config.promptTransform(wrappedContent);
       return collectReply(session, transformedPrompt, {
         logPrefix: `[agent:${session.sessionId}]`,
       });

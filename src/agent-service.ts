@@ -84,6 +84,31 @@ export class AgentService {
     return this.config.agentDir;
   }
 
+  /**
+   * Create a temporary in-memory session. For one-shot tasks like image
+   * description — no file persistence, no cleanup needed. The caller must
+   * setModel() before prompting and dispose() when done.
+   */
+  async createTemporarySession(): Promise<AgentSession> {
+    const { session } = await createAgentSession({
+      cwd: this.config.cwd,
+      agentDir: this.config.agentDir,
+      authStorage: this.authStorage,
+      modelRegistry: this.modelRegistry,
+      resourceLoader: this.resourceLoader,
+      settingsManager: this.settingsManager,
+      sessionManager: SessionManager.inMemory(),
+      thinkingLevel: "off",
+    });
+    logger.debug({ sessionId: session.sessionId }, "temporary session created");
+    return session;
+  }
+
+  /** Find a model by provider and ID. Returns undefined if not found. */
+  findModel(provider: string, modelId: string): Model<any> | undefined {
+    return this.modelRegistry.find(provider, modelId);
+  }
+
   async createSession(sessionDir: string): Promise<AgentSession> {
     await fs.mkdir(sessionDir, { recursive: true });
     const { session } = await createAgentSession({
