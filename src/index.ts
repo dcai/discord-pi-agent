@@ -2,12 +2,12 @@ import type { Client } from "discord.js";
 import { AgentService } from "./agent-service";
 import { resolveConfig } from "./config";
 import { startGatewayClient } from "./discord-gateway-client";
-import type { GatewayAuthConfig } from "./discord-gateway-client";
 import { createModuleLogger } from "./logger";
 import { SessionRegistry } from "./session-registry";
 import type {
   DiscordGateway,
   DiscordGatewayConfig,
+  GatewayAccessConfig,
   ResolvedDiscordGatewayConfig,
 } from "./types";
 
@@ -27,6 +27,7 @@ export type {
   DiscordGatewayConfig,
   PromptTransform,
   ResolvedDiscordGatewayConfig,
+  GatewayAccessConfig,
 } from "./types";
 
 /**
@@ -43,7 +44,7 @@ export async function startDiscordGateway(
   await agentService.initialize();
   logger.info(agentService.getStatus(), "agent ready");
 
-  const authConfig: GatewayAuthConfig = {
+  const accessConfig: GatewayAccessConfig = {
     discordAllowedUserId: resolvedConfig.discordAllowedUserId,
     discordAllowedForumChannelIds: resolvedConfig.discordAllowedForumChannelIds,
     discordAllowedUserIds: resolvedConfig.discordAllowedUserIds,
@@ -56,7 +57,7 @@ export async function startDiscordGateway(
     resolvedConfig,
     agentService,
     sessionRegistry,
-    authConfig,
+    accessConfig,
   );
 
   const stop = createGatewayStopHandler(

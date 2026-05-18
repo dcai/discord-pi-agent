@@ -16,6 +16,7 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - `!help`
 - `!status`
 - `!thinking`
+- `!model`
 - `!compact`
 - `!reload`
 - `!reset-session`

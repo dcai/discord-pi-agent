@@ -1,6 +1,6 @@
 import type { ImageContent, Model } from "@earendil-works/pi-ai";
 import type { AgentService } from "./agent-service";
-import { describeMediaAttachment } from "./image-description";
+import { describeMediaAttachment } from "./media-description";
 import { createModuleLogger } from "./logger";
 import type { MediaAttachmentContent } from "./discord-attachments";
 import type { ResolvedDiscordGatewayConfig } from "./types";

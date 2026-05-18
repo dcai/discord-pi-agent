@@ -70,6 +70,13 @@ export type AgentStatus = {
   thinkingInfo: string;
 };
 
+export type GatewayAccessConfig = {
+  discordAllowedUserId: string;
+  discordAllowedForumChannelIds: string[];
+  discordAllowedUserIds: string[];
+  startupMessage: string | false;
+};
+
 export type DiscordGateway = {
   client: Client;
   stop: () => Promise<void>;

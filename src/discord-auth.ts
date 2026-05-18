@@ -1,5 +1,5 @@
 import { ChannelType, type Message } from "discord.js";
-import type { GatewayAuthConfig } from "./discord-gateway-client";
+import type { GatewayAccessConfig } from "./types";
 
 export function getAuthorDisplayName(message: Message): string {
   return (
@@ -28,10 +28,10 @@ export function resolveMessageScope(message: Message): string | null {
 export function isAuthorizedMessage(
   message: Message,
   scope: string,
-  authConfig: GatewayAuthConfig,
+  accessConfig: GatewayAccessConfig,
 ): boolean {
   if (scope === "dm") {
-    return message.author.id === authConfig.discordAllowedUserId;
+    return message.author.id === accessConfig.discordAllowedUserId;
   }
 
   if (scope.startsWith("thread:")) {
@@ -43,12 +43,12 @@ export function isAuthorizedMessage(
     const parentId = channel.parentId;
     if (
       !parentId ||
-      !authConfig.discordAllowedForumChannelIds.includes(parentId)
+      !accessConfig.discordAllowedForumChannelIds.includes(parentId)
     ) {
       return false;
     }
 
-    return authConfig.discordAllowedUserIds.includes(message.author.id);
+    return accessConfig.discordAllowedUserIds.includes(message.author.id);
   }
 
   return false;

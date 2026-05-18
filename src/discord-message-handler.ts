@@ -1,7 +1,7 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { Message } from "discord.js";
 import type { AgentService } from "./agent-service";
-import { executeCommand } from "./commands";
+import { executeSessionCommand } from "./session-commands";
 import {
   readMediaAttachments,
   readTextAttachments,
@@ -28,8 +28,10 @@ import {
 } from "./prompt-context";
 import { runPromptAndCollectReply } from "./reply-buffer";
 import type { SessionRegistry } from "./session-registry";
-import type { ResolvedDiscordGatewayConfig } from "./types";
-import type { GatewayAuthConfig } from "./discord-gateway-client";
+import type {
+  GatewayAccessConfig,
+  ResolvedDiscordGatewayConfig,
+} from "./types";
 
 const logger = createModuleLogger("discord-message-handler");
 
@@ -62,7 +64,7 @@ export async function handleDiscordMessage(
   config: ResolvedDiscordGatewayConfig,
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
-  authConfig: GatewayAuthConfig,
+  accessConfig: GatewayAccessConfig,
 ): Promise<void> {
   if (message.author.bot) {
     logger.debug("ignored bot message");
@@ -86,7 +88,7 @@ export async function handleDiscordMessage(
     return;
   }
 
-  if (!isAuthorizedMessage(message, scope, authConfig)) {
+  if (!isAuthorizedMessage(message, scope, accessConfig)) {
     logger.debug(
       {
         messageId: message.id,
@@ -148,7 +150,7 @@ export async function handleDiscordMessage(
     );
   }
 
-  const commandResult = await executeCommand(content, {
+  const commandResult = await executeSessionCommand(content, {
     agentService,
     promptQueue,
     session,

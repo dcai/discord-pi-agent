@@ -349,7 +349,7 @@ const commandHandlers: CommandHandler[] = [
   handleResetSessionCommand,
 ];
 
-export async function executeCommand(
+export async function executeSessionCommand(
   input: string,
   context: CommandContext,
 ): Promise<CommandResult> {

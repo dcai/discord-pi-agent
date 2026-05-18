@@ -9,22 +9,18 @@ import { handleDiscordMessage } from "./discord-message-handler";
 import { sendReply } from "./discord-replies";
 import { createModuleLogger } from "./logger";
 import type { SessionRegistry } from "./session-registry";
-import type { ResolvedDiscordGatewayConfig } from "./types";
+import type {
+  GatewayAccessConfig,
+  ResolvedDiscordGatewayConfig,
+} from "./types";
 
 const logger = createModuleLogger("discord-gateway");
-
-export type GatewayAuthConfig = {
-  discordAllowedUserId: string;
-  discordAllowedForumChannelIds: string[];
-  discordAllowedUserIds: string[];
-  startupMessage: string | false;
-};
 
 export async function startGatewayClient(
   config: ResolvedDiscordGatewayConfig,
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
-  authConfig: GatewayAuthConfig,
+  accessConfig: GatewayAccessConfig,
 ): Promise<Client> {
   const client = new Client({
     intents: [
@@ -39,19 +35,19 @@ export async function startGatewayClient(
   client.once(Events.ClientReady, async (readyClient) => {
     logger.info({ userTag: readyClient.user.tag }, "logged in");
 
-    if (!authConfig.startupMessage) {
+    if (!accessConfig.startupMessage) {
       return;
     }
 
     try {
       const user = await readyClient.users.fetch(
-        authConfig.discordAllowedUserId,
+        accessConfig.discordAllowedUserId,
       );
       const dmChannel = await user.createDM();
-      await dmChannel.send(authConfig.startupMessage);
+      await dmChannel.send(accessConfig.startupMessage);
       logger.info(
         {
-          userId: authConfig.discordAllowedUserId,
+          userId: accessConfig.discordAllowedUserId,
         },
         "sent startup dm",
       );
@@ -67,7 +63,7 @@ export async function startGatewayClient(
         config,
         agentService,
         sessionRegistry,
-        authConfig,
+        accessConfig,
       );
     } catch (error) {
       logger.error({ error, direction: "IN" }, "message handling failed");

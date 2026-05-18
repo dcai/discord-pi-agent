@@ -3,7 +3,7 @@ import type { ImageContent, Model } from "@earendil-works/pi-ai";
 import type { AgentService } from "./agent-service";
 import { createModuleLogger } from "./logger";
 
-const logger = createModuleLogger("image-description");
+const logger = createModuleLogger("media-description");
 
 /**
  * Use a vision-capable model to describe a media attachment (image or PDF),

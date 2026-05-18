@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { executeCommand } from "./commands";
+import { executeSessionCommand } from "./session-commands";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
@@ -60,9 +60,9 @@ function createAgentServiceMock(session: AgentSession | null): AgentService {
   } as unknown as AgentService;
 }
 
-describe("executeCommand", () => {
+describe("executeSessionCommand", () => {
   it("returns handled false for non-command input", async () => {
-    const result = await executeCommand("hello", {
+    const result = await executeSessionCommand("hello", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
     });
@@ -71,7 +71,7 @@ describe("executeCommand", () => {
   });
 
   it("returns no active session for commands that require a session", async () => {
-    const result = await executeCommand("!status", {
+    const result = await executeSessionCommand("!status", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
     });
@@ -84,7 +84,7 @@ describe("executeCommand", () => {
 
   it("shows thinking info when no level is passed", async () => {
     const session = createSessionMock();
-    const result = await executeCommand("!thinking", {
+    const result = await executeSessionCommand("!thinking", {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
@@ -104,7 +104,7 @@ describe("executeCommand", () => {
     const setThinkingLevel = vi.fn();
     const session = createSessionMock({ setThinkingLevel });
 
-    const result = await executeCommand("!thinking high", {
+    const result = await executeSessionCommand("!thinking high", {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
@@ -121,7 +121,7 @@ describe("executeCommand", () => {
     const session = createSessionMock();
     const agentService = createAgentServiceMock(session);
 
-    const result = await executeCommand("!model", {
+    const result = await executeSessionCommand("!model", {
       agentService,
       promptQueue: createPromptQueueMock(),
       session,
@@ -135,7 +135,7 @@ describe("executeCommand", () => {
   });
 
   it("archives threads only when thread session exists", async () => {
-    const result = await executeCommand("!archive", {
+    const result = await executeSessionCommand("!archive", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
     });

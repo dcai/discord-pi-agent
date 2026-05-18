@@ -5,9 +5,9 @@ import {
   isAuthorizedMessage,
   resolveMessageScope,
 } from "./discord-auth";
-import type { GatewayAuthConfig } from "./discord-gateway-client";
+import type { GatewayAccessConfig } from "./types";
 
-const authConfig: GatewayAuthConfig = {
+const accessConfig: GatewayAccessConfig = {
   discordAllowedUserId: "user-1",
   discordAllowedForumChannelIds: ["forum-1"],
   discordAllowedUserIds: ["user-1", "user-2"],
@@ -91,16 +91,16 @@ describe("discord-auth", () => {
 
   describe("isAuthorizedMessage", () => {
     it("authorizes allowed DM user", () => {
-      expect(isAuthorizedMessage(createDmMessage(), "dm", authConfig)).toBe(true);
+      expect(isAuthorizedMessage(createDmMessage(), "dm", accessConfig)).toBe(true);
     });
 
     it("rejects unauthorized DM user", () => {
-      expect(isAuthorizedMessage(createDmMessage("user-9"), "dm", authConfig)).toBe(false);
+      expect(isAuthorizedMessage(createDmMessage("user-9"), "dm", accessConfig)).toBe(false);
     });
 
     it("authorizes allowed thread user in allowed forum", () => {
       expect(
-        isAuthorizedMessage(createThreadMessage(), "thread:thread-1", authConfig),
+        isAuthorizedMessage(createThreadMessage(), "thread:thread-1", accessConfig),
       ).toBe(true);
     });
 
@@ -109,7 +109,7 @@ describe("discord-auth", () => {
         isAuthorizedMessage(
           createThreadMessage({ parentId: "forum-9" }),
           "thread:thread-1",
-          authConfig,
+          accessConfig,
         ),
       ).toBe(false);
     });
