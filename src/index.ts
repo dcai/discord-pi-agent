@@ -1,17 +1,14 @@
 import type { Client } from "discord.js";
 import { AgentService } from "./agent-service";
-import { resolveConfig, resolveGatewayConfig } from "./config";
+import { resolveConfig } from "./config";
 import { startGatewayClient } from "./discord-gateway-client";
 import type { GatewayAuthConfig } from "./discord-gateway-client";
 import { createModuleLogger } from "./logger";
-import { PromptQueue } from "./prompt-queue";
 import { SessionRegistry } from "./session-registry";
 import type {
   DiscordGateway,
   DiscordGatewayConfig,
-  DiscordPiBridge,
-  DiscordPiBridgeConfig,
-  ResolvedDiscordPiBridgeConfig,
+  ResolvedDiscordGatewayConfig,
 } from "./types";
 
 const logger = createModuleLogger("index");
@@ -23,19 +20,13 @@ export {
   type DiscordPromptScope,
   type DiscordPromptTimeFormatOptions,
 } from "./prompt-context";
-export {
-  loadDiscordPiBridgeConfigFromEnv,
-  loadDiscordGatewayConfigFromEnv,
-  resolveConfig,
-} from "./config";
+export { loadDiscordGatewayConfigFromEnv, resolveConfig } from "./config";
 export type {
   AgentStatus,
   DiscordGateway,
   DiscordGatewayConfig,
-  DiscordPiBridge,
-  DiscordPiBridgeConfig,
   PromptTransform,
-  ResolvedDiscordPiBridgeConfig,
+  ResolvedDiscordGatewayConfig,
 } from "./types";
 
 /**
@@ -45,7 +36,7 @@ export type {
 export async function startDiscordGateway(
   config: DiscordGatewayConfig,
 ): Promise<DiscordGateway> {
-  const resolvedConfig = resolveGatewayConfig(config);
+  const resolvedConfig = resolveConfig(config);
   const agentService = new AgentService(resolvedConfig);
 
   logger.info("initializing agent service");
@@ -88,20 +79,11 @@ export async function startDiscordGateway(
   };
 }
 
-/**
- * Legacy DM-only entry point. Now a thin wrapper over startDiscordGateway.
- */
-export async function startDiscordPiBridge(
-  config: DiscordPiBridgeConfig,
-): Promise<DiscordPiBridge> {
-  return startDiscordGateway(config);
-}
-
 function createGatewayStopHandler(
   client: Client,
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
-  config: ResolvedDiscordPiBridgeConfig,
+  config: ResolvedDiscordGatewayConfig,
 ): () => Promise<void> {
   let stopped = false;
 
@@ -120,31 +102,6 @@ function createGatewayStopHandler(
     );
     client.destroy();
     await sessionRegistry.shutdownAll();
-    await agentService.shutdown();
-  };
-}
-
-function createStopHandler(
-  client: Client,
-  agentService: AgentService,
-  config: ResolvedDiscordPiBridgeConfig,
-): () => Promise<void> {
-  let stopped = false;
-
-  return async () => {
-    if (stopped) {
-      return;
-    }
-
-    stopped = true;
-    logger.info(
-      {
-        cwd: config.cwd,
-        agentDir: config.agentDir,
-      },
-      "stopping discord pi bridge",
-    );
-    client.destroy();
     await agentService.shutdown();
   };
 }

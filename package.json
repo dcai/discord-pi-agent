@@ -1,7 +1,7 @@
 {
   "name": "@friendlyrobot/discord-pi-agent",
   "version": "0.14.1",
-  "description": "Reusable Discord gateway bridge for persistent pi agent sessions",
+  "description": "Reusable Discord gateway for persistent pi agent sessions",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

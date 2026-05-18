@@ -1,6 +1,6 @@
 # @friendlyrobot/discord-pi-agent
 
-Reusable Discord gateway bridge for persistent pi agent sessions — DM and forum channels.
+Reusable Discord gateway for persistent pi agent sessions — DM and forum channels.
 
 ## What it does
 

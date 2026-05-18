@@ -28,7 +28,7 @@ import {
 } from "./prompt-context";
 import { collectReply } from "./reply-buffer";
 import type { SessionRegistry } from "./session-registry";
-import type { ResolvedDiscordPiBridgeConfig } from "./types";
+import type { ResolvedDiscordGatewayConfig } from "./types";
 import type { GatewayAuthConfig } from "./discord-gateway-client";
 
 const logger = createModuleLogger("discord-message-handler");
@@ -37,7 +37,7 @@ function buildDiscordPromptContent(
   message: Message,
   scope: string,
   content: string,
-  config: ResolvedDiscordPiBridgeConfig,
+  config: ResolvedDiscordGatewayConfig,
 ): string {
   const isThread = scope.startsWith("thread:") && message.channel.isThread();
 
@@ -59,7 +59,7 @@ function buildDiscordPromptContent(
 
 export async function handleDiscordMessage(
   message: Message,
-  config: ResolvedDiscordPiBridgeConfig,
+  config: ResolvedDiscordGatewayConfig,
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
   authConfig: GatewayAuthConfig,

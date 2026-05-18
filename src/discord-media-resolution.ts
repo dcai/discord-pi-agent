@@ -3,7 +3,7 @@ import type { AgentService } from "./agent-service";
 import { describeImage } from "./image-description";
 import { createModuleLogger } from "./logger";
 import type { MediaAttachmentContent } from "./discord-attachments";
-import type { ResolvedDiscordPiBridgeConfig } from "./types";
+import type { ResolvedDiscordGatewayConfig } from "./types";
 
 const logger = createModuleLogger("discord-media-resolution");
 
@@ -74,7 +74,7 @@ export async function resolveMediaAttachmentsForPrompt(
   mediaAttachments: MediaAttachmentContent[],
   content: string,
   currentModel: Model<any> | undefined,
-  config: ResolvedDiscordPiBridgeConfig,
+  config: ResolvedDiscordGatewayConfig,
   agentService: AgentService,
 ): Promise<ResolvedPromptMedia> {
   const modelSupportsVision = currentModel?.input.includes("image") ?? false;

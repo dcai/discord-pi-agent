@@ -10,7 +10,7 @@ export type ThinkingLevel =
   | "high"
   | "xhigh";
 
-export type DiscordPiBridgeConfig = {
+export type DiscordGatewayConfig = {
   discordBotToken: string;
   discordAllowedUserId: string;
   cwd: string;
@@ -30,9 +30,15 @@ export type DiscordPiBridgeConfig = {
    * Defaults to null (image handling disabled).
    */
   visionModelId?: string | null;
+  /** Which forum channels the bot responds in (absent = forum disabled). */
+  discordAllowedForumChannelIds?: string[];
+  /** Which users can interact in forum threads (defaults to [discordAllowedUserId]). */
+  discordAllowedUserIds?: string[];
+  /** Auto-shutdown idle thread sessions after this many ms. */
+  sessionIdleTimeoutMs?: number;
 };
 
-export type ResolvedDiscordPiBridgeConfig = {
+export type ResolvedDiscordGatewayConfig = {
   discordBotToken: string;
   discordAllowedUserId: string;
   cwd: string;
@@ -47,6 +53,9 @@ export type ResolvedDiscordPiBridgeConfig = {
   shutdownOnSignals: boolean;
   /** Vision model provider/modelId for image description (null = disabled). */
   visionModelId: string | null;
+  discordAllowedForumChannelIds: string[];
+  discordAllowedUserIds: string[];
+  sessionIdleTimeoutMs: number | null;
 };
 
 export type ContextUsageStatus = {
@@ -62,27 +71,6 @@ export type AgentStatus = {
   streaming: boolean;
   contextUsage: ContextUsageStatus | undefined;
   thinkingInfo: string;
-};
-
-export type DiscordPiBridge = {
-  client: Client;
-  stop: () => Promise<void>;
-  getStatus: () => AgentStatus;
-};
-
-export type DiscordGatewayConfig = DiscordPiBridgeConfig & {
-  /** Which forum channels the bot responds in (absent = forum disabled). */
-  discordAllowedForumChannelIds?: string[];
-  /** Which users can interact in forum threads (defaults to [discordAllowedUserId]). */
-  discordAllowedUserIds?: string[];
-  /** Auto-shutdown idle thread sessions after this many ms. */
-  sessionIdleTimeoutMs?: number;
-};
-
-export type ResolvedDiscordGatewayConfig = ResolvedDiscordPiBridgeConfig & {
-  discordAllowedForumChannelIds: string[];
-  discordAllowedUserIds: string[];
-  sessionIdleTimeoutMs: number | null;
 };
 
 export type DiscordGateway = {

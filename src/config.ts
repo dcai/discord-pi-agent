@@ -2,24 +2,24 @@ import path from "node:path";
 import dotenv from "dotenv";
 import type {
   DiscordGatewayConfig,
-  DiscordPiBridgeConfig,
   ResolvedDiscordGatewayConfig,
-  ResolvedDiscordPiBridgeConfig,
   ThinkingLevel,
 } from "./types";
 
 export function resolveConfig(
-  config: DiscordPiBridgeConfig,
-): ResolvedDiscordPiBridgeConfig {
+  config: DiscordGatewayConfig,
+): ResolvedDiscordGatewayConfig {
+  const discordAllowedUserId = readRequiredValue(
+    "discordAllowedUserId",
+    config.discordAllowedUserId,
+  );
+
   return {
     discordBotToken: readRequiredValue(
       "discordBotToken",
       config.discordBotToken,
     ),
-    discordAllowedUserId: readRequiredValue(
-      "discordAllowedUserId",
-      config.discordAllowedUserId,
-    ),
+    discordAllowedUserId,
     cwd: readRequiredValue("cwd", config.cwd),
     agentDir: config.agentDir?.trim() || path.join(config.cwd, ".pi-agent"),
     modelProvider: config.modelProvider?.trim() || "openrouter",
@@ -34,12 +34,15 @@ export function resolveConfig(
         : config.startupMessage,
     shutdownOnSignals: config.shutdownOnSignals ?? true,
     visionModelId: config.visionModelId?.trim() || null,
+    discordAllowedForumChannelIds: config.discordAllowedForumChannelIds ?? [],
+    discordAllowedUserIds: config.discordAllowedUserIds ?? [discordAllowedUserId],
+    sessionIdleTimeoutMs: config.sessionIdleTimeoutMs ?? null,
   };
 }
 
-export function loadDiscordPiBridgeConfigFromEnv(
-  overrides: Partial<DiscordPiBridgeConfig> = {},
-): ResolvedDiscordPiBridgeConfig {
+export function loadDiscordGatewayConfigFromEnv(
+  overrides: Partial<DiscordGatewayConfig> = {},
+): ResolvedDiscordGatewayConfig {
   dotenv.config();
 
   return resolveConfig({
@@ -62,33 +65,18 @@ export function loadDiscordPiBridgeConfigFromEnv(
     startupMessage: overrides.startupMessage ?? readStartupMessageFromEnv(),
     shutdownOnSignals: overrides.shutdownOnSignals,
     visionModelId: overrides.visionModelId ?? process.env.PI_VISION_MODEL_ID,
-  });
-}
-
-/**
- * Load gateway config from env vars + overrides.
- * Preserves gateway-specific fields (forum channels, etc.) that
- * loadDiscordPiBridgeConfigFromEnv would drop.
- */
-export function loadDiscordGatewayConfigFromEnv(
-  overrides: Partial<DiscordGatewayConfig> = {},
-): ResolvedDiscordGatewayConfig {
-  const base = loadDiscordPiBridgeConfigFromEnv(overrides);
-  return {
-    ...base,
     discordAllowedForumChannelIds:
       overrides.discordAllowedForumChannelIds ??
       parseStringArrayFromEnv("DISCORD_FORUM_CHANNEL_IDS") ??
       [],
-    discordAllowedUserIds: overrides.discordAllowedUserIds ??
-      parseStringArrayFromEnv("DISCORD_ALLOWED_USER_IDS") ?? [
-        base.discordAllowedUserId,
-      ],
+    discordAllowedUserIds:
+      overrides.discordAllowedUserIds ??
+      parseStringArrayFromEnv("DISCORD_ALLOWED_USER_IDS"),
     sessionIdleTimeoutMs:
       overrides.sessionIdleTimeoutMs ??
       parseOptionalIntFromEnv("DISCORD_SESSION_IDLE_TIMEOUT_MS") ??
-      null,
-  };
+      undefined,
+  });
 }
 
 function readRequiredValue(name: string, value: string): string {
@@ -116,26 +104,13 @@ function readStartupMessageFromEnv(): string | false | undefined {
   return trimmedValue;
 }
 
-export function resolveGatewayConfig(
-  config: DiscordGatewayConfig,
-): ResolvedDiscordGatewayConfig {
-  const base = resolveConfig(config);
-  return {
-    ...base,
-    discordAllowedForumChannelIds: config.discordAllowedForumChannelIds ?? [],
-    discordAllowedUserIds: config.discordAllowedUserIds ?? [
-      base.discordAllowedUserId,
-    ],
-    sessionIdleTimeoutMs: config.sessionIdleTimeoutMs ?? null,
-  };
-}
-
 function parseThinkingLevel(
   value: string | undefined,
 ): ThinkingLevel | undefined {
   if (!value) {
     return undefined;
   }
+
   const trimmed = value.trim().toLowerCase();
   const validLevels: ThinkingLevel[] = [
     "off",
@@ -145,9 +120,11 @@ function parseThinkingLevel(
     "high",
     "xhigh",
   ];
+
   if (validLevels.includes(trimmed as ThinkingLevel)) {
     return trimmed as ThinkingLevel;
   }
+
   return undefined;
 }
 

@@ -9,7 +9,7 @@ import { handleDiscordMessage } from "./discord-message-handler";
 import { sendReply } from "./discord-replies";
 import { createModuleLogger } from "./logger";
 import type { SessionRegistry } from "./session-registry";
-import type { ResolvedDiscordPiBridgeConfig } from "./types";
+import type { ResolvedDiscordGatewayConfig } from "./types";
 
 const logger = createModuleLogger("discord-gateway");
 
@@ -21,7 +21,7 @@ export type GatewayAuthConfig = {
 };
 
 export async function startGatewayClient(
-  config: ResolvedDiscordPiBridgeConfig,
+  config: ResolvedDiscordGatewayConfig,
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
   authConfig: GatewayAuthConfig,

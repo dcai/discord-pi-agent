@@ -15,21 +15,21 @@ import { createModuleLogger } from "./logger";
 import { collectReply } from "./reply-buffer";
 import type {
   AgentStatus,
-  ResolvedDiscordPiBridgeConfig,
+  ResolvedDiscordGatewayConfig,
   ThinkingLevel,
 } from "./types";
 
 const logger = createModuleLogger("agent-service");
 
 export class AgentService {
-  private readonly config: ResolvedDiscordPiBridgeConfig;
+  private readonly config: ResolvedDiscordGatewayConfig;
   private readonly authStorage: AuthStorage;
   private readonly modelRegistry: ModelRegistryType;
   private readonly settingsManager: SettingsManager;
   private readonly resourceLoader: DefaultResourceLoader;
   private session: AgentSession | null = null;
 
-  constructor(config: ResolvedDiscordPiBridgeConfig) {
+  constructor(config: ResolvedDiscordGatewayConfig) {
     this.config = config;
     this.authStorage = AuthStorage.create(
       path.join(config.agentDir, "auth.json"),
