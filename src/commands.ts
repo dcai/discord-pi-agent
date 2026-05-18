@@ -16,6 +16,11 @@ export type CommandContext = {
   session?: AgentSession;
 };
 
+type CommandHandler = (
+  trimmedInput: string,
+  context: CommandContext,
+) => Promise<CommandResult | null>;
+
 function getSessionStatusText(
   session: AgentSession,
   promptQueue: PromptQueue,
@@ -51,7 +56,7 @@ function getSessionStatusText(
   ];
 
   if (extras?.tools && extras.tools.length > 0) {
-    const toolNames = extras.tools.map((t) => t.name);
+    const toolNames = extras.tools.map((tool) => tool.name);
     lines.push("", `Tools (${extras.tools.length}): ${toolNames.join(", ")}`);
   }
 
@@ -74,6 +79,7 @@ function getThinkingInfo(session: AgentSession): {
   if (!session.supportsThinking()) {
     return { current: "off", available: [], supported: false };
   }
+
   return {
     current: session.thinkingLevel,
     available: session.getAvailableThinkingLevels(),
@@ -81,227 +87,313 @@ function getThinkingInfo(session: AgentSession): {
   };
 }
 
-export async function handleCommand(
-  input: string,
-  ctx: CommandContext,
-): Promise<CommandResult> {
-  const { agentService, promptQueue, session } = ctx;
-  const trimmed = input.trim();
+function getEffectiveSession(context: CommandContext): AgentSession | null {
+  return context.session ?? context.agentService.getSession();
+}
 
-  if (!trimmed.startsWith("!")) {
-    return { handled: false };
-  }
-
-  if (trimmed === "!help") {
-    const extraCommands = session
-      ? "\n!archive - archive this thread and end the session"
-      : "";
-
+function requireEffectiveSession(
+  context: CommandContext,
+): CommandResult | { session: AgentSession } {
+  const session = getEffectiveSession(context);
+  if (!session) {
     return {
       handled: true,
-      response: [
-        "Commands:",
-        "!help - show this message",
-        "!status - show current session status",
-        "!thinking - show or set thinking/reasoning level",
-        "!model - list available models or switch to one",
-        "!compact - compact the persistent session",
-        "!reset-session - start a fresh persistent session",
-        "!reload - reload resources (AGENTS.md, extensions, skills, etc.)",
-        extraCommands,
-        "Any other text goes to the agent session.",
-      ]
-        .filter(Boolean)
-        .join("\n"),
+      response: "No active session.",
     };
   }
 
-  if (trimmed === "!archive") {
-    if (!session) {
-      return {
-        handled: true,
-        response: "!archive is only available in forum threads.",
-      };
-    }
+  return { session };
+}
 
+async function handleHelpCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (trimmedInput !== "!help") {
+    return null;
+  }
+
+  const extraCommands = context.session
+    ? "\n!archive - archive this thread and end the session"
+    : "";
+
+  return {
+    handled: true,
+    response: [
+      "Commands:",
+      "!help - show this message",
+      "!status - show current session status",
+      "!thinking - show or set thinking/reasoning level",
+      "!model - list available models or switch to one",
+      "!compact - compact the persistent session",
+      "!reset-session - start a fresh persistent session",
+      "!reload - reload resources (AGENTS.md, extensions, skills, etc.)",
+      extraCommands,
+      "Any other text goes to the agent session.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  };
+}
+
+async function handleArchiveCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (trimmedInput !== "!archive") {
+    return null;
+  }
+
+  if (!context.session) {
     return {
       handled: true,
-      archive: true,
-      response: "Archiving thread and shutting down session.",
+      response: "!archive is only available in forum threads.",
     };
   }
 
-  if (trimmed === "!status") {
-    const effectiveSession = session ?? agentService.getSession();
-    if (!effectiveSession) {
-      return {
-        handled: true,
-        response: "No active session.",
-      };
-    }
+  return {
+    handled: true,
+    archive: true,
+    response: "Archiving thread and shutting down session.",
+  };
+}
 
-    const tools = effectiveSession.getAllTools();
-    const extensionsSummary = agentService.getExtensionsSummary();
-    const skillsSummary = agentService.getSkillsSummary();
+async function handleStatusCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (trimmedInput !== "!status") {
+    return null;
+  }
 
-    return {
-      handled: true,
-      response: getSessionStatusText(effectiveSession, promptQueue, {
+  const effectiveSession = requireEffectiveSession(context);
+  if ("handled" in effectiveSession) {
+    return effectiveSession;
+  }
+
+  const tools = effectiveSession.session.getAllTools();
+  const extensionsSummary = context.agentService.getExtensionsSummary();
+  const skillsSummary = context.agentService.getSkillsSummary();
+
+  return {
+    handled: true,
+    response: getSessionStatusText(
+      effectiveSession.session,
+      context.promptQueue,
+      {
         tools,
         extensionsSummary,
         skillsSummary,
-      }),
-    };
+      },
+    ),
+  };
+}
+
+async function handleThinkingCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (trimmedInput !== "!thinking" && !trimmedInput.startsWith("!thinking ")) {
+    return null;
   }
 
-  if (trimmed === "!thinking" || trimmed.startsWith("!thinking ")) {
-    const effectiveSession = session ?? agentService.getSession();
-    if (!effectiveSession) {
-      return {
-        handled: true,
-        response: "No active session.",
-      };
-    }
+  const effectiveSession = requireEffectiveSession(context);
+  if ("handled" in effectiveSession) {
+    return effectiveSession;
+  }
 
-    const parts = trimmed.split(" ");
-    if (parts.length === 1) {
-      const info = getThinkingInfo(effectiveSession);
-      if (!info.supported) {
-        return {
-          handled: true,
-          response: "Current model does not support reasoning/thinking.",
-        };
-      }
-
-      return {
-        handled: true,
-        response: [
-          `Current: ${info.current}`,
-          `Available: ${info.available.join(", ")}`,
-          `Usage: !thinking <level>`,
-        ].join("\n"),
-      };
-    }
-
-    const requestedLevel = parts[1] as ThinkingLevel;
-    if (!effectiveSession.supportsThinking()) {
+  const parts = trimmedInput.split(" ");
+  if (parts.length === 1) {
+    const info = getThinkingInfo(effectiveSession.session);
+    if (!info.supported) {
       return {
         handled: true,
         response: "Current model does not support reasoning/thinking.",
       };
     }
 
-    const available = effectiveSession.getAvailableThinkingLevels();
-    if (!available.includes(requestedLevel)) {
-      return {
-        handled: true,
-        response: `Invalid thinking level "${requestedLevel}" for current model. Available: ${available.join(", ")}`,
-      };
-    }
-
-    effectiveSession.setThinkingLevel(requestedLevel);
     return {
       handled: true,
-      response: `Thinking level set to "${requestedLevel}".`,
+      response: [
+        `Current: ${info.current}`,
+        `Available: ${info.available.join(", ")}`,
+        `Usage: !thinking <level>`,
+      ].join("\n"),
     };
   }
 
-  if (trimmed === "!model" || trimmed.startsWith("!model ")) {
-    const effectiveSession = session ?? agentService.getSession();
-    if (!effectiveSession) {
-      return {
-        handled: true,
-        response: "No active session.",
-      };
-    }
-
-    const parts = trimmed.split(" ");
-    if (parts.length === 1) {
-      // Show current model + available models
-      const current = agentService.getCurrentModelDisplay(effectiveSession);
-      const modelList = await agentService.listModels(effectiveSession);
-
-      return {
-        handled: true,
-        response: `Current model: ${current}\n\n${modelList}`,
-      };
-    }
-
-    // Parse provider/modelId from the argument.
-    // Split on first "/" — provider comes first, the rest is the model ID
-    // (model IDs can contain slashes, e.g. "anthropic/claude-sonnet-4")
-    const arg = parts.slice(1).join(" ");
-    const slashIndex = arg.indexOf("/");
-    if (slashIndex === -1) {
-      return {
-        handled: true,
-        response: `Usage: !model <provider/modelId>\nExample: !model openrouter/anthropic/claude-sonnet-4\nUse !model without args to see available models.`,
-      };
-    }
-
-    const provider = arg.substring(0, slashIndex).trim();
-    const modelId = arg.substring(slashIndex + 1).trim();
-
+  const requestedLevel = parts[1] as ThinkingLevel;
+  if (!effectiveSession.session.supportsThinking()) {
     return {
       handled: true,
-      response: await agentService.switchModel(
-        provider,
-        modelId,
-        effectiveSession,
-      ),
+      response: "Current model does not support reasoning/thinking.",
     };
   }
 
-  if (trimmed === "!compact") {
-    const effectiveSession = session ?? agentService.getSession();
-    if (!effectiveSession) {
-      return {
-        handled: true,
-        response: "No active session.",
-      };
-    }
-
+  const available = effectiveSession.session.getAvailableThinkingLevels();
+  if (!available.includes(requestedLevel)) {
     return {
       handled: true,
-      response: await promptQueue.enqueue(async () => {
-        await effectiveSession.compact();
-        return `Compaction finished for session ${effectiveSession.sessionId}.`;
-      }),
+      response: `Invalid thinking level "${requestedLevel}" for current model. Available: ${available.join(", ")}`,
     };
   }
 
-  if (trimmed === "!reload") {
+  effectiveSession.session.setThinkingLevel(requestedLevel);
+  return {
+    handled: true,
+    response: `Thinking level set to "${requestedLevel}".`,
+  };
+}
+
+async function handleModelCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (trimmedInput !== "!model" && !trimmedInput.startsWith("!model ")) {
+    return null;
+  }
+
+  const effectiveSession = requireEffectiveSession(context);
+  if ("handled" in effectiveSession) {
+    return effectiveSession;
+  }
+
+  const parts = trimmedInput.split(" ");
+  if (parts.length === 1) {
+    const current = context.agentService.getCurrentModelDisplay(
+      effectiveSession.session,
+    );
+    const modelList = await context.agentService.listModels(
+      effectiveSession.session,
+    );
+
     return {
       handled: true,
-      response: await promptQueue.enqueue(async () => {
-        return agentService.reloadResources();
-      }),
+      response: `Current model: ${current}\n\n${modelList}`,
     };
   }
 
-  if (trimmed === "!reset-session") {
-    if (session) {
-      return {
-        handled: true,
-        response: await promptQueue.enqueue(async () => {
-          const previousSession = session;
-          await previousSession.abort();
-          previousSession.dispose();
-          return `Session reset. Old session kept at ${previousSession.sessionFile ?? "(unknown path)"}. Use !archive to archive the thread and start fresh.`;
-        }),
-      };
-    }
-
+  const argument = parts.slice(1).join(" ");
+  const slashIndex = argument.indexOf("/");
+  if (slashIndex === -1) {
     return {
       handled: true,
-      response: await promptQueue.enqueue(async () => {
-        return agentService.resetSession();
+      response:
+        "Usage: !model <provider/modelId>\n" +
+        "Example: !model openrouter/anthropic/claude-sonnet-4\n" +
+        "Use !model without args to see available models.",
+    };
+  }
+
+  const provider = argument.substring(0, slashIndex).trim();
+  const modelId = argument.substring(slashIndex + 1).trim();
+
+  return {
+    handled: true,
+    response: await context.agentService.switchModel(
+      provider,
+      modelId,
+      effectiveSession.session,
+    ),
+  };
+}
+
+async function handleCompactCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (trimmedInput !== "!compact") {
+    return null;
+  }
+
+  const effectiveSession = requireEffectiveSession(context);
+  if ("handled" in effectiveSession) {
+    return effectiveSession;
+  }
+
+  return {
+    handled: true,
+    response: await context.promptQueue.enqueue(async () => {
+      await effectiveSession.session.compact();
+      return `Compaction finished for session ${effectiveSession.session.sessionId}.`;
+    }),
+  };
+}
+
+async function handleReloadCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (trimmedInput !== "!reload") {
+    return null;
+  }
+
+  return {
+    handled: true,
+    response: await context.promptQueue.enqueue(async () => {
+      return context.agentService.reloadResources();
+    }),
+  };
+}
+
+async function handleResetSessionCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (trimmedInput !== "!reset-session") {
+    return null;
+  }
+
+  if (context.session) {
+    return {
+      handled: true,
+      response: await context.promptQueue.enqueue(async () => {
+        const previousSession = context.session!;
+        await previousSession.abort();
+        previousSession.dispose();
+        return `Session reset. Old session kept at ${previousSession.sessionFile ?? "(unknown path)"}. Use !archive to archive the thread and start fresh.`;
       }),
     };
   }
 
   return {
     handled: true,
-    response: `Unknown command: ${trimmed}. Try !help.`,
+    response: await context.promptQueue.enqueue(async () => {
+      return context.agentService.resetSession();
+    }),
+  };
+}
+
+const commandHandlers: CommandHandler[] = [
+  handleHelpCommand,
+  handleArchiveCommand,
+  handleStatusCommand,
+  handleThinkingCommand,
+  handleModelCommand,
+  handleCompactCommand,
+  handleReloadCommand,
+  handleResetSessionCommand,
+];
+
+export async function handleCommand(
+  input: string,
+  context: CommandContext,
+): Promise<CommandResult> {
+  const trimmedInput = input.trim();
+
+  if (!trimmedInput.startsWith("!")) {
+    return { handled: false };
+  }
+
+  for (const handler of commandHandlers) {
+    const result = await handler(trimmedInput, context);
+    if (result) {
+      return result;
+    }
+  }
+
+  return {
+    handled: true,
+    response: `Unknown command: ${trimmedInput}. Try !help.`,
   };
 }
