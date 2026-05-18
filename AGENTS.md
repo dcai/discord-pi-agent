@@ -72,15 +72,24 @@ src/
   agent-service.ts
   commands.ts
   config.ts
-  discord-gateway-client.ts # unified gateway (DM + forum threads)
+  discord-gateway-client.ts   # Discord client bootstrapping + event wiring
+  discord-message-handler.ts  # main message pipeline orchestration
+  discord-auth.ts             # scope resolution + authorization helpers
+  discord-attachments.ts      # text/media attachment helpers
+  discord-media-resolution.ts # media -> prompt content / vision fallback
+  discord-replies.ts          # reply sending + working reaction helpers
+  discord-typing.ts           # typing indicator lifecycle
   index.ts
   markdown-table-transformer.ts
   message-chunker.ts
   prompt-context.ts
   prompt-queue.ts
   reply-buffer.ts
-  session-registry.ts       # scope-agnostic map (scope → AgentSession + PromptQueue)
+  session-registry.ts         # scope-agnostic map (scope -> AgentSession + PromptQueue)
   types.ts
+
+  *.test.ts                   # vitest unit tests
+  __snapshots__/              # snapshot outputs for tests
 
 dist/              # build output
 README.md
@@ -88,6 +97,21 @@ package.json
 tsconfig.json
 .env.example
 ```
+
+## Message pipeline note
+
+The Discord gateway code is intentionally split now.
+Keep `src/discord-gateway-client.ts` small.
+Put message-flow logic in focused helpers like:
+
+- `discord-message-handler.ts`
+- `discord-auth.ts`
+- `discord-attachments.ts`
+- `discord-media-resolution.ts`
+- `discord-replies.ts`
+- `discord-typing.ts`
+
+If `discord-gateway-client.ts` starts growing again, move logic out instead of piling more into it.
 
 ## Public API expectations
 
@@ -99,8 +123,14 @@ Current public surface:
 - `loadDiscordPiBridgeConfigFromEnv`
 - `loadDiscordGatewayConfigFromEnv` — preserves gateway fields
 - `resolveConfig`
-- `buildTimeContextPrompt`
+- `buildDiscordMessageContextPrompt`
+- `formatDiscordPromptTime`
 - exported TS types from `./types`
+
+Naming note:
+
+- prefer `gateway` for new code
+- treat `bridge` names as legacy compatibility surface unless there is a deliberate API migration
 
 When changing exports:
 
