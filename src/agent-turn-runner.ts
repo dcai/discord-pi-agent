@@ -22,6 +22,7 @@ export async function runAgentTurn(
   let streamedText = "";
   let eventCount = 0;
   let toolCount = 0;
+  const toolInputsByCallId = new Map<string, unknown>();
 
   const model = session.model
     ? `${session.model.provider}/${session.model.id}`
@@ -55,25 +56,56 @@ export async function runAgentTurn(
       toolCount += 1;
 
       const input = event.toolName === "bash" ? event.args.command : event.args;
-      logger.debug(
-        {
-          toolName: event.toolName,
-          input,
-        },
-        `agent tool start: [${event.toolName}] `,
-      );
+      toolInputsByCallId.set(event.toolCallId, input);
+
+      if (event.toolName === "bash") {
+        logger.debug(
+          {
+            toolName: event.toolName,
+          },
+          `agent tool start: [${event.toolName}] ${String(input)}`,
+        );
+      } else {
+        logger.debug(
+          {
+            toolName: event.toolName,
+            input,
+          },
+          `agent tool start: [${event.toolName}]`,
+        );
+      }
     }
 
     if (event.type === "tool_execution_end") {
-      logger.debug(
-        {
-          toolName: event.toolName,
-          isError: event.isError,
-          // output: event.result,
-          // output: truncateForLog(extractToolOutput(event.result)),
-        },
-        `agent tool end: [${event.toolName}]`,
-      );
+      const input = toolInputsByCallId.get(event.toolCallId);
+      toolInputsByCallId.delete(event.toolCallId);
+
+      if (event.toolName === "bash") {
+        logger.debug(
+          {
+            toolName: event.toolName,
+            isError: event.isError,
+          },
+          `agent tool end: [${event.toolName}] ${truncateForLog(
+            typeof input === "string" ? input : "",
+          )}`,
+        );
+        debugPrint(
+          extractToolOutput(event.result),
+          event.isError ? "BASH TOOL ERROR OUTPUT" : "BASH TOOL OUTPUT",
+        );
+      } else {
+        logger.debug(
+          {
+            toolName: event.toolName,
+            input: truncateForLog(extractToolOutput(input)),
+            isError: event.isError,
+            // output: event.result,
+            // output: truncateForLog(extractToolOutput(event.result)),
+          },
+          `agent tool end: [${event.toolName}]`,
+        );
+      }
     }
 
     // if (event.type === "agent_end") {
