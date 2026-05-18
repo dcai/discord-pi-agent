@@ -3,6 +3,7 @@ import type {
   AgentSession,
   AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
+import type { ImageContent } from "@earendil-works/pi-ai";
 import { debugPrint } from "./debug-print";
 import { createModuleLogger } from "./logger";
 import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
@@ -11,6 +12,7 @@ const logger = createModuleLogger("reply-buffer");
 
 type CollectReplyOptions = {
   logPrefix?: string;
+  images?: ImageContent[];
 };
 
 export async function collectReply(
@@ -87,7 +89,7 @@ export async function collectReply(
   });
 
   try {
-    await session.prompt(prompt);
+    await session.prompt(prompt, { images: options.images });
   } finally {
     unsubscribe();
   }

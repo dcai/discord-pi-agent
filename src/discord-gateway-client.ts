@@ -7,7 +7,7 @@ import {
   type Message,
   type SendableChannels,
 } from "discord.js";
-import type { Model } from "@earendil-works/pi-ai";
+import type { ImageContent, Model } from "@earendil-works/pi-ai";
 import type { AgentService } from "./agent-service";
 import { handleCommand } from "./commands";
 import { describeImage } from "./image-description";
@@ -472,8 +472,19 @@ function parseVisionModelId(visionModelId: string): {
 }
 
 /**
- * Resolve image attachments into prompt text. Strategy depends on whether
- * the current model supports vision natively.
+ * Result of resolving image attachments for a prompt.
+ * When images are passed natively, the text is the user's message content
+ * and images are sent alongside it. When using a vision model fallback,
+ * the text includes the vision model's description and images is empty.
+ */
+type ResolvedImages = {
+  content: string;
+  images: ImageContent[];
+};
+
+/**
+ * Resolve image attachments into prompt text and/or native image content.
+ * Strategy depends on whether the current model supports vision natively.
  */
 async function resolveImageAttachments(
   imageAttachments: ImageAttachmentContent[],
@@ -481,19 +492,26 @@ async function resolveImageAttachments(
   currentModel: Model<any> | undefined,
   config: ResolvedDiscordPiBridgeConfig,
   agentService: AgentService,
-): Promise<string> {
+): Promise<ResolvedImages> {
   const modelSupportsVision = currentModel?.input.includes("image") ?? false;
 
   if (modelSupportsVision) {
-    // Phase 2: native image passthrough not yet implemented.
-    // For now, note the images were received but pass through as text.
-    const imageNames = imageAttachments.map((i) => i.filename).join(", ");
+    // Native image passthrough — pass images directly to the model.
     logger.info(
-      { imageNames, modelSupportsVision: true },
-      "native vision supported but not yet wired — noting images in prompt",
+      {
+        imageCount: imageAttachments.length,
+        model: currentModel
+          ? `${currentModel.provider}/${currentModel.id}`
+          : "none",
+      },
+      "passing images natively to vision-capable model",
     );
-    const note = `\n\n[User sent image attachment(s): ${imageNames}]`;
-    return content ? content + note : note;
+    const images: ImageContent[] = imageAttachments.map((img) => ({
+      type: "image",
+      data: img.data,
+      mimeType: img.mimeType,
+    }));
+    return { content, images };
   }
 
   if (!config.visionModelId) {
@@ -506,12 +524,12 @@ async function resolveImageAttachments(
     const note =
       `\n\n[User sent image attachment(s): ${imageNames}]\n` +
       "(Image vision not configured. Set visionModelId to enable image understanding.)";
-    return content ? content + note : note;
+    return { content: content ? content + note : note, images: [] };
   }
 
   const parsed = parseVisionModelId(config.visionModelId);
   if (!parsed) {
-    return content;
+    return { content, images: [] };
   }
 
   const visionModel = agentService.findModel(parsed.provider, parsed.modelId);
@@ -522,7 +540,7 @@ async function resolveImageAttachments(
     );
     const imageNames = imageAttachments.map((i) => i.filename).join(", ");
     const note = `\n\n[User sent image attachment(s): ${imageNames}]\n(Vision model not found: ${config.visionModelId})`;
-    return content ? content + note : note;
+    return { content: content ? content + note : note, images: [] };
   }
 
   logger.info(
@@ -547,10 +565,13 @@ async function resolveImageAttachments(
 
   if (descriptions.length > 0) {
     const prefix = descriptions.join("\n\n");
-    return content ? `${prefix}\n\n---\n${content}` : prefix;
+    return {
+      content: content ? `${prefix}\n\n---\n${content}` : prefix,
+      images: [],
+    };
   }
 
-  return content;
+  return { content, images: [] };
 }
 
 export async function startGatewayClient(
@@ -804,14 +825,19 @@ async function onMessage(
       // Process image attachments inside the queue callback so we have
       // access to the session's current model for vision capability check.
       let promptContent = content;
+      let promptImages: ImageContent[] | undefined;
       if (imageAttachments.length > 0) {
-        promptContent = await resolveImageAttachments(
+        const resolved = await resolveImageAttachments(
           imageAttachments,
           promptContent,
           session.model,
           config,
           agentService,
         );
+        promptContent = resolved.content;
+        if (resolved.images.length > 0) {
+          promptImages = resolved.images;
+        }
       }
 
       const wrappedContent = buildDiscordPromptContent(
@@ -823,6 +849,7 @@ async function onMessage(
       const transformedPrompt = await config.promptTransform(wrappedContent);
       return collectReply(session, transformedPrompt, {
         logPrefix: `[agent:${session.sessionId}]`,
+        images: promptImages,
       });
     });
   } finally {
