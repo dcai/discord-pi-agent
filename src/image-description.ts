@@ -23,7 +23,7 @@ export async function describeImage(
   const session = await agentService.createTemporarySession();
   await session.setModel(visionModel);
 
-  const isPdf = mimeType === "application/pdf";
+  const mediaType = getMediaType(mimeType);
 
   const imageContent: ImageContent = {
     type: "image",
@@ -32,11 +32,11 @@ export async function describeImage(
   };
 
   let promptText: string;
-  if (isPdf) {
+  if (mediaType === "document") {
     promptText =
       userText.trim().length > 0
-        ? `The user sent a PDF document with the following message: "${userText}". Please extract and summarize the text content of this PDF. Be thorough — include all important details, sections, and data from the document.`
-        : "Please extract and summarize the text content of this PDF document. Be thorough — include all important details, sections, data, and key points.";
+        ? `The user sent a document with the following message: "${userText}". Please extract and summarize the text content of this document. Be thorough — include all important details, sections, and data from the document.`
+        : "Please extract and summarize the text content of this document. Be thorough — include all important details, sections, data, and key points.";
   } else {
     promptText =
       userText.trim().length > 0
@@ -94,6 +94,14 @@ function extractLastAssistantText(session: AgentSession): string {
   }
 
   return "";
+}
+
+function getMediaType(mimeType: string): "image" | "document" {
+  if (mimeType.startsWith("image/")) {
+    return "image";
+  }
+  // PDF, Word, PowerPoint — all treated as documents for prompting.
+  return "document";
 }
 
 function isAssistantMessage(

@@ -370,8 +370,24 @@ const MEDIA_ATTACHMENT_EXTENSIONS = [
   ".gif",
   ".webp",
   ".pdf",
+  ".docx",
+  ".doc",
+  ".pptx",
+  ".ppt",
+  ".xlsx",
+  ".xls",
 ];
 const MAX_MEDIA_ATTACHMENT_SIZE = 25 * 1024 * 1024; // 25 MB (Discord's free-tier file limit)
+
+const OFFICE_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+]);
 
 type MediaAttachmentContent = {
   filename: string;
@@ -395,7 +411,7 @@ function isMediaAttachment(attachment: {
     return false;
   }
 
-  return ct.startsWith("image/") || ct === "application/pdf";
+  return ct.startsWith("image/") || OFFICE_MIME_TYPES.has(ct);
 }
 
 async function readMediaAttachments(
@@ -489,6 +505,34 @@ function parseVisionModelId(visionModelId: string): {
   };
 }
 
+function getMediaLabel(filename: string, mimeType: string): string {
+  if (mimeType === "application/pdf") {
+    return `[PDF: ${filename}]`;
+  }
+  if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mimeType === "application/msword"
+  ) {
+    return `[Word: ${filename}]`;
+  }
+  if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mimeType === "application/vnd.ms-excel"
+  ) {
+    return `[Excel: ${filename}]`;
+  }
+  if (
+    mimeType ===
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+    mimeType === "application/vnd.ms-powerpoint"
+  ) {
+    return `[PowerPoint: ${filename}]`;
+  }
+  return `[Image: ${filename}]`;
+}
+
 /**
  * Result of resolving image attachments for a prompt.
  * When images are passed natively, the text is the user's message content
@@ -544,7 +588,7 @@ async function resolveMediaAttachments(
     );
     const note =
       `\n\n[User sent media attachment(s): ${names}]\n` +
-      "(Media vision not configured. Set visionModelId to enable image/PDF understanding.)";
+      "(Media vision not configured. Set visionModelId to enable image/PDF/document understanding.)";
     return { content: content ? content + note : note, images: [] };
   }
 
@@ -574,7 +618,6 @@ async function resolveMediaAttachments(
 
   const descriptions: string[] = [];
   for (const m of media) {
-    const isPdf = m.mimeType === "application/pdf";
     const description = await describeImage(
       agentService,
       m.data,
@@ -582,7 +625,7 @@ async function resolveMediaAttachments(
       content,
       visionModel,
     );
-    const label = isPdf ? `[PDF: ${m.filename}]` : `[Image: ${m.filename}]`;
+    const label = getMediaLabel(m.filename, m.mimeType);
     descriptions.push(`${label}\n${description}`);
   }
 
