@@ -18,7 +18,7 @@ const {
   sendReplyMock,
   startTypingForChannelMock,
   stopTypingForChannelMock,
-  runPromptAndCollectReplyMock,
+  runAgentTurnMock,
 } = vi.hoisted(() => {
   return {
     executeSessionCommandMock: vi.fn(),
@@ -30,7 +30,7 @@ const {
     sendReplyMock: vi.fn(),
     startTypingForChannelMock: vi.fn(),
     stopTypingForChannelMock: vi.fn(),
-    runPromptAndCollectReplyMock: vi.fn(),
+    runAgentTurnMock: vi.fn(),
   };
 });
 
@@ -68,9 +68,9 @@ vi.mock("./discord-typing", () => {
   };
 });
 
-vi.mock("./reply-buffer", () => {
+vi.mock("./agent-turn-runner", () => {
   return {
-    runPromptAndCollectReply: runPromptAndCollectReplyMock,
+    runAgentTurn: runAgentTurnMock,
   };
 });
 
@@ -195,7 +195,7 @@ beforeEach(() => {
   sendReplyMock.mockResolvedValue(undefined);
   startTypingForChannelMock.mockImplementation(() => undefined);
   stopTypingForChannelMock.mockImplementation(() => undefined);
-  runPromptAndCollectReplyMock.mockResolvedValue("agent reply");
+  runAgentTurnMock.mockResolvedValue("agent reply");
 });
 
 describe("handleDiscordMessage", () => {
@@ -289,7 +289,7 @@ describe("handleDiscordMessage", () => {
         "hello there\n\n--- Attachment: notes.md ---\nAttachment body",
       ),
     );
-    expect(runPromptAndCollectReplyMock).toHaveBeenCalledWith(
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
       session,
       expect.stringContaining("<discord_message_context>"),
       {
@@ -320,7 +320,7 @@ describe("handleDiscordMessage", () => {
     );
 
     expect(sendReplyMock).toHaveBeenCalledWith(message, "command reply");
-    expect(runPromptAndCollectReplyMock).not.toHaveBeenCalled();
+    expect(runAgentTurnMock).not.toHaveBeenCalled();
     expect(addWorkingReactionMock).not.toHaveBeenCalled();
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
   });
@@ -344,7 +344,7 @@ describe("handleDiscordMessage", () => {
       content: "resolved media content",
       images: [{ type: "image", data: "base64-data", mimeType: "image/png" }],
     });
-    runPromptAndCollectReplyMock.mockRejectedValue(new Error("prompt failed"));
+    runAgentTurnMock.mockRejectedValue(new Error("prompt failed"));
 
     await expect(
       handleDiscordMessage(
@@ -367,7 +367,7 @@ describe("handleDiscordMessage", () => {
       config,
       expect.anything(),
     );
-    expect(runPromptAndCollectReplyMock).toHaveBeenCalledWith(
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
       session,
       expect.any(String),
       {
@@ -399,7 +399,7 @@ describe("handleDiscordMessage", () => {
     );
 
     expect(addWorkingReactionMock).not.toHaveBeenCalled();
-    expect(runPromptAndCollectReplyMock).not.toHaveBeenCalled();
+    expect(runAgentTurnMock).not.toHaveBeenCalled();
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
   });
 });

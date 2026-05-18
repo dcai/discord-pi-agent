@@ -13,7 +13,7 @@ import {
 import { AgentModelService } from "./agent-model-service";
 import { AgentResourceService } from "./agent-resource-service";
 import { createModuleLogger } from "./logger";
-import { runPromptAndCollectReply } from "./reply-buffer";
+import { runAgentTurn } from "./agent-turn-runner";
 import type { AgentStatus, ResolvedDiscordGatewayConfig } from "./types";
 
 const logger = createModuleLogger("agent-service");
@@ -136,7 +136,7 @@ export class AgentService {
   async prompt(text: string): Promise<string> {
     const session = this.requireSession();
     const transformedPrompt = await this.config.promptTransform(text);
-    return runPromptAndCollectReply(session, transformedPrompt);
+    return runAgentTurn(session, transformedPrompt);
   }
 
   async compact(): Promise<string> {

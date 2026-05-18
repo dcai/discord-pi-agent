@@ -8,13 +8,13 @@ import { debugPrint } from "./debug-print";
 import { createModuleLogger } from "./logger";
 import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
 
-const logger = createModuleLogger("reply-buffer");
+const logger = createModuleLogger("agent-turn-runner");
 
 type CollectReplyOptions = {
   images?: ImageContent[];
 };
 
-export async function runPromptAndCollectReply(
+export async function runAgentTurn(
   session: AgentSession,
   prompt: string,
   options: CollectReplyOptions = {},

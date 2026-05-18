@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runPromptAndCollectReply } from "./reply-buffer";
-import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentSession,
+  AgentSessionEvent,
+} from "@earendil-works/pi-coding-agent";
+import { runAgentTurn } from "./agent-turn-runner";
 
 const { debugPrintMock, transformMarkdownTablesToCodeBlocksMock } = vi.hoisted(() => {
   return {
@@ -53,7 +56,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("runPromptAndCollectReply", () => {
+describe("runAgentTurn", () => {
   it("collects streamed text deltas and transforms the final text", async () => {
     const session = createSession({
       prompt: vi.fn(async () => {
@@ -83,7 +86,7 @@ describe("runPromptAndCollectReply", () => {
       }),
     });
 
-    await expect(runPromptAndCollectReply(session, "prompt")).resolves.toBe(
+    await expect(runAgentTurn(session, "prompt")).resolves.toBe(
       "transformed:Hello world",
     );
     expect(session.prompt).toHaveBeenCalledWith("prompt", { images: undefined });
@@ -111,7 +114,7 @@ describe("runPromptAndCollectReply", () => {
       ],
     });
 
-    await expect(runPromptAndCollectReply(session, "prompt")).resolves.toBe(
+    await expect(runAgentTurn(session, "prompt")).resolves.toBe(
       "transformed:latest\nreply",
     );
   });
@@ -127,7 +130,7 @@ describe("runPromptAndCollectReply", () => {
       ],
     });
 
-    await expect(runPromptAndCollectReply(session, "prompt")).resolves.toBe(
+    await expect(runAgentTurn(session, "prompt")).resolves.toBe(
       "model exploded",
     );
     expect(transformMarkdownTablesToCodeBlocksMock).not.toHaveBeenCalled();
@@ -136,7 +139,7 @@ describe("runPromptAndCollectReply", () => {
   it("returns a default message when no assistant text exists", async () => {
     const session = createSession();
 
-    await expect(runPromptAndCollectReply(session, "prompt")).resolves.toBe(
+    await expect(runAgentTurn(session, "prompt")).resolves.toBe(
       "No response generated.",
     );
   });
@@ -150,7 +153,7 @@ describe("runPromptAndCollectReply", () => {
       }),
     });
 
-    await expect(runPromptAndCollectReply(session, "prompt")).rejects.toThrow(
+    await expect(runAgentTurn(session, "prompt")).rejects.toThrow(
       "boom",
     );
     expect(unsubscribe).toHaveBeenCalled();

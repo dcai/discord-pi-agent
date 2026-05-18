@@ -26,7 +26,7 @@ import {
   buildDiscordMessageContextPrompt,
   formatDiscordPromptTime,
 } from "./prompt-context";
-import { runPromptAndCollectReply } from "./reply-buffer";
+import { runAgentTurn } from "./agent-turn-runner";
 import type { SessionRegistry } from "./session-registry";
 import type {
   GatewayAccessConfig,
@@ -235,7 +235,7 @@ export async function handleDiscordMessage(
         config,
       );
       const transformedPrompt = await config.promptTransform(wrappedContent);
-      return runPromptAndCollectReply(session, transformedPrompt, {
+      return runAgentTurn(session, transformedPrompt, {
         images: promptImages,
       });
     });

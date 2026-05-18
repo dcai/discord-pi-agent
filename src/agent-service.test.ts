@@ -13,7 +13,7 @@ const {
   sessionManagerContinueRecentMock,
   sessionManagerCreateMock,
   defaultResourceLoaderCtorMock,
-  runPromptAndCollectReplyMock,
+  runAgentTurnMock,
 } = vi.hoisted(() => {
   return {
     mkdirMock: vi.fn(async () => undefined),
@@ -29,7 +29,7 @@ const {
       return { kind: "create", cwd, sessionDir };
     }),
     defaultResourceLoaderCtorMock: vi.fn(),
-    runPromptAndCollectReplyMock: vi.fn(),
+    runAgentTurnMock: vi.fn(),
   };
 });
 
@@ -79,9 +79,9 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
   };
 });
 
-vi.mock("./reply-buffer", () => {
+vi.mock("./agent-turn-runner", () => {
   return {
-    runPromptAndCollectReply: runPromptAndCollectReplyMock,
+    runAgentTurn: runAgentTurnMock,
   };
 });
 
@@ -133,7 +133,7 @@ beforeEach(() => {
   createAgentSessionMock.mockResolvedValue({
     session: createSession(),
   });
-  runPromptAndCollectReplyMock.mockResolvedValue("agent reply");
+  runAgentTurnMock.mockResolvedValue("agent reply");
 });
 
 describe("AgentService", () => {
@@ -209,7 +209,7 @@ describe("AgentService", () => {
     await service.initialize();
 
     await expect(service.prompt("hello")).resolves.toBe("agent reply");
-    expect(runPromptAndCollectReplyMock).toHaveBeenCalledWith(
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
       session,
       "wrapped:hello",
     );
