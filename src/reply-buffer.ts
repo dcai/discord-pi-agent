@@ -53,12 +53,14 @@ export async function runPromptAndCollectReply(
 
     if (event.type === "tool_execution_start") {
       toolCount += 1;
+
+      const input = event.toolName === "bash" ? event.args.command : event.args;
       logger.debug(
         {
           toolName: event.toolName,
-          input: event.toolName === "bash" ? event.args.command : event.args,
+          input,
         },
-        `tool start: [${event.toolName}] `,
+        `agent tool start: [${event.toolName}] `,
       );
     }
 
@@ -68,23 +70,23 @@ export async function runPromptAndCollectReply(
           toolName: event.toolName,
           isError: event.isError,
           // output: event.result,
-          output: truncateForLog(extractToolOutput(event.result)),
+          // output: truncateForLog(extractToolOutput(event.result)),
         },
-        `tool end: [${event.toolName}]`,
+        `agent tool end: [${event.toolName}]`,
       );
     }
 
-    if (event.type === "agent_end") {
-      logger.debug(
-        // {
-        //   messageCount: event.messages.length,
-        //   model,
-        //   toolCount,
-        //   eventCount,
-        // },
-        "agent end",
-      );
-    }
+    // if (event.type === "agent_end") {
+    //   logger.debug(
+    //     {
+    //       messageCount: event.messages.length,
+    //       model,
+    //       toolCount,
+    //       eventCount,
+    //     },
+    //     "agent end",
+    //   );
+    // }
   });
 
   try {

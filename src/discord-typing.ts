@@ -23,7 +23,7 @@ export async function sendTypingSafe(
     });
 
     if (response.ok) {
-      logger.debug("[TYPING] STATUS UPDATED OK");
+      // logger.debug("[TYPING] STATUS UPDATED OK");
       return;
     }
 
@@ -49,7 +49,7 @@ export async function sendTypingSafe(
         method: "POST",
         headers: { Authorization: `Bot ${token}` },
       });
-      logger.info({ channelKey }, "[TYPING] retry done");
+      logger.warn({ channelKey }, "[TYPING] retry done");
       return;
     }
 
@@ -58,7 +58,7 @@ export async function sendTypingSafe(
       "[TYPING] unexpected status",
     );
   } catch (error: unknown) {
-    logger.warn({ channelKey, error }, "[TYPING] FAILED");
+    logger.error({ channelKey, error }, "[TYPING] FAILED");
   }
 }
 
@@ -69,10 +69,10 @@ export function startTypingForChannel(
   const existing = typingIntervals.get(channelKey);
   if (existing) {
     existing.refs += 1;
-    logger.debug(
-      { channelKey, refs: existing.refs },
-      "[TYPING] ref++ (reusing existing interval)",
-    );
+    // logger.debug(
+    //   { channelKey, refs: existing.refs },
+    //   "[TYPING] ref++ (reusing existing interval)",
+    // );
     return;
   }
 
@@ -89,7 +89,7 @@ export function startTypingForChannel(
 export function stopTypingForChannel(channelKey: string): void {
   const entry = typingIntervals.get(channelKey);
   if (!entry) {
-    logger.debug({ channelKey }, "[TYPING] stop called but no entry found");
+    // logger.debug({ channelKey }, "[TYPING] stop called but no entry found");
     return;
   }
 
@@ -97,9 +97,9 @@ export function stopTypingForChannel(channelKey: string): void {
   if (entry.refs <= 0) {
     clearInterval(entry.interval);
     typingIntervals.delete(channelKey);
-    logger.debug("[TYPING] interval cleared (refs hit 0)");
+    // logger.debug("[TYPING] interval cleared (refs hit 0)");
     return;
   }
 
-  logger.debug("[TYPING] ref-- (interval still active)");
+  // logger.debug("[TYPING] ref-- (interval still active)");
 }
