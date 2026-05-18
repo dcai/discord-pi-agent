@@ -2,18 +2,23 @@ import { describe, expect, it, vi } from "vitest";
 import { executeSessionCommand } from "./session-commands";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
-import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 
-function createPromptQueueMock(): PromptQueue {
+function createPromptQueueMock(
+  overrides: Partial<PromptQueue> = {},
+): PromptQueue {
   return {
     getSnapshot: () => ({ pending: 0, busy: false }),
     enqueue: vi.fn(async (task: () => Promise<string>) => {
       return task();
     }),
+    ...overrides,
   } as unknown as PromptQueue;
 }
 
-function createSessionMock(overrides: Partial<AgentSession> = {}): AgentSession {
+function createSessionMock(
+  overrides: Partial<AgentSession> = {},
+): AgentSession {
   return {
     sessionId: "session-1",
     sessionFile: "/tmp/session-1.jsonl",
@@ -42,9 +47,9 @@ function createAgentServiceMock(session: AgentSession | null): AgentService {
     },
     models: {
       getCurrentModelDisplay: () => "openrouter/model-1",
-      listModels: vi.fn().mockResolvedValue(
-        "Available models (1):\n  openrouter/model-1",
-      ),
+      listModels: vi
+        .fn()
+        .mockResolvedValue("Available models (1):\n  openrouter/model-1"),
       switchModel: vi.fn().mockResolvedValue("Switched."),
       getThinkingLevel: (currentSession: AgentSession) => ({
         current: currentSession.thinkingLevel,
@@ -82,6 +87,62 @@ describe("executeSessionCommand", () => {
     });
   });
 
+  it("shows help and includes archive only for thread sessions", async () => {
+    const dmResult = await executeSessionCommand("!help", {
+      agentService: createAgentServiceMock(null),
+      promptQueue: createPromptQueueMock(),
+    });
+
+    expect(dmResult.response).not.toContain("!archive - archive this thread");
+
+    const threadResult = await executeSessionCommand("!help", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      session: createSessionMock(),
+    });
+
+    expect(threadResult).toEqual({
+      handled: true,
+      response: expect.stringContaining(
+        "!archive - archive this thread and end the session",
+      ),
+    });
+  });
+
+  it("shows status including queue, tools, skills, and extensions", async () => {
+    const tool: ToolInfo = { name: "bash" } as ToolInfo;
+    const session = createSessionMock({ getAllTools: () => [tool] });
+    const promptQueue = createPromptQueueMock({
+      getSnapshot: () => ({ pending: 2, busy: true }),
+    });
+
+    const result = await executeSessionCommand("!status", {
+      agentService: createAgentServiceMock(session),
+      promptQueue,
+      session,
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: [
+        "model: openrouter/model-1",
+        "session-id: session-1",
+        "session-file: /tmp/session-1.jsonl",
+        "streaming: false",
+        "thinking: medium (available: low, medium, high)",
+        "context: 100/1000 (10%)",
+        "queue-pending: 2",
+        "queue-busy: true",
+        "",
+        "Tools (1): bash",
+        "",
+        "Skills: (none loaded)",
+        "",
+        "Extensions: (none loaded)",
+      ].join("\n"),
+    });
+  });
+
   it("shows thinking info when no level is passed", async () => {
     const session = createSessionMock();
     const result = await executeSessionCommand("!thinking", {
@@ -97,6 +158,29 @@ describe("executeSessionCommand", () => {
         "Available: low, medium, high",
         "Usage: !thinking <level>",
       ].join("\n"),
+    });
+  });
+
+  it("reports when the current model does not support thinking", async () => {
+    const session = createSessionMock({ supportsThinking: () => false });
+    const agentService = createAgentServiceMock(session);
+    agentService.models.getThinkingLevel = () => {
+      return {
+        current: "off",
+        available: [],
+        supported: false,
+      };
+    };
+
+    const result = await executeSessionCommand("!thinking", {
+      agentService,
+      promptQueue: createPromptQueueMock(),
+      session,
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: "Current model does not support reasoning/thinking.",
     });
   });
 
@@ -134,15 +218,140 @@ describe("executeSessionCommand", () => {
     });
   });
 
+  it("shows usage help for invalid model syntax", async () => {
+    const session = createSessionMock();
+
+    const result = await executeSessionCommand("!model openrouter", {
+      agentService: createAgentServiceMock(session),
+      promptQueue: createPromptQueueMock(),
+      session,
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response:
+        "Usage: !model <provider/modelId>\n" +
+        "Example: !model openrouter/anthropic/claude-sonnet-4\n" +
+        "Use !model without args to see available models.",
+    });
+  });
+
+  it("switches models when provider and model id are passed", async () => {
+    const session = createSessionMock();
+    const agentService = createAgentServiceMock(session);
+
+    const result = await executeSessionCommand(
+      "!model openrouter/google/gemini-2.5-flash",
+      {
+        agentService,
+        promptQueue: createPromptQueueMock(),
+        session,
+      },
+    );
+
+    expect(agentService.models.switchModel).toHaveBeenCalledWith(
+      "openrouter",
+      "google/gemini-2.5-flash",
+      session,
+    );
+    expect(result).toEqual({ handled: true, response: "Switched." });
+  });
+
   it("archives threads only when thread session exists", async () => {
-    const result = await executeSessionCommand("!archive", {
+    const dmResult = await executeSessionCommand("!archive", {
       agentService: createAgentServiceMock(null),
+      promptQueue: createPromptQueueMock(),
+    });
+
+    expect(dmResult).toEqual({
+      handled: true,
+      response: "!archive is only available in forum threads.",
+    });
+
+    const session = createSessionMock();
+    const threadResult = await executeSessionCommand("!archive", {
+      agentService: createAgentServiceMock(session),
+      promptQueue: createPromptQueueMock(),
+      session,
+    });
+
+    expect(threadResult).toEqual({
+      handled: true,
+      archive: true,
+      response: "Archiving thread and shutting down session.",
+    });
+  });
+
+  it("enqueues compaction and reload work", async () => {
+    const session = createSessionMock();
+    const promptQueue = createPromptQueueMock();
+    const agentService = createAgentServiceMock(session);
+
+    const compactResult = await executeSessionCommand("!compact", {
+      agentService,
+      promptQueue,
+      session,
+    });
+    const reloadResult = await executeSessionCommand("!reload", {
+      agentService,
+      promptQueue,
+      session,
+    });
+
+    expect(promptQueue.enqueue).toHaveBeenCalledTimes(2);
+    expect(session.compact).toHaveBeenCalled();
+    expect(agentService.resources.reloadResources).toHaveBeenCalled();
+    expect(compactResult).toEqual({
+      handled: true,
+      response: "Compaction finished for session session-1.",
+    });
+    expect(reloadResult).toEqual({
+      handled: true,
+      response: "Resources reloaded.",
+    });
+  });
+
+  it("resets thread sessions locally and persistent sessions through agent service", async () => {
+    const threadSession = createSessionMock();
+    const threadQueue = createPromptQueueMock();
+
+    const threadResult = await executeSessionCommand("!reset-session", {
+      agentService: createAgentServiceMock(threadSession),
+      promptQueue: threadQueue,
+      session: threadSession,
+    });
+
+    expect(threadSession.abort).toHaveBeenCalled();
+    expect(threadSession.dispose).toHaveBeenCalled();
+    expect(threadResult).toEqual({
+      handled: true,
+      response:
+        "Session reset. Old session kept at /tmp/session-1.jsonl. Use !archive to archive the thread and start fresh.",
+    });
+
+    const dmSession = createSessionMock();
+    const agentService = createAgentServiceMock(dmSession);
+    const dmResult = await executeSessionCommand("!reset-session", {
+      agentService,
+      promptQueue: createPromptQueueMock(),
+    });
+
+    expect(agentService.resetSession).toHaveBeenCalled();
+    expect(dmResult).toEqual({
+      handled: true,
+      response: "Started a fresh session.",
+    });
+  });
+
+  it("returns unknown command help for unsupported commands", async () => {
+    const result = await executeSessionCommand("!wat", {
+      agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
     });
 
     expect(result).toEqual({
       handled: true,
-      response: "!archive is only available in forum threads.",
+      response: "Unknown command: !wat. Try !help.",
     });
   });
 });

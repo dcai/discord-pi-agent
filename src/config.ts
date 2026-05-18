@@ -13,6 +13,7 @@ export function resolveConfig(
     "discordAllowedUserId",
     config.discordAllowedUserId,
   );
+  const cwd = requireNonEmptyConfigValue("cwd", config.cwd);
 
   return {
     discordBotToken: requireNonEmptyConfigValue(
@@ -20,8 +21,8 @@ export function resolveConfig(
       config.discordBotToken,
     ),
     discordAllowedUserId,
-    cwd: requireNonEmptyConfigValue("cwd", config.cwd),
-    agentDir: config.agentDir?.trim() || path.join(config.cwd, ".pi-agent"),
+    cwd,
+    agentDir: config.agentDir?.trim() || path.join(cwd, ".pi-agent"),
     modelProvider: config.modelProvider?.trim() || "openrouter",
     modelId: config.modelId?.trim() || "anthropic/claude-3.5-haiku",
     thinkingLevel: parseThinkingLevel(config.thinkingLevel) || "medium",
@@ -35,7 +36,9 @@ export function resolveConfig(
     shutdownOnSignals: config.shutdownOnSignals ?? true,
     visionModelId: config.visionModelId?.trim() || null,
     discordAllowedForumChannelIds: config.discordAllowedForumChannelIds ?? [],
-    discordAllowedUserIds: config.discordAllowedUserIds ?? [discordAllowedUserId],
+    discordAllowedUserIds: config.discordAllowedUserIds ?? [
+      discordAllowedUserId,
+    ],
   };
 }
 
@@ -138,4 +141,3 @@ function parseStringArrayFromEnv(key: string): string[] | undefined {
     .map((id) => id.trim())
     .filter(Boolean);
 }
-
