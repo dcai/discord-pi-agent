@@ -71,22 +71,6 @@ function getSessionStatusText(
   return lines.join("\n");
 }
 
-function getThinkingInfo(session: AgentSession): {
-  current: ThinkingLevel;
-  available: ThinkingLevel[];
-  supported: boolean;
-} {
-  if (!session.supportsThinking()) {
-    return { current: "off", available: [], supported: false };
-  }
-
-  return {
-    current: session.thinkingLevel,
-    available: session.getAvailableThinkingLevels(),
-    supported: true,
-  };
-}
-
 function getEffectiveSession(context: CommandContext): AgentSession | null {
   return context.session ?? context.agentService.getSession();
 }
@@ -172,8 +156,9 @@ async function handleStatusCommand(
   }
 
   const tools = effectiveSession.session.getAllTools();
-  const extensionsSummary = context.agentService.getExtensionsSummary();
-  const skillsSummary = context.agentService.getSkillsSummary();
+  const extensionsSummary =
+    context.agentService.resources.getExtensionsSummary();
+  const skillsSummary = context.agentService.resources.getSkillsSummary();
 
   return {
     handled: true,
@@ -204,7 +189,9 @@ async function handleThinkingCommand(
 
   const parts = trimmedInput.split(" ");
   if (parts.length === 1) {
-    const info = getThinkingInfo(effectiveSession.session);
+    const info = context.agentService.models.getThinkingLevel(
+      effectiveSession.session,
+    );
     if (!info.supported) {
       return {
         handled: true,
@@ -223,25 +210,12 @@ async function handleThinkingCommand(
   }
 
   const requestedLevel = parts[1] as ThinkingLevel;
-  if (!effectiveSession.session.supportsThinking()) {
-    return {
-      handled: true,
-      response: "Current model does not support reasoning/thinking.",
-    };
-  }
-
-  const available = effectiveSession.session.getAvailableThinkingLevels();
-  if (!available.includes(requestedLevel)) {
-    return {
-      handled: true,
-      response: `Invalid thinking level "${requestedLevel}" for current model. Available: ${available.join(", ")}`,
-    };
-  }
-
-  effectiveSession.session.setThinkingLevel(requestedLevel);
   return {
     handled: true,
-    response: `Thinking level set to "${requestedLevel}".`,
+    response: context.agentService.models.setThinkingLevel(
+      effectiveSession.session,
+      requestedLevel,
+    ),
   };
 }
 
@@ -260,10 +234,10 @@ async function handleModelCommand(
 
   const parts = trimmedInput.split(" ");
   if (parts.length === 1) {
-    const current = context.agentService.getCurrentModelDisplay(
+    const current = context.agentService.models.getCurrentModelDisplay(
       effectiveSession.session,
     );
-    const modelList = await context.agentService.listModels(
+    const modelList = await context.agentService.models.listModels(
       effectiveSession.session,
     );
 
@@ -290,7 +264,7 @@ async function handleModelCommand(
 
   return {
     handled: true,
-    response: await context.agentService.switchModel(
+    response: await context.agentService.models.switchModel(
       provider,
       modelId,
       effectiveSession.session,
@@ -331,7 +305,7 @@ async function handleReloadCommand(
   return {
     handled: true,
     response: await context.promptQueue.enqueue(async () => {
-      return context.agentService.reloadResources();
+      return context.agentService.resources.reloadResources();
     }),
   };
 }

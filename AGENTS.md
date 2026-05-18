@@ -69,6 +69,8 @@ Avoid:
 
 ```text
 src/
+  agent-model-service.ts
+  agent-resource-service.ts
   agent-service.ts
   commands.ts
   config.ts

@@ -35,12 +35,27 @@ function createSessionMock(overrides: Partial<AgentSession> = {}): AgentSession 
 function createAgentServiceMock(session: AgentSession | null): AgentService {
   return {
     getSession: () => session,
-    getExtensionsSummary: () => "Extensions: (none loaded)",
-    getSkillsSummary: () => "Skills: (none loaded)",
-    getCurrentModelDisplay: () => "openrouter/model-1",
-    listModels: vi.fn().mockResolvedValue("Available models (1):\n  openrouter/model-1"),
-    switchModel: vi.fn().mockResolvedValue("Switched."),
-    reloadResources: vi.fn().mockResolvedValue("Resources reloaded."),
+    resources: {
+      getExtensionsSummary: () => "Extensions: (none loaded)",
+      getSkillsSummary: () => "Skills: (none loaded)",
+      reloadResources: vi.fn().mockResolvedValue("Resources reloaded."),
+    },
+    models: {
+      getCurrentModelDisplay: () => "openrouter/model-1",
+      listModels: vi.fn().mockResolvedValue(
+        "Available models (1):\n  openrouter/model-1",
+      ),
+      switchModel: vi.fn().mockResolvedValue("Switched."),
+      getThinkingLevel: (currentSession: AgentSession) => ({
+        current: currentSession.thinkingLevel,
+        available: currentSession.getAvailableThinkingLevels(),
+        supported: currentSession.supportsThinking(),
+      }),
+      setThinkingLevel: (currentSession: AgentSession, level: string) => {
+        currentSession.setThinkingLevel(level as never);
+        return `Thinking level set to "${level}".`;
+      },
+    },
     resetSession: vi.fn().mockResolvedValue("Started a fresh session."),
   } as unknown as AgentService;
 }

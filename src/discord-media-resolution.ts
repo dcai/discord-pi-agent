@@ -123,7 +123,7 @@ export async function resolveMediaAttachmentsForPrompt(
     return { content, images: [] };
   }
 
-  const visionModel = agentService.findModel(
+  const visionModel = agentService.models.findModel(
     parsedVisionModelId.provider,
     parsedVisionModelId.modelId,
   );

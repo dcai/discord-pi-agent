@@ -10,14 +10,11 @@ import {
   type AgentSession,
   type ModelRegistry as ModelRegistryType,
 } from "@earendil-works/pi-coding-agent";
-import type { Model } from "@earendil-works/pi-ai";
+import { AgentModelService } from "./agent-model-service";
+import { AgentResourceService } from "./agent-resource-service";
 import { createModuleLogger } from "./logger";
 import { runPromptAndCollectReply } from "./reply-buffer";
-import type {
-  AgentStatus,
-  ResolvedDiscordGatewayConfig,
-  ThinkingLevel,
-} from "./types";
+import type { AgentStatus, ResolvedDiscordGatewayConfig } from "./types";
 
 const logger = createModuleLogger("agent-service");
 
@@ -28,6 +25,9 @@ export class AgentService {
   private readonly settingsManager: SettingsManager;
   private readonly resourceLoader: DefaultResourceLoader;
   private session: AgentSession | null = null;
+
+  readonly models: AgentModelService;
+  readonly resources: AgentResourceService;
 
   constructor(config: ResolvedDiscordGatewayConfig) {
     this.config = config;
@@ -44,6 +44,8 @@ export class AgentService {
       agentDir: config.agentDir,
       settingsManager: this.settingsManager,
     });
+    this.models = new AgentModelService(config, this.modelRegistry);
+    this.resources = new AgentResourceService(this.resourceLoader);
   }
 
   async initialize(): Promise<void> {
@@ -104,11 +106,6 @@ export class AgentService {
     return session;
   }
 
-  /** Find a model by provider and ID. Returns undefined if not found. */
-  findModel(provider: string, modelId: string): Model<any> | undefined {
-    return this.modelRegistry.find(provider, modelId);
-  }
-
   async createSession(sessionDir: string): Promise<AgentSession> {
     await fs.mkdir(sessionDir, { recursive: true });
     const { session } = await createAgentSession({
@@ -132,7 +129,7 @@ export class AgentService {
       },
       "scoped session created",
     );
-    await this.ensureModelForSession(session);
+    await this.models.ensureSessionHasConfiguredModel(session);
     return session;
   }
 
@@ -140,71 +137,6 @@ export class AgentService {
     const session = this.requireSession();
     const transformedPrompt = await this.config.promptTransform(text);
     return runPromptAndCollectReply(session, transformedPrompt);
-  }
-
-  getSkillsSummary(): string {
-    const result = this.resourceLoader.getSkills();
-    const { skills } = result;
-
-    if (skills.length === 0) {
-      return "Skills: (none loaded)";
-    }
-
-    const names = skills.map((s) => s.name);
-    return `Skills (${skills.length}): ${names.join(", ") || "(none)"}`;
-  }
-
-  async reloadResources(): Promise<string> {
-    await this.resourceLoader.reload();
-    const extensions = this.resourceLoader
-      .getExtensions()
-      .extensions.map((ext) => ext.path);
-    const skills = this.resourceLoader.getSkills();
-    const skillNames = skills.skills.map((s) => s.name);
-    const agentsFiles = this.resourceLoader
-      .getAgentsFiles()
-      .agentsFiles.map((f) => f.path);
-
-    return [
-      "Resources reloaded.",
-      `Extensions (${extensions.length}): ${extensions.join(", ") || "(none)"}`,
-      `Skills (${skills.skills.length}): ${skillNames.join(", ") || "(none)"}`,
-      `AGENTS.md files (${agentsFiles.length}): ${agentsFiles.join(", ") || "(none)"}`,
-    ].join("\n");
-  }
-
-  getExtensionsSummary(): string {
-    const result = this.resourceLoader.getExtensions();
-    const { extensions, errors } = result;
-
-    if (extensions.length === 0) {
-      return "Extensions: (none loaded)";
-    }
-
-    const lines = extensions.map((ext) => {
-      const toolCount = ext.tools.size;
-      const commandCount = ext.commands.size;
-      const parts: string[] = [];
-      if (toolCount > 0) {
-        parts.push(`${toolCount} tool${toolCount !== 1 ? "s" : ""}`);
-      }
-      if (commandCount > 0) {
-        parts.push(`${commandCount} command${commandCount !== 1 ? "s" : ""}`);
-      }
-      const summary = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-      return `  ${ext.path}${summary}`;
-    });
-
-    const header = `Extensions (${extensions.length}):`;
-    const errorLines =
-      errors.length > 0
-        ? [
-            `Errors (${errors.length}):`,
-            ...errors.map((e) => `  ${e.path}: ${e.error}`),
-          ]
-        : [];
-
-    return [header, ...lines, ...errorLines].join("\n");
   }
 
   async compact(): Promise<string> {
@@ -240,11 +172,8 @@ export class AgentService {
 
   getStatus(): AgentStatus {
     const session = this.requireSession();
-    const model = session.model
-      ? `${session.model.provider}/${session.model.id}`
-      : "(no model selected)";
+    const model = this.models.getCurrentModelDisplay(session);
     const contextUsage = session.getContextUsage();
-
     const thinkingInfo = session.supportsThinking()
       ? `thinking: ${session.thinkingLevel} (available: ${session.getAvailableThinkingLevels().join(", ")})`
       : "thinking: not supported";
@@ -296,55 +225,7 @@ export class AgentService {
   }
 
   private async ensureConfiguredModel(): Promise<void> {
-    await this.ensureModelForSession(this.requireSession());
-  }
-
-  private async ensureModelForSession(session: AgentSession): Promise<void> {
-    // If the session already has a model (resumed from disk with a prior
-    // model_change or user selection), keep it. Only apply the config
-    // default for fresh sessions with no model selected.
-    if (session.model) {
-      logger.debug(
-        {
-          model: `${session.model.provider}/${session.model.id}`,
-        },
-        "retaining existing session model",
-      );
-      return;
-    }
-
-    const desiredModel = this.modelRegistry.find(
-      this.config.modelProvider,
-      this.config.modelId,
-    );
-    const availableModels = await this.modelRegistry.getAvailable();
-
-    logger.debug(
-      {
-        count: availableModels.length,
-        matches: availableModels
-          .filter((model) => {
-            return model.provider === this.config.modelProvider;
-          })
-          .map((model) => `${model.provider}/${model.id}`),
-      },
-      "available models",
-    );
-
-    if (!desiredModel) {
-      throw new Error(
-        `Configured model not found: ${this.config.modelProvider}/${this.config.modelId}. Check your pi agent config and installed extensions.`,
-      );
-    }
-
-    logger.info(
-      {
-        to: `${desiredModel.provider}/${desiredModel.id}`,
-      },
-      "setting initial session model",
-    );
-    await session.setModel(desiredModel);
-    await this.applyConfiguredThinkingLevelForSession(session);
+    await this.models.ensureSessionHasConfiguredModel(this.requireSession());
   }
 
   private requireSession(): AgentSession {
@@ -355,142 +236,7 @@ export class AgentService {
     return this.session;
   }
 
-  private async applyConfiguredThinkingLevelForSession(
-    session: AgentSession,
-  ): Promise<void> {
-    if (session.supportsThinking()) {
-      const available = session.getAvailableThinkingLevels();
-      if (available.includes(this.config.thinkingLevel)) {
-        session.setThinkingLevel(this.config.thinkingLevel);
-        logger.debug(
-          {
-            level: this.config.thinkingLevel,
-          },
-          "thinking level applied",
-        );
-      } else {
-        logger.debug(
-          {
-            requested: this.config.thinkingLevel,
-            available,
-          },
-          "thinking level not available for model",
-        );
-      }
-    }
-  }
-
-  async listModels(session?: AgentSession | null): Promise<string> {
-    const effectiveSession = session ?? this.session;
-    const availableModels = await this.modelRegistry.getAvailable();
-    const currentDisplay = effectiveSession?.model
-      ? `${effectiveSession.model.provider}/${effectiveSession.model.id}`
-      : null;
-
-    const lines = availableModels.map((model) => {
-      const display = `${model.provider}/${model.id}`;
-      const marker = currentDisplay === display ? " (current)" : "";
-      return `  ${display}${marker}`;
-    });
-
-    return [
-      `Available models (${availableModels.length}):`,
-      ...lines,
-      `\nUsage: !model <provider/modelId> to switch.`,
-    ].join("\n");
-  }
-
-  async switchModel(
-    provider: string,
-    modelId: string,
-    session?: AgentSession | null,
-  ): Promise<string> {
-    const effectiveSession = session ?? this.requireSession();
-    const model = this.modelRegistry.find(provider, modelId);
-
-    if (!model) {
-      const availableModels = await this.modelRegistry.getAvailable();
-      const matches = availableModels
-        .filter((m) => {
-          return m.provider === provider;
-        })
-        .map((m) => `${m.provider}/${m.id}`);
-
-      const hint =
-        matches.length > 0
-          ? `\nModels from "${provider}": ${matches.join(", ")}`
-          : `\nUse !model to see all available models.`;
-
-      return `Model not found: ${provider}/${modelId}.${hint}`;
-    }
-
-    if (isSameModel(effectiveSession.model, model)) {
-      return `Already using ${provider}/${modelId}.`;
-    }
-
-    await effectiveSession.setModel(model);
-    await this.applyConfiguredThinkingLevelForSession(effectiveSession);
-
-    const thinkingInfo = effectiveSession.supportsThinking()
-      ? ` (thinking: ${effectiveSession.thinkingLevel})`
-      : "";
-
-    return `Switched to ${provider}/${modelId}${thinkingInfo}.`;
-  }
-
-  getCurrentModelDisplay(session?: AgentSession | null): string {
-    const effectiveSession = session ?? this.session;
-    if (!effectiveSession?.model) {
-      return "(no model selected)";
-    }
-
-    return `${effectiveSession.model.provider}/${effectiveSession.model.id}`;
-  }
-
-  getThinkingLevel(): {
-    current: ThinkingLevel;
-    available: ThinkingLevel[];
-    supported: boolean;
-  } {
-    const session = this.requireSession();
-    if (!session.supportsThinking()) {
-      return { current: "off", available: [], supported: false };
-    }
-    return {
-      current: session.thinkingLevel,
-      available: session.getAvailableThinkingLevels(),
-      supported: true,
-    };
-  }
-
-  setThinkingLevel(level: ThinkingLevel): string {
-    const session = this.requireSession();
-    if (!session.supportsThinking()) {
-      return "Current model does not support reasoning/thinking.";
-    }
-    const available = session.getAvailableThinkingLevels();
-    if (!available.includes(level)) {
-      return `Invalid thinking level "${level}" for current model. Available: ${available.join(", ")}`;
-    }
-    session.setThinkingLevel(level);
-    return `Thinking level set to "${level}".`;
-  }
-
   private getSessionDir(): string {
     return path.join(this.config.agentDir, "sessions");
   }
-}
-
-function isSameModel(
-  currentModel: Model<any> | undefined,
-  desiredModel: Model<any>,
-): boolean {
-  if (!currentModel) {
-    return false;
-  }
-
-  return (
-    currentModel.provider === desiredModel.provider &&
-    currentModel.id === desiredModel.id
-  );
 }
