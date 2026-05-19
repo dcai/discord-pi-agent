@@ -154,25 +154,31 @@ function truncateForLog(value: string, maxLength = 400): string {
   return `${value.slice(0, maxLength)}...`;
 }
 
+type ToolOutputContentItem = {
+  type: string;
+  text?: string;
+  [key: string]: unknown;
+};
+
+type ToolOutputObject = {
+  content?: ToolOutputContentItem[];
+  [key: string]: unknown;
+};
+
 function extractToolOutput(output: unknown): string {
-  if (Array.isArray(output)) {
-    // const example = {
-    //   "content": [
-    //     {
-    //       "type": "text",
-    //       "text": "hello world",
-    //     },
-    //   ],
-    // };
-    return output
-      .map((item) => {
-        if (item?.type === "text") {
-          return item.text;
-        } else {
+  if (typeof output === "object" && output !== null) {
+    const obj = output as ToolOutputObject;
+    if (Array.isArray(obj.content)) {
+      return obj.content
+        .map((item) => {
+          if (item.type === "text" && typeof item.text === "string") {
+            return item.text;
+          }
+
           return JSON.stringify(item);
-        }
-      })
-      .join("\n");
+        })
+        .join("\n");
+    }
   }
 
   return String(output);
