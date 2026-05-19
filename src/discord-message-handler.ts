@@ -32,6 +32,10 @@ import type {
 
 const logger = createModuleLogger("discord-message-handler");
 
+function codeFence(text: string): string {
+  return `\`\`\`\n${text}\n\`\`\``;
+}
+
 function buildDiscordPromptContent(
   message: Message,
   scope: string,
@@ -162,7 +166,9 @@ export async function handleDiscordMessage(
       logger.info({ scope }, "archiving thread");
       const archiveChannel = message.channel;
       if (archiveChannel.isSendable()) {
-        await archiveChannel.send(commandResult.response ?? "Archiving...");
+        await archiveChannel.send(
+          codeFence(commandResult.response ?? "Archiving..."),
+        );
       }
       try {
         if (archiveChannel.isThread()) {
@@ -185,7 +191,7 @@ export async function handleDiscordMessage(
     );
 
     if (commandResult.response) {
-      await sendReply(message, commandResult.response);
+      await sendReply(message, codeFence(commandResult.response));
     }
 
     return;
