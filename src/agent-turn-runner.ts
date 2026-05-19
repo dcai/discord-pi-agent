@@ -155,59 +155,15 @@ function truncateForLog(value: string, maxLength = 400): string {
 }
 
 function extractToolOutput(output: unknown): string {
-  if (typeof output !== "string") {
-    return typeof output === "object" && output !== null
-      ? JSON.stringify(output)
-      : String(output);
-  }
-
-  const parsed = tryParseJson(output);
-  if (parsed === undefined) {
+  if (typeof output === "string") {
     return output;
   }
 
-  // Handle { content: [{ type: "text", text: "..." }] }
-  const text = extractContentArrayText(parsed);
-
-  return text ?? output;
-}
-
-function tryParseJson(value: string): unknown {
   try {
-    return JSON.parse(value);
+    return JSON.stringify(output);
   } catch {
-    return undefined;
+    return String(output);
   }
-}
-
-function extractContentArrayText(value: unknown): string | null {
-  if (value === null || typeof value !== "object") {
-    return null;
-  }
-
-  if (!("content" in value)) {
-    return null;
-  }
-
-  const content = (value as Record<string, unknown>).content;
-  if (!Array.isArray(content)) {
-    return null;
-  }
-
-  return content
-    .filter((item): item is { type: string; text: string } => {
-      return (
-        typeof item === "object" &&
-        item !== null &&
-        "type" in item &&
-        "text" in item &&
-        (item as Record<string, unknown>).type === "text"
-      );
-    })
-    .map((item) => {
-      return item.text;
-    })
-    .join("");
 }
 
 function getLatestAssistantText(messages: AgentMessage[]): string {
