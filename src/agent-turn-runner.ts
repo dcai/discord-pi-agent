@@ -155,34 +155,27 @@ function truncateForLog(value: string, maxLength = 400): string {
 }
 
 function extractToolOutput(output: unknown): string {
-  let processed = output;
-  try {
-    processed = JSON.parse(output as string);
-    if (Array.isArray(processed)) {
-      // const example = {
-      //   "content": [
-      //     {
-      //       "type": "text",
-      //       "text": "hello world",
-      //     },
-      //   ],
-      // };
-      return processed
-        .map((item) => {
-          if (item?.type === "text") {
-            return item.text;
-          } else {
-            return JSON.stringify(item);
-          }
-        })
-        .join("\n");
-    }
-
-    return String(output);
-  } catch {
-    // not json, return as string
-    return String(output);
+  if (Array.isArray(output)) {
+    // const example = {
+    //   "content": [
+    //     {
+    //       "type": "text",
+    //       "text": "hello world",
+    //     },
+    //   ],
+    // };
+    return output
+      .map((item) => {
+        if (item?.type === "text") {
+          return item.text;
+        } else {
+          return JSON.stringify(item);
+        }
+      })
+      .join("\n");
   }
+
+  return String(output);
 }
 
 function getLatestAssistantText(messages: AgentMessage[]): string {
