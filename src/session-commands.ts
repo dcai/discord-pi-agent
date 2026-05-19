@@ -8,12 +8,16 @@ export type CommandResult = {
   response?: string;
   /** Set to true when the command wants to archive the current thread. */
   archive?: boolean;
+  /** When set, update the session's working reaction emoji. */
+  workingEmoji?: string;
 };
 
 export type CommandContext = {
   agentService: AgentService;
   promptQueue: PromptQueue;
   session?: AgentSession;
+  /** Current working reaction emoji for this session. */
+  workingEmoji: string;
 };
 
 type CommandHandler = (
@@ -112,6 +116,7 @@ async function handleHelpCommand(
       "!compact - compact the persistent session",
       "!reset-session - start a fresh persistent session",
       "!reload - reload resources (AGENTS.md, extensions, skills, etc.)",
+      "!reaction - show or set the working reaction emoji",
       extraCommands,
       "Any other text goes to the agent session.",
     ]
@@ -338,6 +343,44 @@ async function handleResetSessionCommand(
   };
 }
 
+async function handleReactionCommand(
+  trimmedInput: string,
+  _context: CommandContext,
+): Promise<CommandResult | null> {
+  if (
+    trimmedInput !== "!reaction" &&
+    !trimmedInput.startsWith("!reaction ")
+  ) {
+    return null;
+  }
+
+  const parts = trimmedInput.split(" ");
+  if (parts.length === 1) {
+    return {
+      handled: true,
+      response:
+        `Current working reaction: ${_context.workingEmoji}\n` +
+        `Usage: !reaction <emoji> to change it.\n` +
+        `Examples: !reaction 🔄 or !reaction ⏳`,
+    };
+  }
+
+  const emoji = parts.slice(1).join(" ").trim();
+
+  if (!emoji) {
+    return {
+      handled: true,
+      response: "Please provide an emoji. Example: !reaction 🔄",
+    };
+  }
+
+  return {
+    handled: true,
+    workingEmoji: emoji,
+    response: `Working reaction emoji set to ${emoji}`,
+  };
+}
+
 const commandHandlers: CommandHandler[] = [
   handleHelpCommand,
   handleArchiveCommand,
@@ -347,6 +390,7 @@ const commandHandlers: CommandHandler[] = [
   handleCompactCommand,
   handleReloadCommand,
   handleResetSessionCommand,
+  handleReactionCommand,
 ];
 
 export async function executeSessionCommand(

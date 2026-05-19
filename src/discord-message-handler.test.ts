@@ -134,6 +134,7 @@ function createSessionRegistry(
           session: createSession(),
           promptQueue: createPromptQueue(),
           createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          workingEmoji: "⚙️",
           ...entryOverrides,
         },
       };
@@ -282,7 +283,7 @@ describe("handleDiscordMessage", () => {
       message.channel,
       "channel-1",
     );
-    expect(addWorkingReactionMock).toHaveBeenCalledWith(message);
+    expect(addWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
     expect(executeSessionCommandMock).toHaveBeenCalledWith(
       "hello there\n\n--- Attachment: notes.md ---\nAttachment body",
       expect.objectContaining({ session }),
@@ -302,7 +303,7 @@ describe("handleDiscordMessage", () => {
     );
     expect(sendReplyMock).toHaveBeenCalledWith(message, "agent reply");
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
-    expect(removeWorkingReactionMock).toHaveBeenCalledWith(message);
+    expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
   });
 
   it("handles commands without prompting the agent", async () => {
@@ -375,7 +376,7 @@ describe("handleDiscordMessage", () => {
       images: [{ type: "image", data: "base64-data", mimeType: "image/png" }],
     });
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
-    expect(removeWorkingReactionMock).toHaveBeenCalledWith(message);
+    expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
   });
 
   it("returns early when the channel is not sendable after a command miss", async () => {

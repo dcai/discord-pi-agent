@@ -3,6 +3,7 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { AgentService } from "./agent-service";
 import { createModuleLogger } from "./logger";
 import { PromptQueue } from "./prompt-queue";
+import { DEFAULT_WORKING_EMOJI } from "./discord-replies";
 
 export type SessionScope = string;
 
@@ -10,6 +11,7 @@ export type ScopedSessionEntry = {
   session: AgentSession;
   promptQueue: PromptQueue;
   createdAt: Date;
+  workingEmoji: string;
 };
 
 /**
@@ -63,6 +65,7 @@ export class SessionRegistry {
       session,
       promptQueue,
       createdAt: new Date(),
+      workingEmoji: DEFAULT_WORKING_EMOJI,
     };
     this.scopes.set(scope, entry);
 

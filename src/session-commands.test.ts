@@ -70,6 +70,7 @@ describe("executeSessionCommand", () => {
     const result = await executeSessionCommand("hello", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      workingEmoji: "⚙️",
     });
 
     expect(result).toEqual({ handled: false });
@@ -79,6 +80,7 @@ describe("executeSessionCommand", () => {
     const result = await executeSessionCommand("!status", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      workingEmoji: "⚙️",
     });
 
     expect(result).toEqual({
@@ -91,6 +93,7 @@ describe("executeSessionCommand", () => {
     const dmResult = await executeSessionCommand("!help", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      workingEmoji: "⚙️",
     });
 
     expect(dmResult.response).not.toContain("!archive - archive this thread");
@@ -99,6 +102,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
       session: createSessionMock(),
+      workingEmoji: "⚙️",
     });
 
     expect(threadResult).toEqual({
@@ -120,6 +124,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue,
       session,
+      workingEmoji: "⚙️",
     });
 
     expect(result).toEqual({
@@ -149,6 +154,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      workingEmoji: "⚙️",
     });
 
     expect(result).toEqual({
@@ -176,6 +182,7 @@ describe("executeSessionCommand", () => {
       agentService,
       promptQueue: createPromptQueueMock(),
       session,
+      workingEmoji: "⚙️",
     });
 
     expect(result).toEqual({
@@ -192,6 +199,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      workingEmoji: "⚙️",
     });
 
     expect(setThinkingLevel).toHaveBeenCalledWith("high");
@@ -209,6 +217,7 @@ describe("executeSessionCommand", () => {
       agentService,
       promptQueue: createPromptQueueMock(),
       session,
+      workingEmoji: "⚙️",
     });
 
     expect(result).toEqual({
@@ -225,6 +234,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      workingEmoji: "⚙️",
     });
 
     expect(result).toEqual({
@@ -246,6 +256,7 @@ describe("executeSessionCommand", () => {
         agentService,
         promptQueue: createPromptQueueMock(),
         session,
+        workingEmoji: "⚙️",
       },
     );
 
@@ -261,6 +272,7 @@ describe("executeSessionCommand", () => {
     const dmResult = await executeSessionCommand("!archive", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      workingEmoji: "⚙️",
     });
 
     expect(dmResult).toEqual({
@@ -273,6 +285,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      workingEmoji: "⚙️",
     });
 
     expect(threadResult).toEqual({
@@ -291,11 +304,13 @@ describe("executeSessionCommand", () => {
       agentService,
       promptQueue,
       session,
+      workingEmoji: "⚙️",
     });
     const reloadResult = await executeSessionCommand("!reload", {
       agentService,
       promptQueue,
       session,
+      workingEmoji: "⚙️",
     });
 
     expect(promptQueue.enqueue).toHaveBeenCalledTimes(2);
@@ -319,6 +334,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(threadSession),
       promptQueue: threadQueue,
       session: threadSession,
+      workingEmoji: "⚙️",
     });
 
     expect(threadSession.abort).toHaveBeenCalled();
@@ -334,6 +350,7 @@ describe("executeSessionCommand", () => {
     const dmResult = await executeSessionCommand("!reset-session", {
       agentService,
       promptQueue: createPromptQueueMock(),
+      workingEmoji: "⚙️",
     });
 
     expect(agentService.resetSession).toHaveBeenCalled();
@@ -347,6 +364,7 @@ describe("executeSessionCommand", () => {
     const result = await executeSessionCommand("!wat", {
       agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
+      workingEmoji: "⚙️",
     });
 
     expect(result).toEqual({

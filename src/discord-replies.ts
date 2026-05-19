@@ -40,11 +40,14 @@ function chunkByLines(text: string, maxSize: number): string[] {
   return chunks;
 }
 
-const WORKING_EMOJI = "\u2699\uFE0F";
+export const DEFAULT_WORKING_EMOJI = "⚙️";
 
-export async function addWorkingReaction(message: Message): Promise<void> {
+export async function addWorkingReaction(
+  message: Message,
+  emoji: string = DEFAULT_WORKING_EMOJI,
+): Promise<void> {
   try {
-    await message.react(WORKING_EMOJI);
+    await message.react(emoji);
   } catch (error) {
     logger.debug(
       { messageId: message.id, error },
@@ -53,9 +56,12 @@ export async function addWorkingReaction(message: Message): Promise<void> {
   }
 }
 
-export async function removeWorkingReaction(message: Message): Promise<void> {
+export async function removeWorkingReaction(
+  message: Message,
+  emoji: string = DEFAULT_WORKING_EMOJI,
+): Promise<void> {
   try {
-    const reaction = message.reactions.cache.get(WORKING_EMOJI);
+    const reaction = message.reactions.cache.get(emoji);
     if (reaction) {
       await reaction.users.remove(message.client.user!);
     }

@@ -154,10 +154,19 @@ export async function handleDiscordMessage(
     agentService,
     promptQueue,
     session,
+    workingEmoji: entry.workingEmoji,
   });
 
   if (commandResult.handled) {
     stopTypingForChannel(channelKey);
+
+    if (commandResult.workingEmoji) {
+      entry.workingEmoji = commandResult.workingEmoji;
+      logger.info(
+        { scope, emoji: commandResult.workingEmoji },
+        "working emoji updated",
+      );
+    }
 
     if (commandResult.archive && scope.startsWith("thread:")) {
       logger.info({ scope }, "archiving thread");
@@ -200,7 +209,7 @@ export async function handleDiscordMessage(
     return;
   }
 
-  await addWorkingReaction(message);
+  await addWorkingReaction(message, entry.workingEmoji);
 
   const queuePosition = promptQueue.getSnapshot().pending;
   if (queuePosition > 0) {
@@ -243,7 +252,7 @@ export async function handleDiscordMessage(
     });
   } finally {
     stopTypingForChannel(channelKey);
-    await removeWorkingReaction(message);
+    await removeWorkingReaction(message, entry.workingEmoji);
   }
 
   await sendReply(message, response);
