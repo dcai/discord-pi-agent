@@ -65,12 +65,12 @@ export async function handleDiscordMessage(
   accessConfig: GatewayAccessConfig,
 ): Promise<void> {
   if (message.author.bot) {
-    logger.debug("ignored bot message");
+    // logger.debug("ignored bot message");
     return;
   }
 
   if (message.system) {
-    logger.debug({ messageId: message.id }, "ignored system message");
+    // logger.debug({ messageId: message.id }, "ignored system message");
     return;
   }
 
@@ -122,11 +122,11 @@ export async function handleDiscordMessage(
 
   logger.info(
     {
-      direction: "IN",
+      // direction: "IN",
       scope,
-      messageId: message.id,
-      authorId: message.author.id,
-      channelType: message.channel.type,
+      // messageId: message.id,
+      // authorId: message.author.id,
+      // channelType: message.channel.type,
       content,
     },
     "message received",

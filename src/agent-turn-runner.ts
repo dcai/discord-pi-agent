@@ -59,13 +59,13 @@ export async function runAgentTurn(
       toolInputsByCallId.set(event.toolCallId, input);
 
       if (event.toolName === "bash") {
-        logger.debug(
-          {
-            toolName: event.toolName,
-          },
-          `agent tool start: [${event.toolName}]`,
-        );
         debugPrint(input, "CMD");
+        // logger.debug(
+        //   {
+        //     toolName: event.toolName,
+        //   },
+        //   `agent tool start: [${event.toolName}]`,
+        // );
       } else {
         logger.debug(
           {
@@ -82,6 +82,10 @@ export async function runAgentTurn(
       toolInputsByCallId.delete(event.toolCallId);
 
       if (event.toolName === "bash") {
+        debugPrint(
+          extractToolOutput(event.result),
+          event.isError ? "BASH TOOL ERROR OUTPUT" : "BASH TOOL OUTPUT",
+        );
         // logger.debug(
         //   {
         //     toolName: event.toolName,
@@ -91,10 +95,6 @@ export async function runAgentTurn(
         //     typeof input === "string" ? input : "",
         //   )}`,
         // );
-        debugPrint(
-          extractToolOutput(event.result),
-          event.isError ? "BASH TOOL ERROR OUTPUT" : "BASH TOOL OUTPUT",
-        );
       } else {
         logger.debug(
           {
