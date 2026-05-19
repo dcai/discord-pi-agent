@@ -319,7 +319,9 @@ describe("handleDiscordMessage", () => {
       accessConfig,
     );
 
-    expect(sendReplyMock).toHaveBeenCalledWith(message, "\`\`\`\ncommand reply\n\`\`\`");
+    expect(sendReplyMock).toHaveBeenCalledWith(message, "command reply", {
+      codeFence: true,
+    });
     expect(runAgentTurnMock).not.toHaveBeenCalled();
     expect(addWorkingReactionMock).not.toHaveBeenCalled();
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");

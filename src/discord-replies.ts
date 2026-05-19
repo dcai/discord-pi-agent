@@ -31,7 +31,11 @@ export async function removeWorkingReaction(message: Message): Promise<void> {
   }
 }
 
-export async function sendReply(message: Message, text: string): Promise<void> {
+export async function sendReply(
+  message: Message,
+  text: string,
+  opts?: { codeFence?: boolean },
+): Promise<void> {
   const channel = message.channel;
   if (!channel.isSendable()) {
     logger.debug(
@@ -43,7 +47,10 @@ export async function sendReply(message: Message, text: string): Promise<void> {
     return;
   }
 
-  const chunks = chunkMessage(text);
+  const wrap = opts?.codeFence
+    ? (c: string) => `\`\`\`\n${c}\n\`\`\``
+    : (c: string) => c;
+  const chunks = chunkMessage(text).map(wrap);
   const [firstChunk, ...remainingChunks] = chunks;
 
   if (!firstChunk) {
