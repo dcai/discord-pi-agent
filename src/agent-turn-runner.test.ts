@@ -165,4 +165,150 @@ describe("runAgentTurn", () => {
     await expect(runAgentTurn(session, "prompt")).rejects.toThrow("boom");
     expect(unsubscribe).toHaveBeenCalled();
   });
+
+  describe("extractToolOutput (via bash tool event)", () => {
+    it("extracts text from { content: [{ type: text, text: ... }] }", async () => {
+      const output = JSON.stringify({
+        content: [{ type: "text", text: "drwxr-xr-x  14 dcai dcai 4.0K\n" }],
+      });
+
+      const session = createSession({
+        prompt: vi.fn(async () => {
+          emit(session, {
+            type: "tool_execution_end",
+            toolName: "bash",
+            toolCallId: "call-1",
+            isError: false,
+            result: output,
+          } as never);
+        }),
+      });
+
+      await runAgentTurn(session, "prompt");
+
+      expect(debugPrintMock).toHaveBeenCalledWith(
+        "drwxr-xr-x  14 dcai dcai 4.0K\n",
+        "BASH TOOL OUTPUT",
+      );
+    });
+
+    it("joins multiple content items", async () => {
+      const output = JSON.stringify({
+        content: [
+          { type: "text", text: "line 1\n" },
+          { type: "text", text: "line 2\n" },
+        ],
+      });
+
+      const session = createSession({
+        prompt: vi.fn(async () => {
+          emit(session, {
+            type: "tool_execution_end",
+            toolName: "bash",
+            toolCallId: "call-1",
+            isError: false,
+            result: output,
+          } as never);
+        }),
+      });
+
+      await runAgentTurn(session, "prompt");
+
+      expect(debugPrintMock).toHaveBeenCalledWith(
+        "line 1\nline 2\n",
+        "BASH TOOL OUTPUT",
+      );
+    });
+
+    it("skips items that are not type: text", async () => {
+      const output = JSON.stringify({
+        content: [
+          { type: "image", url: "https://example.com/img.png" },
+          { type: "text", text: "hello" },
+        ],
+      });
+
+      const session = createSession({
+        prompt: vi.fn(async () => {
+          emit(session, {
+            type: "tool_execution_end",
+            toolName: "bash",
+            toolCallId: "call-1",
+            isError: false,
+            result: output,
+          } as never);
+        }),
+      });
+
+      await runAgentTurn(session, "prompt");
+
+      expect(debugPrintMock).toHaveBeenCalledWith("hello", "BASH TOOL OUTPUT");
+    });
+
+    it("falls back to raw string when JSON does not have content array", async () => {
+      const output = JSON.stringify({ ok: true, entry: { calories: 390 } });
+
+      const session = createSession({
+        prompt: vi.fn(async () => {
+          emit(session, {
+            type: "tool_execution_end",
+            toolName: "bash",
+            toolCallId: "call-1",
+            isError: false,
+            result: output,
+          } as never);
+        }),
+      });
+
+      await runAgentTurn(session, "prompt");
+
+      expect(debugPrintMock).toHaveBeenCalledWith(output, "BASH TOOL OUTPUT");
+    });
+
+    it("passes through non-JSON string as-is", async () => {
+      const output = "plain text output\n";
+
+      const session = createSession({
+        prompt: vi.fn(async () => {
+          emit(session, {
+            type: "tool_execution_end",
+            toolName: "bash",
+            toolCallId: "call-1",
+            isError: false,
+            result: output,
+          } as never);
+        }),
+      });
+
+      await runAgentTurn(session, "prompt");
+
+      expect(debugPrintMock).toHaveBeenCalledWith(
+        "plain text output\n",
+        "BASH TOOL OUTPUT",
+      );
+    });
+
+    it("handles object result by JSON stringifying", async () => {
+      const result = { status: "done", count: 5 };
+
+      const session = createSession({
+        prompt: vi.fn(async () => {
+          emit(session, {
+            type: "tool_execution_end",
+            toolName: "bash",
+            toolCallId: "call-1",
+            isError: false,
+            result,
+          } as never);
+        }),
+      });
+
+      await runAgentTurn(session, "prompt");
+
+      expect(debugPrintMock).toHaveBeenCalledWith(
+        JSON.stringify(result),
+        "BASH TOOL OUTPUT",
+      );
+    });
+  });
 });

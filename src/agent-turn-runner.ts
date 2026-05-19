@@ -154,26 +154,22 @@ function truncateForLog(value: string, maxLength = 400): string {
   return `${value.slice(0, maxLength)}...`;
 }
 
-/**
- * Priority order for extracting text from a JSON object:
- * 1. Check common text-bearing fields: text, content, message, output, result
- * 2. If none found, pretty-print the JSON
- */
 function extractToolOutput(output: unknown): string {
-  if (typeof output === "string") {
-    const parsed = tryParseJson(output);
-    if (parsed !== undefined && typeof parsed === "object" && parsed !== null) {
-      return extractTextFromObject(parsed) ?? output;
-    }
+  if (typeof output !== "string") {
+    return typeof output === "object" && output !== null
+      ? JSON.stringify(output)
+      : String(output);
+  }
 
+  const parsed = tryParseJson(output);
+  if (parsed === undefined) {
     return output;
   }
 
-  if (typeof output === "object" && output !== null) {
-    return extractTextFromObject(output) ?? JSON.stringify(output);
-  }
+  // Handle { content: [{ type: "text", text: "..." }] }
+  const text = extractContentArrayText(parsed);
 
-  return String(output);
+  return text ?? output;
 }
 
 function tryParseJson(value: string): unknown {
@@ -184,35 +180,34 @@ function tryParseJson(value: string): unknown {
   }
 }
 
-const TEXT_BEARING_FIELDS = [
-  "text",
-  "content",
-  "message",
-  "output",
-  "result",
-] as const;
-
-function extractTextFromObject(obj: object): string | null {
-  // Check for common text-bearing fields (in order of priority)
-  for (const field of TEXT_BEARING_FIELDS) {
-    if (field in obj) {
-      const value = (obj as Record<string, unknown>)[field];
-      if (typeof value === "string" && value.trim().length > 0) {
-        return value;
-      }
-
-      // If the field value is itself an object (e.g. { result: { text: "..." } }),
-      // try extracting text from it recursively
-      if (typeof value === "object" && value !== null) {
-        const nested = extractTextFromObject(value);
-        if (nested !== null) {
-          return nested;
-        }
-      }
-    }
+function extractContentArrayText(value: unknown): string | null {
+  if (value === null || typeof value !== "object") {
+    return null;
   }
 
-  return null;
+  if (!("content" in value)) {
+    return null;
+  }
+
+  const content = (value as Record<string, unknown>).content;
+  if (!Array.isArray(content)) {
+    return null;
+  }
+
+  return content
+    .filter((item): item is { type: string; text: string } => {
+      return (
+        typeof item === "object" &&
+        item !== null &&
+        "type" in item &&
+        "text" in item &&
+        (item as Record<string, unknown>).type === "text"
+      );
+    })
+    .map((item) => {
+      return item.text;
+    })
+    .join("");
 }
 
 function getLatestAssistantText(messages: AgentMessage[]): string {
