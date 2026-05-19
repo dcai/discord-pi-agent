@@ -155,13 +155,32 @@ function truncateForLog(value: string, maxLength = 400): string {
 }
 
 function extractToolOutput(output: unknown): string {
-  if (typeof output === "string") {
-    return output;
-  }
-
+  let processed = output;
   try {
-    return JSON.stringify(output);
+    processed = JSON.parse(output as string);
+    if (Array.isArray(processed)) {
+      // const example = {
+      //   "content": [
+      //     {
+      //       "type": "text",
+      //       "text": "hello world",
+      //     },
+      //   ],
+      // };
+      return processed
+        .map((item) => {
+          if (item?.type === "text") {
+            return item.text;
+          } else {
+            return JSON.stringify(item);
+          }
+        })
+        .join("\n");
+    }
+
+    return String(output);
   } catch {
+    // not json, return as string
     return String(output);
   }
 }
