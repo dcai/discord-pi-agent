@@ -16,6 +16,7 @@ const {
   addWorkingReactionMock,
   removeWorkingReactionMock,
   sendReplyMock,
+  sendCommandReplyMock,
   startTypingForChannelMock,
   stopTypingForChannelMock,
   runAgentTurnMock,
@@ -28,6 +29,7 @@ const {
     addWorkingReactionMock: vi.fn(),
     removeWorkingReactionMock: vi.fn(),
     sendReplyMock: vi.fn(),
+    sendCommandReplyMock: vi.fn(),
     startTypingForChannelMock: vi.fn(),
     stopTypingForChannelMock: vi.fn(),
     runAgentTurnMock: vi.fn(),
@@ -58,6 +60,7 @@ vi.mock("./discord-replies", () => {
     addWorkingReaction: addWorkingReactionMock,
     removeWorkingReaction: removeWorkingReactionMock,
     sendReply: sendReplyMock,
+    sendCommandReply: sendCommandReplyMock,
   };
 });
 
@@ -193,6 +196,7 @@ beforeEach(() => {
   addWorkingReactionMock.mockResolvedValue(undefined);
   removeWorkingReactionMock.mockResolvedValue(undefined);
   sendReplyMock.mockResolvedValue(undefined);
+  sendCommandReplyMock.mockResolvedValue(undefined);
   startTypingForChannelMock.mockImplementation(() => undefined);
   stopTypingForChannelMock.mockImplementation(() => undefined);
   runAgentTurnMock.mockResolvedValue("agent reply");
@@ -319,9 +323,7 @@ describe("handleDiscordMessage", () => {
       accessConfig,
     );
 
-    expect(sendReplyMock).toHaveBeenCalledWith(message, "command reply", {
-      codeFence: true,
-    });
+    expect(sendCommandReplyMock).toHaveBeenCalledWith(message, "command reply");
     expect(runAgentTurnMock).not.toHaveBeenCalled();
     expect(addWorkingReactionMock).not.toHaveBeenCalled();
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");

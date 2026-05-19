@@ -14,6 +14,7 @@ import {
 import {
   addWorkingReaction,
   removeWorkingReaction,
+  sendCommandReply,
   sendReply,
 } from "./discord-replies";
 import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
@@ -187,7 +188,7 @@ export async function handleDiscordMessage(
     );
 
     if (commandResult.response) {
-      await sendReply(message, commandResult.response, { codeFence: true });
+      await sendCommandReply(message, commandResult.response);
     }
 
     return;
