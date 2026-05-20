@@ -165,7 +165,7 @@ describe("config", () => {
           PI_PROMPT_TIME_ZONE: "Asia/Bangkok",
           PI_PROMPT_LOCALE: "th-TH",
           DISCORD_STARTUP_MESSAGE: " hello from env ",
-          PI_VISION_MODEL_ID: "openrouter/google/gemini-2.5-flash",
+          PI_VISION_MODEL_ID: "openrouter/google/gemini-3.1-flash-lite",
           DISCORD_FORUM_CHANNEL_IDS: "forum-1, forum-2",
           DISCORD_ALLOWED_USER_IDS: "user-1, user-2",
         },
