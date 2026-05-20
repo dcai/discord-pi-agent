@@ -40,14 +40,14 @@
     "@earendil-works/pi-coding-agent": "^0.75.3",
     "discord.js": "^14.26.4",
     "dotenv": "^17.4.2",
-    "marked": "^18.0.3",
+    "marked": "^18.0.4",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
     "prettier": "^3.8.3"
   },
   "devDependencies": {
-    "@types/node": "^25.8.0",
-    "@typescript/native-preview": "^7.0.0-dev.20260518.1",
+    "@types/node": "^25.9.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260519.1",
     "@vitest/coverage-v8": "^4.1.6",
     "@vitest/ui": "^4.1.6",
     "vitest": "^4.1.6"
