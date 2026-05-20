@@ -70,7 +70,7 @@ export async function runAgentTurn(
         logger.debug(
           {
             toolName: event.toolName,
-            input,
+            // input,
           },
           `agent tool start: [${event.toolName}]`,
         );
@@ -99,7 +99,7 @@ export async function runAgentTurn(
         logger.debug(
           {
             toolName: event.toolName,
-            input: truncateForLog(extractToolOutput(input)),
+            // input: truncateForLog(extractToolOutput(input)),
             isError: event.isError,
             // output: event.result,
             // output: truncateForLog(extractToolOutput(event.result)),
