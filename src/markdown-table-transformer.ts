@@ -48,9 +48,14 @@ export async function transformMarkdownTablesToCodeBlocks(
 }
 
 /**
- * Moves any ``` that appears at the end of a non-fence line onto its own line.
- * CommonMark requires code fences at line start; Discord's renderer is
- * more lenient, so AI output often has them misplaced.
+ * Normalizes misplaced code fences so CommonMark parsers handle them correctly.
+ * AI output often has ``` in positions that Discord renders fine but break
+ * standard markdown parsing:
+ *
+ *   1. "some text.```"   → fence at end of text line → split to own line
+ *   2. "```some text"    → fence at start with text after → split to own line
+ *
+ * Without this, Prettier may "fix" unbalanced fences by adding spurious ```.
  */
 function normalizeCodeFences(text: string): string {
   const lines = text.split("\n");
@@ -59,6 +64,7 @@ function normalizeCodeFences(text: string): string {
   for (const line of lines) {
     const trimmed = line.trimEnd();
 
+    // Case 1: fence at end of non-fence line (e.g., "hello world.```")
     if (trimmed.endsWith("```") && !trimmed.startsWith("```")) {
       const beforeFence = trimmed.slice(0, -3).trimEnd();
 
@@ -67,12 +73,71 @@ function normalizeCodeFences(text: string): string {
       }
 
       result.push("```");
+    // Case 2: fence at start with trailing text that is NOT a valid info string.
+    // "```java" → keep as-is (info string). "```修正了" → split (prose text).
+    } else if (trimmed.startsWith("```") && !isValidFenceLine(trimmed)) {
+      result.push("```");
+      const afterFence = trimmed.slice(3).trimStart();
+
+      if (afterFence) {
+        result.push(afterFence);
+      }
     } else {
       result.push(line);
     }
   }
 
   return result.join("\n");
+}
+
+/**
+ * Returns true if the line looks like a valid CommonMark code fence.
+ *
+ * Valid fences:
+ *   ```          (bare fence)
+ *   ```java      (info string)
+ *   ```c++       (unusual but valid info string)
+ *   ```diff:ts   (colon-separated directive)
+ *
+ * We only split when the content after ``` looks like prose —
+ * starts with a non-ASCII character (e.g., Chinese text),
+ * or the first "word" has multiple space-separated pieces.
+ */
+function isValidFenceLine(line: string): boolean {
+  const trimmed = line.trimEnd();
+
+  // Bare fence: ```
+  if (trimmed === "```") {
+    return true;
+  }
+
+  const afterFence = trimmed.slice(3);
+
+  if (!afterFence) {
+    return true;
+  }
+
+  // If it starts with a non-ASCII character, it's prose (e.g. ```修正了)
+  // ASCII range: 0x00-0x7F
+  if (afterFence.codePointAt(0)! > 0x7f) {
+    return false;
+  }
+
+  // Info strings are a single non-whitespace token per CommonMark spec.
+  // If there's more than one token, it's prose (e.g. ```this is prose).
+  // Trailing whitespace like "```java  " is fine — trimEnd already handled.
+  const tokens = afterFence.trimStart().split(/\s+/);
+
+  if (tokens.length > 1) {
+    return false;
+  }
+
+  // The token must not contain a backtick (would break the fence)
+  if (tokens[0].includes("`")) {
+    return false;
+  }
+
+  return true;
 }
 
 /**

@@ -106,7 +106,7 @@ describe("config", () => {
           promptTransform,
           startupMessage: false,
           shutdownOnSignals: false,
-          visionModelId: " openrouter/google/gemini-2.5-flash ",
+          visionModelId: " openrouter/google/gemini-3.1-flash ",
           discordAllowedForumChannelIds: ["forum-1"],
           discordAllowedUserIds: ["user-1", "user-2"],
         }),
@@ -121,7 +121,7 @@ describe("config", () => {
       expect(config.promptTransform).toBe(promptTransform);
       expect(config.startupMessage).toBe(false);
       expect(config.shutdownOnSignals).toBe(false);
-      expect(config.visionModelId).toBe("openrouter/google/gemini-2.5-flash");
+      expect(config.visionModelId).toBe("openrouter/google/gemini-3.1-flash");
       expect(config.discordAllowedForumChannelIds).toEqual(["forum-1"]);
       expect(config.discordAllowedUserIds).toEqual(["user-1", "user-2"]);
     });
@@ -183,7 +183,7 @@ describe("config", () => {
           expect(config.promptLocale).toBe("th-TH");
           expect(config.startupMessage).toBe("hello from env");
           expect(config.visionModelId).toBe(
-            "openrouter/google/gemini-2.5-flash",
+            "openrouter/google/gemini-3.1-flash-lite",
           );
           expect(config.discordAllowedForumChannelIds).toEqual([
             "forum-1",

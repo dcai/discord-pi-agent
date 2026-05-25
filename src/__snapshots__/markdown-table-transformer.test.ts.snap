@@ -121,7 +121,61 @@ Omega-3     ✅        Tuna
 Smart move — eggs came back at lunch to make up for the missing breakfast protein. 1,095 kcal deficit with plenty of evening left. Any pickleball plans today?"
 `;
 
+exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should not break when code fence has trailing prose text 1`] = `
+"Here is the diagram you asked for:
+
+\`\`\`
+Flow Chart
+═══════════════════════════════════════
+User → Auth Service → Database
+  ↓         ↓
+Cache    Logging
+\`\`\`
+
+That's the basic architecture. The caching layer sits alongside auth.
+
+Let me know if you want more detail."
+`;
+
+exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should not split fences with unusual but valid info strings 1`] = `
+"\`\`\`c++
+int x = 1;
+\`\`\`
+
+\`\`\`c#
+var y = 2;
+\`\`\`
+
+\`\`\`diff:ts
++ added
+- removed
+\`\`\`"
+`;
+
+exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should not split valid code fence info strings 1`] = `
+"Here is some code:
+
+\`\`\`typescript
+const x = 1;
+\`\`\`
+
+That was TypeScript."
+`;
+
+exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should not split when info string has trailing whitespace 1`] = `
+"\`\`\`java
+System.out.println();
+\`\`\`"
+`;
+
 exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should return text unchanged if no tables 1`] = `"No tables here, just text."`;
+
+exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should split fence with multi-word prose after it 1`] = `
+"\`\`\`
+this is prose
+and more content
+\`\`\`"
+`;
 
 exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should wrap and format a basic table 1`] = `
 "\`\`\`

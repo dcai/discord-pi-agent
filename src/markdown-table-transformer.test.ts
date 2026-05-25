@@ -134,6 +134,74 @@ Contact us for more info.`;
       expect(result).toMatchSnapshot();
     });
 
+    it("should not break when code fence has trailing prose text", async () => {
+      // Real AI output: closing ``` has prose text on the same line.
+      // Discord renders this fine, but CommonMark doesn't see it as a fence,
+      // so the block stays "open" and Prettier inserts a spurious ```.
+      const input = `Here is the diagram you asked for:
+
+\`\`\`
+Flow Chart
+═══════════════════════════════════════
+User → Auth Service → Database
+  ↓         ↓
+Cache    Logging
+\`\`\`That's the basic architecture. The caching layer sits alongside auth.
+
+Let me know if you want more detail.`;
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      // The closing ``` must be on its own line, with prose moved to next line.
+      // Must NOT have unbalanced ``` caused by Prettier "fixing" the open block.
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should not split valid code fence info strings", async () => {
+      const input = "Here is some code:\n\n\`\`\`typescript\nconst x = 1;\n\`\`\`\n\nThat was TypeScript.";
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      // \`\`\`typescript should stay intact, not split into \`\`\` + typescript
+      expect(result).toContain("\`\`\`typescript");
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should not split fences with unusual but valid info strings", async () => {
+      // c++, c#, f# are unusual but valid info strings.
+      // diff:ts uses colon-separated directives.
+      const input = "\`\`\`c++\nint x = 1;\n\`\`\`\n\n\`\`\`c#\nvar y = 2;\n\`\`\`\n\n\`\`\`diff:ts\n+ added\n- removed\n\`\`\`";
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      expect(result).toContain("\`\`\`c++");
+      expect(result).toContain("\`\`\`c#");
+      expect(result).toContain("\`\`\`diff:ts");
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should split fence with multi-word prose after it", async () => {
+      // "```this is prose" — has spaces, not an info string
+      const input = "\`\`\`this is prose\nand more content\n\`\`\`";
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      // ``` should be on its own line, "this is prose" on the next
+      expect(result).toContain("\`\`\`\nthis is prose");
+      expect(result).toMatchSnapshot();
+    });
+
+    it("should not split when info string has trailing whitespace", async () => {
+      // ```java   (with trailing spaces) is valid
+      const input = "\`\`\`java   \nSystem.out.println();\n\`\`\`";
+
+      const result = await transformMarkdownTablesToCodeBlocks(input);
+
+      // Should keep as a valid fence, not split
+      expect(result).not.toContain("\`\`\`\njava");
+      expect(result).toMatchSnapshot();
+    });
+
     it("should normalize misplaced code fences at end of text lines", async () => {
       // Real AI output: first ``` is at end of a paragraph line, not on its own.
       // Discord renders this fine, but CommonMark parsers (marked + Prettier)
