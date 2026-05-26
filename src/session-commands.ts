@@ -1,6 +1,8 @@
 import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
+import type { SessionScope } from "./session-registry";
+import { sessionDirForScope } from "./session-registry";
 import type { ThinkingLevel } from "./types";
 
 export type CommandResult = {
@@ -10,12 +12,16 @@ export type CommandResult = {
   archive?: boolean;
   /** When set, update the session's working reaction emoji. */
   workingEmoji?: string;
+  /** When set, the command created a new session that should replace the current one. */
+  newSession?: AgentSession;
 };
 
 export type CommandContext = {
   agentService: AgentService;
   promptQueue: PromptQueue;
   session?: AgentSession;
+  /** Session scope ("dm" or "thread:<id>") for session lifecycle commands. */
+  scope: SessionScope;
   /** Current working reaction emoji for this session. */
   workingEmoji: string;
 };
@@ -323,23 +329,31 @@ async function handleResetSessionCommand(
     return null;
   }
 
-  if (context.session) {
-    return {
-      handled: true,
-      response: await context.promptQueue.enqueue(async () => {
-        const previousSession = context.session!;
-        await previousSession.abort();
-        previousSession.dispose();
-        return `Session reset. Old session kept at ${previousSession.sessionFile ?? "(unknown path)"}. Use !archive to archive the thread and start fresh.`;
-      }),
-    };
+  const effectiveSession = requireEffectiveSession(context);
+  if ("handled" in effectiveSession) {
+    return effectiveSession;
   }
+
+  let newSession: AgentSession | undefined;
+
+  const response = await context.promptQueue.enqueue(async () => {
+    const previousSessionFile = effectiveSession.session.sessionFile;
+    await effectiveSession.session.abort();
+    effectiveSession.session.dispose();
+
+    const sessionDir = sessionDirForScope(
+      context.agentService.getAgentDir(),
+      context.scope,
+    );
+    newSession = await context.agentService.createSession(sessionDir);
+
+    return `Started a fresh session. Old session kept at ${previousSessionFile ?? "(unknown path)"}.`;
+  });
 
   return {
     handled: true,
-    response: await context.promptQueue.enqueue(async () => {
-      return context.agentService.resetSession();
-    }),
+    response,
+    newSession,
   };
 }
 
@@ -347,10 +361,7 @@ async function handleReactionCommand(
   trimmedInput: string,
   _context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (
-    trimmedInput !== "!reaction" &&
-    !trimmedInput.startsWith("!reaction ")
-  ) {
+  if (trimmedInput !== "!reaction" && !trimmedInput.startsWith("!reaction ")) {
     return null;
   }
 

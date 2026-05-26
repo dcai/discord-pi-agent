@@ -28,7 +28,7 @@ export function resolveConfig(
     thinkingLevel: parseThinkingLevel(config.thinkingLevel) || "medium",
     promptTimeZone: config.promptTimeZone?.trim() || "UTC",
     promptLocale: config.promptLocale?.trim() || "en-AU",
-    promptTransform: config.promptTransform || identityPromptTransform,
+    promptTransform: config.promptTransform || defaultPromptTransform,
     startupMessage:
       config.startupMessage === undefined
         ? "Bot is online and ready."
@@ -126,8 +126,11 @@ function parseThinkingLevel(
   return undefined;
 }
 
-function identityPromptTransform(input: string): string {
-  return input;
+function defaultPromptTransform(ctx: {
+  rawContent: string;
+  wrapWithDiscordContext: () => string;
+}): string {
+  return ctx.wrapWithDiscordContext();
 }
 
 function parseStringArrayFromEnv(key: string): string[] | undefined {

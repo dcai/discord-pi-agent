@@ -73,8 +73,8 @@ function normalizeCodeFences(text: string): string {
       }
 
       result.push("```");
-    // Case 2: fence at start with trailing text that is NOT a valid info string.
-    // "```java" → keep as-is (info string). "```修正了" → split (prose text).
+      // Case 2: fence at start with trailing text that is NOT a valid info string.
+      // "```java" → keep as-is (info string). "```修正了" → split (prose text).
     } else if (trimmed.startsWith("```") && !isValidFenceLine(trimmed)) {
       result.push("```");
       const afterFence = trimmed.slice(3).trimStart();

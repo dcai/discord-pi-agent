@@ -101,7 +101,7 @@ function createResolvedConfig(
     thinkingLevel: "medium",
     promptTimeZone: "UTC",
     promptLocale: "en-AU",
-    promptTransform: async (input) => input,
+    promptTransform: async (ctx) => ctx.rawContent,
     startupMessage: false,
     shutdownOnSignals: true,
     visionModelId: null,

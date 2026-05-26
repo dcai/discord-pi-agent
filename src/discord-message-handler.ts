@@ -33,28 +33,45 @@ import type {
 
 const logger = createModuleLogger("discord-message-handler");
 
-function buildDiscordPromptContent(
+/** Build a lazy wrapper for Discord message context. The consumer's
+ * promptTransform can decide whether to call wrapWithDiscordContext() or skip
+ * it entirely. */
+function buildPromptTransformContext(
   message: Message,
   scope: string,
   content: string,
   config: ResolvedDiscordGatewayConfig,
-): string {
+): {
+  rawContent: string;
+  now: () => string;
+  wrapWithDiscordContext: () => string;
+} {
   const isThread = scope.startsWith("thread:") && message.channel.isThread();
-
-  return buildDiscordMessageContextPrompt(content, {
-    scope: scope === "dm" ? "dm" : "thread",
-    sentAt: message.createdAt.toISOString(),
-    sentAtLocal: formatDiscordPromptTime(message.createdAt, {
-      timeZone: config.promptTimeZone,
-      locale: config.promptLocale,
-    }),
-    messageId: message.id,
-    authorId: message.author.id,
-    authorName: getAuthorDisplayName(message),
-    threadId: isThread ? message.channel.id : undefined,
-    threadTitle: isThread ? message.channel.name : undefined,
-    forumChannelId: isThread ? message.channel.parentId : undefined,
+  const sentAtLocal = formatDiscordPromptTime(message.createdAt, {
+    timeZone: config.promptTimeZone,
+    locale: config.promptLocale,
   });
+
+  return {
+    rawContent: content,
+    now: () => `<datetime>${sentAtLocal}</datetime>`,
+    wrapWithDiscordContext: () => {
+      return buildDiscordMessageContextPrompt(content, {
+        scope: scope === "dm" ? "dm" : "thread",
+        sentAt: message.createdAt.toISOString(),
+        sentAtLocal: formatDiscordPromptTime(message.createdAt, {
+          timeZone: config.promptTimeZone,
+          locale: config.promptLocale,
+        }),
+        messageId: message.id,
+        authorId: message.author.id,
+        authorName: getAuthorDisplayName(message),
+        threadId: isThread ? message.channel.id : undefined,
+        threadTitle: isThread ? message.channel.name : undefined,
+        forumChannelId: isThread ? message.channel.parentId : undefined,
+      });
+    },
+  };
 }
 
 export async function handleDiscordMessage(
@@ -154,6 +171,7 @@ export async function handleDiscordMessage(
     agentService,
     promptQueue,
     session,
+    scope,
     workingEmoji: entry.workingEmoji,
   });
 
@@ -165,6 +183,14 @@ export async function handleDiscordMessage(
       logger.info(
         { scope, emoji: commandResult.workingEmoji },
         "working emoji updated",
+      );
+    }
+
+    if (commandResult.newSession) {
+      entry.session = commandResult.newSession;
+      logger.info(
+        { scope, sessionId: commandResult.newSession.sessionId },
+        "session replaced",
       );
     }
 
@@ -239,13 +265,13 @@ export async function handleDiscordMessage(
         }
       }
 
-      const wrappedContent = buildDiscordPromptContent(
+      const transformCtx = buildPromptTransformContext(
         message,
         scope,
         promptContent,
         config,
       );
-      const transformedPrompt = await config.promptTransform(wrappedContent);
+      const transformedPrompt = await config.promptTransform(transformCtx);
       return runAgentTurn(session, transformedPrompt, {
         images: promptImages,
       });

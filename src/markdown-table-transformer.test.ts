@@ -158,7 +158,8 @@ Let me know if you want more detail.`;
     });
 
     it("should not split valid code fence info strings", async () => {
-      const input = "Here is some code:\n\n\`\`\`typescript\nconst x = 1;\n\`\`\`\n\nThat was TypeScript.";
+      const input =
+        "Here is some code:\n\n\`\`\`typescript\nconst x = 1;\n\`\`\`\n\nThat was TypeScript.";
 
       const result = await transformMarkdownTablesToCodeBlocks(input);
 
@@ -170,7 +171,8 @@ Let me know if you want more detail.`;
     it("should not split fences with unusual but valid info strings", async () => {
       // c++, c#, f# are unusual but valid info strings.
       // diff:ts uses colon-separated directives.
-      const input = "\`\`\`c++\nint x = 1;\n\`\`\`\n\n\`\`\`c#\nvar y = 2;\n\`\`\`\n\n\`\`\`diff:ts\n+ added\n- removed\n\`\`\`";
+      const input =
+        "\`\`\`c++\nint x = 1;\n\`\`\`\n\n\`\`\`c#\nvar y = 2;\n\`\`\`\n\n\`\`\`diff:ts\n+ added\n- removed\n\`\`\`";
 
       const result = await transformMarkdownTablesToCodeBlocks(input);
 

@@ -135,7 +135,11 @@ export class AgentService {
 
   async prompt(text: string): Promise<string> {
     const session = this.requireSession();
-    const transformedPrompt = await this.config.promptTransform(text);
+    const transformedPrompt = await this.config.promptTransform({
+      rawContent: text,
+      now: () => new Date().toISOString(),
+      wrapWithDiscordContext: () => text,
+    });
     return runAgentTurn(session, transformedPrompt);
   }
 

@@ -26,6 +26,7 @@ export type {
   DiscordGateway,
   DiscordGatewayConfig,
   PromptTransform,
+  PromptTransformContext,
   ResolvedDiscordGatewayConfig,
   GatewayAccessConfig,
 } from "./types";

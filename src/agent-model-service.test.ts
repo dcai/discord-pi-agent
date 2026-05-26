@@ -23,7 +23,7 @@ function createConfig(
     thinkingLevel: "medium",
     promptTimeZone: "UTC",
     promptLocale: "en-AU",
-    promptTransform: (input) => input,
+    promptTransform: (ctx) => ctx.rawContent,
     startupMessage: false,
     shutdownOnSignals: true,
     visionModelId: null,

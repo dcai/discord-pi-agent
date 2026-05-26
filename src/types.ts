@@ -1,6 +1,21 @@
 import type { Client } from "discord.js";
 
-export type PromptTransform = (input: string) => string | Promise<string>;
+/** Context object passed to promptTransform so consumers can optionally
+ * wrap the raw content with Discord metadata. */
+export type PromptTransformContext = {
+  /** The raw user content without any Discord context wrapping. */
+  rawContent: string;
+  /** Returns the message timestamp formatted using the gateway config's
+   * promptTimeZone and promptLocale. */
+  now: () => string;
+  /** Wraps the raw content with Discord message metadata (scope, author,
+   * timestamps, thread info). Returns the traditional wrapped prompt. */
+  wrapWithDiscordContext: () => string;
+};
+
+export type PromptTransform = (
+  ctx: PromptTransformContext,
+) => string | Promise<string>;
 
 export type ThinkingLevel =
   | "off"

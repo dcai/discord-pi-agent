@@ -90,7 +90,7 @@ function createConfig(
     thinkingLevel: "medium",
     promptTimeZone: "UTC",
     promptLocale: "en-AU",
-    promptTransform: vi.fn(async (input: string) => `transformed:${input}`),
+    promptTransform: vi.fn(async (ctx: { rawContent: string; wrapWithDiscordContext: () => string }) => `transformed:${ctx.rawContent}`),
     startupMessage: false,
     shutdownOnSignals: true,
     visionModelId: null,
@@ -290,13 +290,17 @@ describe("handleDiscordMessage", () => {
     );
     expect(resolveMediaAttachmentsForPromptMock).not.toHaveBeenCalled();
     expect(config.promptTransform).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "hello there\n\n--- Attachment: notes.md ---\nAttachment body",
-      ),
+      expect.objectContaining({
+        rawContent: expect.stringContaining(
+          "hello there\n\n--- Attachment: notes.md ---\nAttachment body",
+        ),
+      }),
     );
     expect(runAgentTurnMock).toHaveBeenCalledWith(
       session,
-      expect.stringContaining("<discord_message_context>"),
+      expect.stringContaining(
+        "hello there\n\n--- Attachment: notes.md ---\nAttachment body",
+      ),
       {
         images: undefined,
       },

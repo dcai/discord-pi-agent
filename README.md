@@ -43,8 +43,9 @@ Every Discord prompt is wrapped with lightweight Discord context before `promptT
 }
 </discord_message_context>
 
-User message:
+<user_message>
 ...
+</user_message>
 ```
 
 DM prompts omit thread-only fields. `sent_at_local` uses `promptTimeZone` and `promptLocale`.

@@ -102,7 +102,7 @@ function createConfig(
     thinkingLevel: "medium",
     promptTimeZone: "UTC",
     promptLocale: "en-AU",
-    promptTransform: vi.fn(async (input: string) => `wrapped:${input}`),
+    promptTransform: vi.fn(async (ctx: { rawContent: string; wrapWithDiscordContext: () => string }) => `wrapped:${ctx.rawContent}`),
     startupMessage: false,
     shutdownOnSignals: true,
     visionModelId: null,

@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import { executeSessionCommand } from "./session-commands";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
+import type { SessionScope } from "./session-registry";
 import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
+
+const DM_SCOPE: SessionScope = "dm";
 
 function createPromptQueueMock(
   overrides: Partial<PromptQueue> = {},
@@ -37,9 +40,13 @@ function createSessionMock(
   } as unknown as AgentSession;
 }
 
-function createAgentServiceMock(session: AgentSession | null): AgentService {
+function createAgentServiceMock(
+  session: AgentSession | null,
+  overrides: Partial<AgentService> = {},
+): AgentService {
   return {
     getSession: () => session,
+    getAgentDir: () => "/tmp/.pi-agent",
     resources: {
       getExtensionsSummary: () => "Extensions: (none loaded)",
       getSkillsSummary: () => "Skills: (none loaded)",
@@ -62,6 +69,10 @@ function createAgentServiceMock(session: AgentSession | null): AgentService {
       },
     },
     resetSession: vi.fn().mockResolvedValue("Started a fresh session."),
+    createSession: vi
+      .fn()
+      .mockResolvedValue(createSessionMock({ sessionId: "new-session" })),
+    ...overrides,
   } as unknown as AgentService;
 }
 
@@ -70,6 +81,7 @@ describe("executeSessionCommand", () => {
     const result = await executeSessionCommand("hello", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -80,6 +92,7 @@ describe("executeSessionCommand", () => {
     const result = await executeSessionCommand("!status", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -93,6 +106,7 @@ describe("executeSessionCommand", () => {
     const dmResult = await executeSessionCommand("!help", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -102,6 +116,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
       session: createSessionMock(),
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -124,6 +139,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue,
       session,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -154,6 +170,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -182,6 +199,7 @@ describe("executeSessionCommand", () => {
       agentService,
       promptQueue: createPromptQueueMock(),
       session,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -199,6 +217,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -217,6 +236,7 @@ describe("executeSessionCommand", () => {
       agentService,
       promptQueue: createPromptQueueMock(),
       session,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -234,6 +254,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -256,6 +277,7 @@ describe("executeSessionCommand", () => {
         agentService,
         promptQueue: createPromptQueueMock(),
         session,
+        scope: DM_SCOPE,
         workingEmoji: "⚙️",
       },
     );
@@ -272,6 +294,7 @@ describe("executeSessionCommand", () => {
     const dmResult = await executeSessionCommand("!archive", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -285,6 +308,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -304,12 +328,14 @@ describe("executeSessionCommand", () => {
       agentService,
       promptQueue,
       session,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
     const reloadResult = await executeSessionCommand("!reload", {
       agentService,
       promptQueue,
       session,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
@@ -326,37 +352,51 @@ describe("executeSessionCommand", () => {
     });
   });
 
-  it("resets thread sessions locally and persistent sessions through agent service", async () => {
+  it("resets sessions by aborting, disposing, and creating a fresh one", async () => {
     const threadSession = createSessionMock();
     const threadQueue = createPromptQueueMock();
+    const threadAgentService = createAgentServiceMock(threadSession);
 
     const threadResult = await executeSessionCommand("!reset-session", {
-      agentService: createAgentServiceMock(threadSession),
+      agentService: threadAgentService,
       promptQueue: threadQueue,
       session: threadSession,
+      scope: "thread:123" as SessionScope,
       workingEmoji: "⚙️",
     });
 
     expect(threadSession.abort).toHaveBeenCalled();
     expect(threadSession.dispose).toHaveBeenCalled();
+    expect(threadAgentService.createSession).toHaveBeenCalledWith(
+      "/tmp/.pi-agent/sessions/thread-123",
+    );
     expect(threadResult).toEqual({
       handled: true,
       response:
-        "Session reset. Old session kept at /tmp/session-1.jsonl. Use !archive to archive the thread and start fresh.",
+        "Started a fresh session. Old session kept at /tmp/session-1.jsonl.",
+      newSession: expect.objectContaining({ sessionId: "new-session" }),
     });
 
     const dmSession = createSessionMock();
-    const agentService = createAgentServiceMock(dmSession);
+    const dmAgentService = createAgentServiceMock(dmSession);
     const dmResult = await executeSessionCommand("!reset-session", {
-      agentService,
+      agentService: dmAgentService,
       promptQueue: createPromptQueueMock(),
+      session: dmSession,
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
-    expect(agentService.resetSession).toHaveBeenCalled();
+    expect(dmSession.abort).toHaveBeenCalled();
+    expect(dmSession.dispose).toHaveBeenCalled();
+    expect(dmAgentService.createSession).toHaveBeenCalledWith(
+      "/tmp/.pi-agent/sessions",
+    );
     expect(dmResult).toEqual({
       handled: true,
-      response: "Started a fresh session.",
+      response:
+        "Started a fresh session. Old session kept at /tmp/session-1.jsonl.",
+      newSession: expect.objectContaining({ sessionId: "new-session" }),
     });
   });
 
@@ -364,6 +404,7 @@ describe("executeSessionCommand", () => {
     const result = await executeSessionCommand("!wat", {
       agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 

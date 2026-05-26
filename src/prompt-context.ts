@@ -42,12 +42,9 @@ export function buildDiscordMessageContextPrompt(
   );
 
   return [
-    "<discord_message_context>",
-    contextJson,
-    "</discord_message_context>",
+    wrapXmlTag("discord_message_context", contextJson),
     "",
-    "User message:",
-    userMessage.trim(),
+    wrapXmlTag("user_message", userMessage.trim()),
   ].join("\n");
 }
 
@@ -69,6 +66,11 @@ export function formatDiscordPromptTime(
     hour12: false,
     timeZoneName: "short",
   }).format(date);
+}
+
+/** Wrap content in an XML-style tag: `<tag>content</tag>`. */
+function wrapXmlTag(tag: string, content: string): string {
+  return `<${tag}>${content}</${tag}>`;
 }
 
 function normalizeContextValue(value: string | undefined): string | undefined {

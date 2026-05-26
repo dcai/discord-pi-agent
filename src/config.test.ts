@@ -87,12 +87,18 @@ describe("config", () => {
       expect(config.visionModelId).toBeNull();
       expect(config.discordAllowedForumChannelIds).toEqual([]);
       expect(config.discordAllowedUserIds).toEqual(["user-1"]);
-      expect(config.promptTransform("hello")).toBe("hello");
+      expect(
+        config.promptTransform({
+          rawContent: "hello",
+          now: () => "now",
+          wrapWithDiscordContext: () => "<ctx>hello</ctx>",
+        }),
+      ).toBe("<ctx>hello</ctx>");
     });
 
     it("preserves explicit values including false startup message", () => {
-      const promptTransform = vi.fn(async (input: string) => {
-        return `wrapped:${input}`;
+      const promptTransform = vi.fn(async (ctx: { rawContent: string; wrapWithDiscordContext: () => string }) => {
+        return `wrapped:${ctx.rawContent}`;
       });
 
       const config = resolveConfig(
