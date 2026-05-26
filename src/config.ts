@@ -128,9 +128,13 @@ function parseThinkingLevel(
 
 function defaultPromptTransform(ctx: {
   rawContent: string;
-  wrapWithDiscordContext: () => string;
+  discordMetadata: string;
+  now: () => string;
+  userMessage: () => string;
 }): string {
-  return ctx.wrapWithDiscordContext();
+  return [ctx.now(), ctx.discordMetadata, "", ctx.userMessage()]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function parseStringArrayFromEnv(key: string): string[] | undefined {

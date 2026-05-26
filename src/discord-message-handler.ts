@@ -20,10 +20,7 @@ import {
 import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
 import { startTypingForChannel, stopTypingForChannel } from "./discord-typing";
 import { createModuleLogger } from "./logger";
-import {
-  buildDiscordMessageContextPrompt,
-  formatDiscordPromptTime,
-} from "./prompt-context";
+import { formatDiscordPromptTime, wrapXmlTag } from "./prompt-context";
 import { runAgentTurn } from "./agent-turn-runner";
 import type { SessionRegistry } from "./session-registry";
 import type {
@@ -33,45 +30,42 @@ import type {
 
 const logger = createModuleLogger("discord-message-handler");
 
-/** Build a lazy wrapper for Discord message context. The consumer's
- * promptTransform can decide whether to call wrapWithDiscordContext() or skip
- * it entirely. */
-function buildPromptTransformContext(
-  message: Message,
-  scope: string,
-  content: string,
-  config: ResolvedDiscordGatewayConfig,
-): {
-  rawContent: string;
-  now: () => string;
-  wrapWithDiscordContext: () => string;
-} {
+/** Build a Discord metadata XML string for a message. */
+function formatDiscordMessageMetadata(message: Message, scope: string): string {
   const isThread = scope.startsWith("thread:") && message.channel.isThread();
-  const sentAtLocal = formatDiscordPromptTime(message.createdAt, {
-    timeZone: config.promptTimeZone,
-    locale: config.promptLocale,
+
+  const contextEntries = [
+    ["scope", scope === "dm" ? "dm" : "thread"],
+    ["sent_at", message.createdAt.toISOString()],
+    ["sent_at_local", formatDiscordPromptTime(message.createdAt)],
+    ["message_id", message.id],
+    [
+      "author_name",
+      getAuthorDisplayName(message).replace(/\s+/g, " ").trim() || undefined,
+    ],
+    ["author_id", message.author.id],
+    [
+      "thread_title",
+      isThread
+        ? (message.channel.name ?? "").replace(/\s+/g, " ").trim()
+        : undefined,
+    ],
+    ["thread_id", isThread ? message.channel.id : undefined],
+    [
+      "forum_channel_id",
+      isThread ? (message.channel.parentId ?? undefined) : undefined,
+    ],
+  ].filter((entry): entry is [string, string] => {
+    return typeof entry[1] === "string" && entry[1].length > 0;
   });
 
-  return {
-    rawContent: content,
-    now: () => `<datetime>${sentAtLocal}</datetime>`,
-    wrapWithDiscordContext: () => {
-      return buildDiscordMessageContextPrompt(content, {
-        scope: scope === "dm" ? "dm" : "thread",
-        sentAt: message.createdAt.toISOString(),
-        sentAtLocal: formatDiscordPromptTime(message.createdAt, {
-          timeZone: config.promptTimeZone,
-          locale: config.promptLocale,
-        }),
-        messageId: message.id,
-        authorId: message.author.id,
-        authorName: getAuthorDisplayName(message),
-        threadId: isThread ? message.channel.id : undefined,
-        threadTitle: isThread ? message.channel.name : undefined,
-        forumChannelId: isThread ? message.channel.parentId : undefined,
-      });
-    },
-  };
+  const contextJson = JSON.stringify(
+    Object.fromEntries(contextEntries),
+    null,
+    2,
+  );
+
+  return `<discord_message_context>${contextJson}</discord_message_context>`;
 }
 
 export async function handleDiscordMessage(
@@ -265,13 +259,21 @@ export async function handleDiscordMessage(
         }
       }
 
-      const transformCtx = buildPromptTransformContext(
-        message,
-        scope,
-        promptContent,
-        config,
-      );
-      const transformedPrompt = await config.promptTransform(transformCtx);
+      const discordMetadata = formatDiscordMessageMetadata(message, scope);
+
+      const transformedPrompt = await config.promptTransform({
+        rawContent: promptContent,
+        discordMetadata,
+        now: () =>
+          wrapXmlTag(
+            "datetime",
+            formatDiscordPromptTime(new Date(), {
+              timeZone: config.promptTimeZone,
+              locale: config.promptLocale,
+            }),
+          ),
+        userMessage: () => wrapXmlTag("user_message", promptContent),
+      });
       return runAgentTurn(session, transformedPrompt, {
         images: promptImages,
       });

@@ -90,14 +90,15 @@ describe("config", () => {
       expect(
         config.promptTransform({
           rawContent: "hello",
+          discordMetadata: "",
           now: () => "now",
-          wrapWithDiscordContext: () => "<ctx>hello</ctx>",
+          userMessage: () => "<user_message>hello</user_message>",
         }),
-      ).toBe("<ctx>hello</ctx>");
+      ).toBe("now\n<user_message>hello</user_message>");
     });
 
     it("preserves explicit values including false startup message", () => {
-      const promptTransform = vi.fn(async (ctx: { rawContent: string; wrapWithDiscordContext: () => string }) => {
+      const promptTransform = vi.fn(async (ctx: { rawContent: string; discordMetadata: string; now: () => string; userMessage: () => string }) => {
         return `wrapped:${ctx.rawContent}`;
       });
 

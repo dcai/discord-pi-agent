@@ -13,13 +13,7 @@ import type {
 
 const logger = createModuleLogger("index");
 
-export {
-  buildDiscordMessageContextPrompt,
-  formatDiscordPromptTime,
-  type DiscordMessageContextPromptOptions,
-  type DiscordPromptScope,
-  type DiscordPromptTimeFormatOptions,
-} from "./prompt-context";
+export { formatDiscordPromptTime } from "./prompt-context";
 export { loadDiscordGatewayConfigFromEnv, resolveConfig } from "./config";
 export type {
   AgentStatus,

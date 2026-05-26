@@ -3,14 +3,15 @@ import type { Client } from "discord.js";
 /** Context object passed to promptTransform so consumers can optionally
  * wrap the raw content with Discord metadata. */
 export type PromptTransformContext = {
-  /** The raw user content without any Discord context wrapping. */
+  /** The raw user content without any XML wrapping. */
   rawContent: string;
-  /** Returns the message timestamp formatted using the gateway config's
-   * promptTimeZone and promptLocale. */
+  /** XML string with Discord message metadata (context JSON block). */
+  discordMetadata: string;
+  /** Returns current datetime formatted using the gateway config's
+   * promptTimeZone and promptLocale, wrapped in a <datetime> tag. */
   now: () => string;
-  /** Wraps the raw content with Discord message metadata (scope, author,
-   * timestamps, thread info). Returns the traditional wrapped prompt. */
-  wrapWithDiscordContext: () => string;
+  /** Returns rawContent wrapped in a <user_message> tag. */
+  userMessage: () => string;
 };
 
 export type PromptTransform = (

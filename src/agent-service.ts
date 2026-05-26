@@ -137,8 +137,9 @@ export class AgentService {
     const session = this.requireSession();
     const transformedPrompt = await this.config.promptTransform({
       rawContent: text,
-      now: () => new Date().toISOString(),
-      wrapWithDiscordContext: () => text,
+      discordMetadata: "",
+      now: () => "",
+      userMessage: () => text,
     });
     return runAgentTurn(session, transformedPrompt);
   }
