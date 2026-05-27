@@ -49,7 +49,7 @@ describe("discord-replies", () => {
     const remove = vi.fn(async () => undefined);
     const message = createMessage({
       reactions: {
-        cache: new Map([["⚙️", { users: { remove } }]]),
+        cache: new Map([["⚙️", { users: { remove }, emoji: { name: "⚙️" } }]]),
       },
     });
 
@@ -63,6 +63,19 @@ describe("discord-replies", () => {
     expect(remove).toHaveBeenCalledTimes(2);
     expect(remove).toHaveBeenNthCalledWith(1, message.client.user);
     expect(remove).toHaveBeenNthCalledWith(2, message.client.user);
+  });
+
+  it("removes unicode reactions even when cache keys normalize differently", async () => {
+    const remove = vi.fn(async () => undefined);
+    const message = createMessage({
+      reactions: {
+        cache: new Map([["🖥", { users: { remove }, emoji: { name: "🖥" } }]]),
+      },
+    });
+
+    await removeReaction(message as never, "🖥️");
+
+    expect(remove).toHaveBeenCalledWith(message.client.user);
   });
 
   it("swallows reaction errors and missing reactions", async () => {

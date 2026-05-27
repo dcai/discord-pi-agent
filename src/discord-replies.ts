@@ -42,6 +42,46 @@ function chunkByLines(text: string, maxSize: number): string[] {
 
 export const DEFAULT_WORKING_EMOJI = "⚙️";
 
+function normalizeEmoji(value: string): string {
+  return value.normalize("NFKC").replace(/\uFE0F/g, "");
+}
+
+function findReactionByEmoji(message: Message, emoji: string) {
+  const directMatch = message.reactions.cache.get(emoji);
+  if (directMatch) {
+    return directMatch;
+  }
+
+  const normalizedEmoji = normalizeEmoji(emoji);
+  const normalizedMatch = Array.from(message.reactions.cache.entries()).find(
+    ([key, reaction]) => {
+      if (normalizeEmoji(String(key)) === normalizedEmoji) {
+        return true;
+      }
+
+      if (typeof reaction.emoji?.name === "string") {
+        return normalizeEmoji(reaction.emoji.name) === normalizedEmoji;
+      }
+
+      return false;
+    },
+  )?.[1];
+
+  if (!normalizedMatch) {
+    logger.debug(
+      {
+        messageId: message.id,
+        emoji,
+        normalizedEmoji,
+        reactionKeys: Array.from(message.reactions.cache.keys()),
+      },
+      "reaction not found in cache",
+    );
+  }
+
+  return normalizedMatch;
+}
+
 export async function addReaction(
   message: Message,
   emoji: string,
@@ -61,7 +101,7 @@ export async function removeReaction(
   emoji: string,
 ): Promise<void> {
   try {
-    const reaction = message.reactions.cache.get(emoji);
+    const reaction = findReactionByEmoji(message, emoji);
     if (reaction) {
       await reaction.users.remove(message.client.user!);
     }
