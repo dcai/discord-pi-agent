@@ -1,4 +1,3 @@
-import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type {
   AgentSession,
   AgentSessionEvent,
@@ -184,7 +183,17 @@ function extractToolOutput(output: unknown): string {
   return String(output);
 }
 
-function getLatestAssistantText(messages: AgentMessage[]): string {
+type MessageContentItemLike = {
+  type?: string;
+  text?: string;
+};
+
+type AgentMessageLike = {
+  role?: string;
+  content?: string | MessageContentItemLike[];
+};
+
+function getLatestAssistantText(messages: AgentMessageLike[]): string {
   const latestAssistantMessage = [...messages].reverse().find((message) => {
     return message.role === "assistant";
   });
@@ -197,11 +206,11 @@ function getLatestAssistantText(messages: AgentMessage[]): string {
   }
 
   return latestAssistantMessage.content
-    .filter((item) => {
+    .filter((item: MessageContentItemLike) => {
       return item.type === "text";
     })
-    .map((item) => {
-      return item.text;
+    .map((item: MessageContentItemLike) => {
+      return item.text ?? "";
     })
     .join("\n")
     .trim();
