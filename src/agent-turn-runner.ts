@@ -13,6 +13,13 @@ type CollectReplyOptions = {
   images?: ImageContent[];
 };
 
+type AgentMessage = AgentSession["messages"][number];
+
+type TextMessageContentItem = {
+  type: "text";
+  text: string;
+};
+
 export async function runAgentTurn(
   session: AgentSession,
   prompt: string,
@@ -183,17 +190,7 @@ function extractToolOutput(output: unknown): string {
   return String(output);
 }
 
-type MessageContentItemLike = {
-  type?: string;
-  text?: string;
-};
-
-type AgentMessageLike = {
-  role?: string;
-  content?: string | MessageContentItemLike[];
-};
-
-function getLatestAssistantText(messages: AgentMessageLike[]): string {
+function getLatestAssistantText(messages: AgentMessage[]): string {
   const latestAssistantMessage = [...messages].reverse().find((message) => {
     return message.role === "assistant";
   });
@@ -206,11 +203,11 @@ function getLatestAssistantText(messages: AgentMessageLike[]): string {
   }
 
   return latestAssistantMessage.content
-    .filter((item: MessageContentItemLike) => {
-      return item.type === "text";
+    .filter((item): item is TextMessageContentItem => {
+      return item.type === "text" && typeof item.text === "string";
     })
-    .map((item: MessageContentItemLike) => {
-      return item.text ?? "";
+    .map((item) => {
+      return item.text;
     })
     .join("\n")
     .trim();

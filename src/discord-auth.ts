@@ -1,4 +1,5 @@
 import { ChannelType, type Message } from "discord.js";
+import type { SessionScope } from "./session-registry";
 import type { GatewayAccessConfig } from "./types";
 
 export function getAuthorDisplayName(message: Message): string {
@@ -13,7 +14,7 @@ export function getAuthorDisplayName(message: Message): string {
  * Determine the session scope from an incoming message.
  * Returns null for unsupported channel types (silently ignored).
  */
-export function resolveMessageScope(message: Message): string | null {
+export function resolveMessageScope(message: Message): SessionScope | null {
   if (message.channel.type === ChannelType.DM) {
     return "dm";
   }
@@ -27,7 +28,7 @@ export function resolveMessageScope(message: Message): string | null {
 
 export function isAuthorizedMessage(
   message: Message,
-  scope: string,
+  scope: SessionScope,
   accessConfig: GatewayAccessConfig,
 ): boolean {
   if (scope === "dm") {

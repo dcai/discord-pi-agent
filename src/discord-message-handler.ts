@@ -1,28 +1,33 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
 import type { Message } from "discord.js";
 import type { AgentService } from "./agent-service";
-import { executeSessionCommand } from "./session-commands";
 import {
   readMediaAttachments,
   readTextAttachments,
+  type MediaAttachmentContent,
 } from "./discord-attachments";
-import {
-  getAuthorDisplayName,
-  isAuthorizedMessage,
-  resolveMessageScope,
-} from "./discord-auth";
+import { isAuthorizedMessage, resolveMessageScope } from "./discord-auth";
+import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
 import {
   addWorkingReaction,
   removeWorkingReaction,
   sendCommandReply,
   sendReply,
 } from "./discord-replies";
-import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
+import { executeSessionCommand, type CommandResult } from "./session-commands";
 import { startTypingForChannel, stopTypingForChannel } from "./discord-typing";
 import { createModuleLogger } from "./logger";
-import { formatDiscordPromptTime, wrapXmlTag } from "./prompt-context";
+import {
+  buildDiscordMessageMetadata,
+  formatDiscordPromptTime,
+  wrapXmlTag,
+} from "./prompt-context";
 import { runAgentTurn } from "./agent-turn-runner";
-import type { SessionRegistry } from "./session-registry";
+import type {
+  ScopedSessionEntry,
+  SessionRegistry,
+  SessionScope,
+} from "./session-registry";
 import type {
   GatewayAccessConfig,
   ResolvedDiscordGatewayConfig,
@@ -30,43 +35,11 @@ import type {
 
 const logger = createModuleLogger("discord-message-handler");
 
-/** Build a Discord metadata XML string for a message. */
-function formatDiscordMessageMetadata(message: Message, scope: string): string {
-  const isThread = scope.startsWith("thread:") && message.channel.isThread();
-
-  const contextEntries = [
-    ["scope", scope === "dm" ? "dm" : "thread"],
-    ["sent_at", message.createdAt.toISOString()],
-    ["sent_at_local", formatDiscordPromptTime(message.createdAt)],
-    ["message_id", message.id],
-    [
-      "author_name",
-      getAuthorDisplayName(message).replace(/\s+/g, " ").trim() || undefined,
-    ],
-    ["author_id", message.author.id],
-    [
-      "thread_title",
-      isThread
-        ? (message.channel.name ?? "").replace(/\s+/g, " ").trim()
-        : undefined,
-    ],
-    ["thread_id", isThread ? message.channel.id : undefined],
-    [
-      "forum_channel_id",
-      isThread ? (message.channel.parentId ?? undefined) : undefined,
-    ],
-  ].filter((entry): entry is [string, string] => {
-    return typeof entry[1] === "string" && entry[1].length > 0;
-  });
-
-  const contextJson = JSON.stringify(
-    Object.fromEntries(contextEntries),
-    null,
-    2,
-  );
-
-  return `<discord_message_context>${contextJson}</discord_message_context>`;
-}
+type PreparedDiscordMessage = {
+  scope: SessionScope;
+  content: string;
+  mediaAttachments: MediaAttachmentContent[];
+};
 
 export async function handleDiscordMessage(
   message: Message,
@@ -75,14 +48,64 @@ export async function handleDiscordMessage(
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
 ): Promise<void> {
-  if (message.author.bot) {
-    // logger.debug("ignored bot message");
+  const preparedMessage = await prepareDiscordMessage(message, accessConfig);
+  if (!preparedMessage) {
     return;
   }
 
-  if (message.system) {
-    // logger.debug({ messageId: message.id }, "ignored system message");
+  logger.info(
+    {
+      scope: preparedMessage.scope,
+      content: preparedMessage.content,
+    },
+    "message received",
+  );
+
+  const channelKey = message.channel.id;
+  startTypingIfPossible(message, channelKey);
+
+  const { entry, created } = await sessionRegistry.getOrCreate(
+    preparedMessage.scope,
+  );
+  logNewThreadSession(message, preparedMessage.scope, created);
+
+  const commandResult = await executeSessionCommand(preparedMessage.content, {
+    agentService,
+    promptQueue: entry.promptQueue,
+    session: entry.session,
+    scope: preparedMessage.scope,
+    workingEmoji: entry.workingEmoji,
+  });
+
+  if (commandResult.handled) {
+    await handleCommandResult(
+      message,
+      sessionRegistry,
+      preparedMessage.scope,
+      entry,
+      commandResult,
+      preparedMessage.content,
+      channelKey,
+    );
     return;
+  }
+
+  await processAgentPrompt(
+    message,
+    config,
+    agentService,
+    entry,
+    preparedMessage,
+    channelKey,
+  );
+}
+
+async function prepareDiscordMessage(
+  message: Message,
+  accessConfig: GatewayAccessConfig,
+): Promise<PreparedDiscordMessage | null> {
+  if (message.author.bot || message.system) {
+    return null;
   }
 
   const scope = resolveMessageScope(message);
@@ -94,7 +117,7 @@ export async function handleDiscordMessage(
       },
       "unsupported channel type, ignoring",
     );
-    return;
+    return null;
   }
 
   if (!isAuthorizedMessage(message, scope, accessConfig)) {
@@ -106,123 +129,151 @@ export async function handleDiscordMessage(
       },
       "unauthorized",
     );
-    return;
+    return null;
   }
 
-  let content = message.content.trim();
-  const textAttachments = await readTextAttachments(message);
-  if (textAttachments.length > 0) {
-    const attachmentSuffix = textAttachments
-      .map((attachment) => {
-        return `\n\n--- Attachment: ${attachment.filename} ---\n${attachment.content}`;
-      })
-      .join("");
-    content = content
-      ? content + attachmentSuffix
-      : textAttachments[0]!.content;
-  }
-
+  const content = await buildMessageContent(message);
   const mediaAttachments = await readMediaAttachments(message);
+
   if (!content && mediaAttachments.length === 0) {
     logger.debug(
       { messageId: message.id },
       "ignored empty message (no text or images)",
     );
+    return null;
+  }
+
+  return {
+    scope,
+    content,
+    mediaAttachments,
+  };
+}
+
+async function buildMessageContent(message: Message): Promise<string> {
+  const baseContent = message.content.trim();
+  const textAttachments = await readTextAttachments(message);
+
+  if (textAttachments.length === 0) {
+    return baseContent;
+  }
+
+  const attachmentText = textAttachments
+    .map((attachment) => {
+      return `\n\n--- Attachment: ${attachment.filename} ---\n${attachment.content}`;
+    })
+    .join("");
+
+  if (!baseContent) {
+    return textAttachments[0]?.content ?? "";
+  }
+
+  return baseContent + attachmentText;
+}
+
+function startTypingIfPossible(message: Message, channelKey: string): void {
+  if (message.channel.isSendable()) {
+    startTypingForChannel(message.channel, channelKey);
+  }
+}
+
+function logNewThreadSession(
+  message: Message,
+  scope: SessionScope,
+  created: boolean,
+): void {
+  if (!created || !scope.startsWith("thread:") || !message.channel.isThread()) {
     return;
   }
 
   logger.info(
     {
-      // direction: "IN",
       scope,
-      // messageId: message.id,
-      // authorId: message.author.id,
-      // channelType: message.channel.type,
-      content,
+      threadName: message.channel.name,
     },
-    "message received",
+    "new thread session",
   );
+}
 
-  const channelKey = message.channel.id;
-  if (message.channel.isSendable()) {
-    startTypingForChannel(message.channel, channelKey);
-  }
+async function handleCommandResult(
+  message: Message,
+  sessionRegistry: SessionRegistry,
+  scope: SessionScope,
+  entry: ScopedSessionEntry,
+  commandResult: CommandResult,
+  content: string,
+  channelKey: string,
+): Promise<void> {
+  stopTypingForChannel(channelKey);
 
-  const { entry, created } = await sessionRegistry.getOrCreate(scope);
-  const { session, promptQueue } = entry;
-
-  if (created && scope.startsWith("thread:") && message.channel.isThread()) {
+  if (commandResult.workingEmoji) {
+    entry.workingEmoji = commandResult.workingEmoji;
     logger.info(
-      {
-        scope,
-        threadName: message.channel.name,
-      },
-      "new thread session",
+      { scope, emoji: commandResult.workingEmoji },
+      "working emoji updated",
     );
   }
 
-  const commandResult = await executeSessionCommand(content, {
-    agentService,
-    promptQueue,
-    session,
-    scope,
-    workingEmoji: entry.workingEmoji,
-  });
-
-  if (commandResult.handled) {
-    stopTypingForChannel(channelKey);
-
-    if (commandResult.workingEmoji) {
-      entry.workingEmoji = commandResult.workingEmoji;
-      logger.info(
-        { scope, emoji: commandResult.workingEmoji },
-        "working emoji updated",
-      );
-    }
-
-    if (commandResult.newSession) {
-      entry.session = commandResult.newSession;
-      logger.info(
-        { scope, sessionId: commandResult.newSession.sessionId },
-        "session replaced",
-      );
-    }
-
-    if (commandResult.archive && scope.startsWith("thread:")) {
-      logger.info({ scope }, "archiving thread");
-      const archiveChannel = message.channel;
-      if (archiveChannel.isSendable()) {
-        await archiveChannel.send(
-          `\`\`\`\n${commandResult.response ?? "Archiving..."}\n\`\`\``,
-        );
-      }
-      try {
-        if (archiveChannel.isThread()) {
-          await archiveChannel.setArchived(true);
-        }
-      } catch (error) {
-        logger.error({ error }, "failed to archive thread");
-      }
-      await sessionRegistry.remove(scope);
-      return;
-    }
-
+  if (commandResult.newSession) {
+    entry.session = commandResult.newSession;
     logger.info(
-      {
-        messageId: message.id,
-        command: content,
-        hasResponse: Boolean(commandResult.response),
-      },
-      `command handled: ${content}`,
+      { scope, sessionId: commandResult.newSession.sessionId },
+      "session replaced",
     );
+  }
 
-    if (commandResult.response) {
-      await sendCommandReply(message, commandResult.response);
-    }
-
+  if (commandResult.archive && scope.startsWith("thread:")) {
+    await archiveThreadSession(message, sessionRegistry, scope, commandResult);
     return;
   }
 
+  logger.info(
+    {
+      messageId: message.id,
+      command: content,
+      hasResponse: Boolean(commandResult.response),
+    },
+    `command handled: ${content}`,
+  );
+
+  if (commandResult.response) {
+    await sendCommandReply(message, commandResult.response);
+  }
+}
+
+async function archiveThreadSession(
+  message: Message,
+  sessionRegistry: SessionRegistry,
+  scope: SessionScope,
+  commandResult: CommandResult,
+): Promise<void> {
+  logger.info({ scope }, "archiving thread");
+
+  if (message.channel.isSendable()) {
+    await message.channel.send(
+      `\`\`\`\n${commandResult.response ?? "Archiving..."}\n\`\`\``,
+    );
+  }
+
+  try {
+    if (message.channel.isThread()) {
+      await message.channel.setArchived(true);
+    }
+  } catch (error) {
+    logger.error({ error }, "failed to archive thread");
+  }
+
+  await sessionRegistry.remove(scope);
+}
+
+async function processAgentPrompt(
+  message: Message,
+  config: ResolvedDiscordGatewayConfig,
+  agentService: AgentService,
+  entry: ScopedSessionEntry,
+  preparedMessage: PreparedDiscordMessage,
+  channelKey: string,
+): Promise<void> {
   if (!message.channel.isSendable()) {
     stopTypingForChannel(channelKey);
     logger.debug({ messageId: message.id }, "channel not sendable");
@@ -230,58 +281,104 @@ export async function handleDiscordMessage(
   }
 
   await addWorkingReaction(message, entry.workingEmoji);
+  await notifyIfPromptQueued(message, entry.promptQueue.getSnapshot().pending);
 
-  const queuePosition = promptQueue.getSnapshot().pending;
-  if (queuePosition > 0) {
-    await sendReply(
-      message,
-      `Queued. ${queuePosition} request(s) ahead of this one.`,
-    );
-  }
-
-  let response: string;
   try {
-    response = await promptQueue.enqueue(async () => {
-      let promptContent = content;
-      let promptImages: ImageContent[] | undefined;
+    const response = await entry.promptQueue.enqueue(async () => {
+      const promptInput = await buildPromptInput(
+        message,
+        config,
+        agentService,
+        entry,
+        preparedMessage,
+      );
 
-      if (mediaAttachments.length > 0) {
-        const resolvedPromptMedia = await resolveMediaAttachmentsForPrompt(
-          mediaAttachments,
-          promptContent,
-          session.model,
-          config,
-          agentService,
-        );
-        promptContent = resolvedPromptMedia.content;
-        if (resolvedPromptMedia.images.length > 0) {
-          promptImages = resolvedPromptMedia.images;
-        }
-      }
-
-      const discordMetadata = formatDiscordMessageMetadata(message, scope);
-
-      const transformedPrompt = await config.promptTransform({
-        rawContent: promptContent,
-        discordMetadata,
-        now: () =>
-          wrapXmlTag(
-            "datetime",
-            formatDiscordPromptTime(new Date(), {
-              timeZone: config.promptTimeZone,
-              locale: config.promptLocale,
-            }),
-          ),
-        userMessage: () => wrapXmlTag("user_message", promptContent),
-      });
-      return runAgentTurn(session, transformedPrompt, {
-        images: promptImages,
+      return runAgentTurn(entry.session, promptInput.prompt, {
+        images: promptInput.images,
       });
     });
+
+    await sendReply(message, response);
   } finally {
     stopTypingForChannel(channelKey);
     await removeWorkingReaction(message, entry.workingEmoji);
   }
+}
 
-  await sendReply(message, response);
+async function notifyIfPromptQueued(
+  message: Message,
+  pendingCount: number,
+): Promise<void> {
+  if (pendingCount > 0) {
+    await sendReply(
+      message,
+      `Queued. ${pendingCount} request(s) ahead of this one.`,
+    );
+  }
+}
+
+async function buildPromptInput(
+  message: Message,
+  config: ResolvedDiscordGatewayConfig,
+  agentService: AgentService,
+  entry: ScopedSessionEntry,
+  preparedMessage: PreparedDiscordMessage,
+): Promise<{ prompt: string; images: ImageContent[] | undefined }> {
+  const resolvedPromptMedia = await resolvePromptMedia(
+    preparedMessage,
+    entry,
+    config,
+    agentService,
+  );
+  const discordMetadata = buildDiscordMessageMetadata(
+    message,
+    preparedMessage.scope,
+  );
+
+  const prompt = await config.promptTransform({
+    rawContent: resolvedPromptMedia.content,
+    discordMetadata,
+    now: () => {
+      return wrapXmlTag(
+        "datetime",
+        formatDiscordPromptTime(new Date(), {
+          timeZone: config.promptTimeZone,
+          locale: config.promptLocale,
+        }),
+      );
+    },
+    userMessage: () => {
+      return wrapXmlTag("user_message", resolvedPromptMedia.content);
+    },
+  });
+
+  return {
+    prompt,
+    images:
+      resolvedPromptMedia.images.length > 0
+        ? resolvedPromptMedia.images
+        : undefined,
+  };
+}
+
+async function resolvePromptMedia(
+  preparedMessage: PreparedDiscordMessage,
+  entry: ScopedSessionEntry,
+  config: ResolvedDiscordGatewayConfig,
+  agentService: AgentService,
+): Promise<{ content: string; images: ImageContent[] }> {
+  if (preparedMessage.mediaAttachments.length === 0) {
+    return {
+      content: preparedMessage.content,
+      images: [],
+    };
+  }
+
+  return resolveMediaAttachmentsForPrompt(
+    preparedMessage.mediaAttachments,
+    preparedMessage.content,
+    entry.session.model,
+    config,
+    agentService,
+  );
 }

@@ -98,9 +98,16 @@ describe("config", () => {
     });
 
     it("preserves explicit values including false startup message", () => {
-      const promptTransform = vi.fn(async (ctx: { rawContent: string; discordMetadata: string; now: () => string; userMessage: () => string }) => {
-        return `wrapped:${ctx.rawContent}`;
-      });
+      const promptTransform = vi.fn(
+        async (ctx: {
+          rawContent: string;
+          discordMetadata: string;
+          now: () => string;
+          userMessage: () => string;
+        }) => {
+          return `wrapped:${ctx.rawContent}`;
+        },
+      );
 
       const config = resolveConfig(
         createBaseConfig({

@@ -5,7 +5,7 @@ import { createModuleLogger } from "./logger";
 import { PromptQueue } from "./prompt-queue";
 import { DEFAULT_WORKING_EMOJI } from "./discord-replies";
 
-export type SessionScope = string;
+export type SessionScope = "dm" | `thread:${string}`;
 
 export type ScopedSessionEntry = {
   session: AgentSession;

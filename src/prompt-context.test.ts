@@ -17,4 +17,3 @@ describe("formatDiscordPromptTime", () => {
     expect(result).toMatchSnapshot();
   });
 });
-

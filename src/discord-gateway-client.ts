@@ -3,7 +3,7 @@ import type { AgentService } from "./agent-service";
 import { handleDiscordMessage } from "./discord-message-handler";
 import { sendReply } from "./discord-replies";
 import { createModuleLogger } from "./logger";
-import type { SessionRegistry } from "./session-registry";
+import type { SessionRegistry, SessionScope } from "./session-registry";
 import type {
   GatewayAccessConfig,
   ResolvedDiscordGatewayConfig,
@@ -70,7 +70,7 @@ export async function startGatewayClient(
   });
 
   client.on(Events.ThreadDelete, async (thread) => {
-    const scope = `thread:${thread.id}`;
+    const scope: SessionScope = `thread:${thread.id}`;
     logger.info({ threadId: thread.id, scope }, "thread deleted");
     await sessionRegistry.remove(scope);
   });
