@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  addReaction,
   addWorkingReaction,
+  removeReaction,
   removeWorkingReaction,
   sendReply,
 } from "./discord-replies";
@@ -43,7 +45,7 @@ beforeEach(() => {
 });
 
 describe("discord-replies", () => {
-  it("adds and removes the working reaction safely", async () => {
+  it("adds and removes reactions safely", async () => {
     const remove = vi.fn(async () => undefined);
     const message = createMessage({
       reactions: {
@@ -51,11 +53,16 @@ describe("discord-replies", () => {
       },
     });
 
+    await addReaction(message as never, "👀");
+    await removeReaction(message as never, "⚙️");
     await addWorkingReaction(message as never);
     await removeWorkingReaction(message as never);
 
-    expect(message.react).toHaveBeenCalledWith("⚙️");
-    expect(remove).toHaveBeenCalledWith(message.client.user);
+    expect(message.react).toHaveBeenNthCalledWith(1, "👀");
+    expect(message.react).toHaveBeenNthCalledWith(2, "⚙️");
+    expect(remove).toHaveBeenCalledTimes(2);
+    expect(remove).toHaveBeenNthCalledWith(1, message.client.user);
+    expect(remove).toHaveBeenNthCalledWith(2, message.client.user);
   });
 
   it("swallows reaction errors and missing reactions", async () => {
@@ -65,10 +72,10 @@ describe("discord-replies", () => {
       }),
     });
 
+    await expect(addReaction(message as never, "👀")).resolves.toBeUndefined();
+    await expect(removeReaction(message as never, "👀")).resolves.toBeUndefined();
     await expect(addWorkingReaction(message as never)).resolves.toBeUndefined();
-    await expect(
-      removeWorkingReaction(message as never),
-    ).resolves.toBeUndefined();
+    await expect(removeWorkingReaction(message as never)).resolves.toBeUndefined();
   });
 
   it("skips replies for non-sendable channels", async () => {

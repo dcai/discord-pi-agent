@@ -42,23 +42,23 @@ function chunkByLines(text: string, maxSize: number): string[] {
 
 export const DEFAULT_WORKING_EMOJI = "⚙️";
 
-export async function addWorkingReaction(
+export async function addReaction(
   message: Message,
-  emoji: string = DEFAULT_WORKING_EMOJI,
+  emoji: string,
 ): Promise<void> {
   try {
     await message.react(emoji);
   } catch (error) {
     logger.debug(
-      { messageId: message.id, error },
-      "failed to add working reaction",
+      { messageId: message.id, emoji, error },
+      "failed to add reaction",
     );
   }
 }
 
-export async function removeWorkingReaction(
+export async function removeReaction(
   message: Message,
-  emoji: string = DEFAULT_WORKING_EMOJI,
+  emoji: string,
 ): Promise<void> {
   try {
     const reaction = message.reactions.cache.get(emoji);
@@ -67,10 +67,24 @@ export async function removeWorkingReaction(
     }
   } catch (error) {
     logger.debug(
-      { messageId: message.id, error },
-      "failed to remove working reaction",
+      { messageId: message.id, emoji, error },
+      "failed to remove reaction",
     );
   }
+}
+
+export async function addWorkingReaction(
+  message: Message,
+  emoji: string = DEFAULT_WORKING_EMOJI,
+): Promise<void> {
+  await addReaction(message, emoji);
+}
+
+export async function removeWorkingReaction(
+  message: Message,
+  emoji: string = DEFAULT_WORKING_EMOJI,
+): Promise<void> {
+  await removeReaction(message, emoji);
 }
 
 export async function sendReply(message: Message, text: string): Promise<void> {

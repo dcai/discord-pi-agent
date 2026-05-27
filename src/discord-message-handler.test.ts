@@ -13,7 +13,9 @@ const {
   readTextAttachmentsMock,
   readMediaAttachmentsMock,
   resolveMediaAttachmentsForPromptMock,
+  addReactionMock,
   addWorkingReactionMock,
+  removeReactionMock,
   removeWorkingReactionMock,
   sendReplyMock,
   sendCommandReplyMock,
@@ -26,7 +28,9 @@ const {
     readTextAttachmentsMock: vi.fn(),
     readMediaAttachmentsMock: vi.fn(),
     resolveMediaAttachmentsForPromptMock: vi.fn(),
+    addReactionMock: vi.fn(),
     addWorkingReactionMock: vi.fn(),
+    removeReactionMock: vi.fn(),
     removeWorkingReactionMock: vi.fn(),
     sendReplyMock: vi.fn(),
     sendCommandReplyMock: vi.fn(),
@@ -57,7 +61,9 @@ vi.mock("./discord-media-resolution", () => {
 
 vi.mock("./discord-replies", () => {
   return {
+    addReaction: addReactionMock,
     addWorkingReaction: addWorkingReactionMock,
+    removeReaction: removeReactionMock,
     removeWorkingReaction: removeWorkingReactionMock,
     sendReply: sendReplyMock,
     sendCommandReply: sendCommandReplyMock,
@@ -201,7 +207,9 @@ beforeEach(() => {
       };
     },
   );
+  addReactionMock.mockResolvedValue(undefined);
   addWorkingReactionMock.mockResolvedValue(undefined);
+  removeReactionMock.mockResolvedValue(undefined);
   removeWorkingReactionMock.mockResolvedValue(undefined);
   sendReplyMock.mockResolvedValue(undefined);
   sendCommandReplyMock.mockResolvedValue(undefined);
@@ -305,15 +313,72 @@ describe("handleDiscordMessage", () => {
     );
     expect(runAgentTurnMock).toHaveBeenCalledWith(
       session,
-      expect.stringContaining(
-        "hello there\n\n--- Attachment: notes.md ---\nAttachment body",
-      ),
-      {
+      "transformed:hello there\n\n--- Attachment: notes.md ---\nAttachment body",
+      expect.objectContaining({
         images: undefined,
-      },
+        onToolStart: expect.any(Function),
+        onToolEnd: expect.any(Function),
+      }),
     );
     expect(sendReplyMock).toHaveBeenCalledWith(message, "agent reply");
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
+    expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
+  });
+
+  it("adds and removes mapped and fallback tool reactions during a prompt", async () => {
+    const config = createConfig();
+    const registry = createSessionRegistry();
+    const message = createMessage();
+
+    runAgentTurnMock.mockImplementation(async (_session, _prompt, options) => {
+      await options.onToolStart({ toolName: "read", toolCallId: "call-1" });
+      await options.onToolEnd({ toolName: "read", toolCallId: "call-1" });
+      await options.onToolStart({ toolName: "custom-tool", toolCallId: "call-2" });
+      await options.onToolEnd({ toolName: "custom-tool", toolCallId: "call-2" });
+      return "agent reply";
+    });
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(addReactionMock).toHaveBeenNthCalledWith(1, message, "👀");
+    expect(removeReactionMock).toHaveBeenNthCalledWith(1, message, "👀");
+    expect(addReactionMock).toHaveBeenNthCalledWith(2, message, "🔧");
+    expect(removeReactionMock).toHaveBeenNthCalledWith(2, message, "🔧");
+    expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
+  });
+
+  it("ref-counts overlapping tool reactions and removes leftovers on failure", async () => {
+    const config = createConfig();
+    const registry = createSessionRegistry();
+    const message = createMessage();
+
+    runAgentTurnMock.mockImplementation(async (_session, _prompt, options) => {
+      await options.onToolStart({ toolName: "read", toolCallId: "call-1" });
+      await options.onToolStart({ toolName: "read", toolCallId: "call-2" });
+      await options.onToolEnd({ toolName: "read", toolCallId: "call-1" });
+      throw new Error("prompt failed");
+    });
+
+    await expect(
+      handleDiscordMessage(
+        message as never,
+        config,
+        createAgentService(),
+        registry,
+        accessConfig,
+      ),
+    ).rejects.toThrow("prompt failed");
+
+    expect(addReactionMock).toHaveBeenCalledTimes(1);
+    expect(addReactionMock).toHaveBeenCalledWith(message, "👀");
+    expect(removeReactionMock).toHaveBeenCalledTimes(1);
+    expect(removeReactionMock).toHaveBeenCalledWith(message, "👀");
     expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
   });
 
@@ -383,9 +448,17 @@ describe("handleDiscordMessage", () => {
       config,
       expect.anything(),
     );
-    expect(runAgentTurnMock).toHaveBeenCalledWith(session, expect.any(String), {
-      images: [{ type: "image", data: "base64-data", mimeType: "image/png" }],
-    });
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      session,
+      "transformed:resolved media content",
+      expect.objectContaining({
+        images: [
+          { type: "image", data: "base64-data", mimeType: "image/png" },
+        ],
+        onToolStart: expect.any(Function),
+        onToolEnd: expect.any(Function),
+      }),
+    );
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
     expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
   });

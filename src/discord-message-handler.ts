@@ -9,7 +9,9 @@ import {
 import { isAuthorizedMessage, resolveMessageScope } from "./discord-auth";
 import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
 import {
+  addReaction,
   addWorkingReaction,
+  removeReaction,
   removeWorkingReaction,
   sendCommandReply,
   sendReply,
@@ -34,6 +36,15 @@ import type {
 } from "./types";
 
 const logger = createModuleLogger("discord-message-handler");
+
+const TOOL_REACTION_EMOJIS: Record<string, string> = {
+  bash: "🖥️",
+  edit: "✏️",
+  read: "👀",
+  write: "📝",
+};
+
+const DEFAULT_TOOL_REACTION_EMOJI = "🔧";
 
 type PreparedDiscordMessage = {
   scope: SessionScope;
@@ -266,6 +277,10 @@ async function archiveThreadSession(
   await sessionRegistry.remove(scope);
 }
 
+function resolveToolReactionEmoji(toolName: string): string {
+  return TOOL_REACTION_EMOJIS[toolName] ?? DEFAULT_TOOL_REACTION_EMOJI;
+}
+
 async function processAgentPrompt(
   message: Message,
   config: ResolvedDiscordGatewayConfig,
@@ -283,6 +298,9 @@ async function processAgentPrompt(
   await addWorkingReaction(message, entry.workingEmoji);
   await notifyIfPromptQueued(message, entry.promptQueue.getSnapshot().pending);
 
+  const toolEmojiByCallId = new Map<string, string>();
+  const activeToolCountByEmoji = new Map<string, number>();
+
   try {
     const response = await entry.promptQueue.enqueue(async () => {
       const promptInput = await buildPromptInput(
@@ -295,12 +313,46 @@ async function processAgentPrompt(
 
       return runAgentTurn(entry.session, promptInput.prompt, {
         images: promptInput.images,
+        onToolStart: async ({ toolName, toolCallId }) => {
+          const emoji = resolveToolReactionEmoji(toolName);
+          toolEmojiByCallId.set(toolCallId, emoji);
+
+          const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
+          activeToolCountByEmoji.set(emoji, activeCount + 1);
+
+          if (activeCount === 0) {
+            await addReaction(message, emoji);
+          }
+        },
+        onToolEnd: async ({ toolCallId }) => {
+          const emoji = toolEmojiByCallId.get(toolCallId);
+          if (!emoji) {
+            return;
+          }
+
+          toolEmojiByCallId.delete(toolCallId);
+          const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
+          if (activeCount <= 1) {
+            activeToolCountByEmoji.delete(emoji);
+            await removeReaction(message, emoji);
+            return;
+          }
+
+          activeToolCountByEmoji.set(emoji, activeCount - 1);
+        },
       });
     });
 
     await sendReply(message, response);
   } finally {
     stopTypingForChannel(channelKey);
+
+    const activeEmojis = Array.from(activeToolCountByEmoji.keys());
+    await Promise.all(
+      activeEmojis.map(async (emoji) => {
+        await removeReaction(message, emoji);
+      }),
+    );
     await removeWorkingReaction(message, entry.workingEmoji);
   }
 }

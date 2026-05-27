@@ -64,7 +64,9 @@ beforeEach(() => {
 });
 
 describe("runAgentTurn", () => {
-  it("collects streamed text deltas and transforms the final text", async () => {
+  it("collects streamed text deltas, transforms the final text, and emits tool callbacks", async () => {
+    const onToolStart = vi.fn();
+    const onToolEnd = vi.fn();
     const session = createSession({
       prompt: vi.fn(async () => {
         emit(session, {
@@ -82,20 +84,22 @@ describe("runAgentTurn", () => {
         emit(session, {
           type: "tool_execution_start",
           toolName: "bash",
+          toolCallId: "call-1",
           args: { command: "echo hi" },
         } as AgentSessionEvent);
         emit(session, {
           type: "tool_execution_end",
           toolName: "bash",
+          toolCallId: "call-1",
           isError: false,
           result: { ok: true },
         } as AgentSessionEvent);
       }),
     });
 
-    await expect(runAgentTurn(session, "prompt")).resolves.toBe(
-      "transformed:Hello world",
-    );
+    await expect(
+      runAgentTurn(session, "prompt", { onToolStart, onToolEnd }),
+    ).resolves.toBe("transformed:Hello world");
     expect(session.prompt).toHaveBeenCalledWith("prompt", {
       images: undefined,
     });
@@ -103,6 +107,15 @@ describe("runAgentTurn", () => {
       "Hello world",
     );
     expect(debugPrintMock).toHaveBeenCalledWith("prompt", "Full Prompt");
+    expect(onToolStart).toHaveBeenCalledWith({
+      toolName: "bash",
+      toolCallId: "call-1",
+    });
+    expect(onToolEnd).toHaveBeenCalledWith({
+      toolName: "bash",
+      toolCallId: "call-1",
+      isError: false,
+    });
   });
 
   it("falls back to the latest assistant text when no stream text is emitted", async () => {

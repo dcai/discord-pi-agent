@@ -9,8 +9,16 @@ import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transforme
 
 const logger = createModuleLogger("agent-turn-runner");
 
+type ToolLifecycleEvent = {
+  toolName: string;
+  toolCallId: string;
+  isError?: boolean;
+};
+
 type CollectReplyOptions = {
   images?: ImageContent[];
+  onToolStart?: (event: ToolLifecycleEvent) => void | Promise<void>;
+  onToolEnd?: (event: ToolLifecycleEvent) => void | Promise<void>;
 };
 
 type AgentMessage = AgentSession["messages"][number];
@@ -63,6 +71,10 @@ export async function runAgentTurn(
 
       const input = event.toolName === "bash" ? event.args.command : event.args;
       toolInputsByCallId.set(event.toolCallId, input);
+      void options.onToolStart?.({
+        toolName: event.toolName,
+        toolCallId: event.toolCallId,
+      });
 
       if (event.toolName === "bash") {
         debugPrint(input, "CMD");
@@ -86,6 +98,11 @@ export async function runAgentTurn(
     if (event.type === "tool_execution_end") {
       const input = toolInputsByCallId.get(event.toolCallId);
       toolInputsByCallId.delete(event.toolCallId);
+      void options.onToolEnd?.({
+        toolName: event.toolName,
+        toolCallId: event.toolCallId,
+        isError: event.isError,
+      });
 
       if (event.toolName === "bash") {
         debugPrint(
