@@ -55,7 +55,7 @@ Example:
 Prefer:
 
 - small config-driven APIs
-- boring Node/Bun patterns
+- boring Node patterns
 - minimal abstractions
 
 Avoid:
@@ -148,26 +148,35 @@ When changing exports:
 
 ## Build and validation
 
-Use Bun for package workflow.
+Use Node and npm for package workflow.
 
 ### Commands
 
 ```bash
-bun install
-bun run typecheck
-bun run format
-bun run build
-# Tests: use vitest directly, not bun test.
-# bun test doesn't support all vitest APIs (e.g. vi.setSystemTime).
+npm install
+npm run typecheck
+npm run format
+npm run build
 npx vitest run            # single run
-npx vitest                 # watch mode
+npx vitest                # watch mode
 npx vitest run --update   # update snapshots
 ```
 
+### Dependency updates
+
+To check for newer package versions and update `package.json`, run:
+
+```bash
+npx npm-check-updates -u
+npm install
+```
+
+Use this instead of the old `bun update` workflow.
+
 ### Build notes
 
-- build uses `bun build`
-- dependencies should stay external in the published bundle
+- build uses `tsgo` for JS emit and declaration emit
+- published output is multi-file ESM in `dist/`
 - TS declarations are emitted into `dist/`
 
 If packaging changes, always verify:
@@ -183,22 +192,22 @@ Typical local workflow:
 
 ```bash
 cd /path/to/discord-pi-agent
-bun link
+npm link
 ```
 
 ### Consume from app repo
 
 ```bash
 cd /path/to/consumer-app
-bun link @friendlyrobot/discord-pi-agent
-bun install
+npm link @friendlyrobot/discord-pi-agent
+npm install
 ```
 
 ### Run consumer app
 
 ```bash
 cd /path/to/consumer-app
-bun start
+npm start
 ```
 
 ## Publishing notes
@@ -210,9 +219,9 @@ Package details:
 
 Before publish:
 
-1. run `bun run typecheck`
-2. run `bun run format`
-3. run `bun run build`
+1. run `npm run typecheck`
+2. run `npm run format`
+3. run `npm run build`
 4. inspect `dist/`
 5. confirm README examples still match reality
 6. optionally smoke test via linked consumer app
@@ -248,9 +257,9 @@ Before finishing a change, check:
 
 - Is this still generic?
 - Does this belong in the package rather than the consumer app?
-- Does `bun run typecheck` pass?
-- Does `bun run format` pass?
-- Does `bun run build` pass?
+- Does `npm run typecheck` pass?
+- Does `npm run format` pass?
+- Does `npm run build` pass?
 - Would a linked consumer still import this cleanly?
 - Is `README.md` updated if public command surface changed?
 

@@ -53,7 +53,7 @@ DM prompts omit thread-only fields. `sent_at_local` uses `promptTimeZone` and `p
 ## Install
 
 ```bash
-bun add @friendlyrobot/discord-pi-agent
+npm install @friendlyrobot/discord-pi-agent
 ```
 
 ## Usage
@@ -163,9 +163,20 @@ Not all models support thinking/reasoning. The configured `thinkingLevel` is app
 ## Build
 
 ```bash
-bun run build
-bun run typecheck
+npm run build
+npm run typecheck
 ```
+
+## Dependency updates
+
+To check for newer package versions and update `package.json`, run:
+
+```bash
+npx npm-check-updates -u
+npm install
+```
+
+This is the npm-side replacement for the old `bun update` workflow.
 
 ## Notes
 

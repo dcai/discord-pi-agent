@@ -29,10 +29,9 @@
     "test": "LOG_LEVEL=silent vitest run",
     "test:coverage": "LOG_LEVEL=silent vitest run --coverage",
     "format": "prettier --write .",
-    "build:01-clean": "rm -rf dist",
-    "build:02-tsgo": "tsgo -p tsconfig.build.json --emitDeclarationOnly --declaration --declarationMap false",
-    "build:03-build": "bun build ./src/index.ts --outdir ./dist --target node --format esm --packages external",
-    "build": "bun run --sequential 'build:*'",
+    "build:clean": "rm -rf dist",
+    "build:emit": "tsgo -p tsconfig.build.json --declaration --declarationMap false",
+    "build": "npm run build:clean && npm run build:emit",
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -47,7 +46,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "@typescript/native-preview": "^7.0.0-dev.20260525.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260526.1",
     "@vitest/coverage-v8": "^4.1.7",
     "@vitest/ui": "^4.1.7",
     "vitest": "^4.1.7"
