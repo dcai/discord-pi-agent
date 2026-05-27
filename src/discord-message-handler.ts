@@ -300,6 +300,7 @@ async function processAgentPrompt(
 
   const toolEmojiByCallId = new Map<string, string>();
   const activeToolCountByEmoji = new Map<string, number>();
+  let reactionOperationChain = Promise.resolve();
 
   try {
     const response = await entry.promptQueue.enqueue(async () => {
@@ -314,31 +315,39 @@ async function processAgentPrompt(
       return runAgentTurn(entry.session, promptInput.prompt, {
         images: promptInput.images,
         onToolStart: async ({ toolName, toolCallId }) => {
-          const emoji = resolveToolReactionEmoji(toolName);
-          toolEmojiByCallId.set(toolCallId, emoji);
+          reactionOperationChain = reactionOperationChain.then(async () => {
+            const emoji = resolveToolReactionEmoji(toolName);
+            toolEmojiByCallId.set(toolCallId, emoji);
 
-          const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
-          activeToolCountByEmoji.set(emoji, activeCount + 1);
+            const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
+            activeToolCountByEmoji.set(emoji, activeCount + 1);
 
-          if (activeCount === 0) {
-            await addReaction(message, emoji);
-          }
+            if (activeCount === 0) {
+              await addReaction(message, emoji);
+            }
+          });
+
+          await reactionOperationChain;
         },
         onToolEnd: async ({ toolCallId }) => {
-          const emoji = toolEmojiByCallId.get(toolCallId);
-          if (!emoji) {
-            return;
-          }
+          reactionOperationChain = reactionOperationChain.then(async () => {
+            const emoji = toolEmojiByCallId.get(toolCallId);
+            if (!emoji) {
+              return;
+            }
 
-          toolEmojiByCallId.delete(toolCallId);
-          const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
-          if (activeCount <= 1) {
-            activeToolCountByEmoji.delete(emoji);
-            await removeReaction(message, emoji);
-            return;
-          }
+            toolEmojiByCallId.delete(toolCallId);
+            const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
+            if (activeCount <= 1) {
+              activeToolCountByEmoji.delete(emoji);
+              await removeReaction(message, emoji);
+              return;
+            }
 
-          activeToolCountByEmoji.set(emoji, activeCount - 1);
+            activeToolCountByEmoji.set(emoji, activeCount - 1);
+          });
+
+          await reactionOperationChain;
         },
       });
     });

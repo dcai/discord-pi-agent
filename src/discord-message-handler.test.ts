@@ -353,6 +353,41 @@ describe("handleDiscordMessage", () => {
     expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
   });
 
+  it("serializes fast tool reaction operations so short-lived tools still clean up", async () => {
+    const config = createConfig();
+    const registry = createSessionRegistry();
+    const message = createMessage();
+
+    addReactionMock.mockImplementation(async () => {
+      await Promise.resolve();
+    });
+
+    runAgentTurnMock.mockImplementation(async (_session, _prompt, options) => {
+      const startPromise = options.onToolStart({
+        toolName: "read",
+        toolCallId: "call-1",
+      });
+      const endPromise = options.onToolEnd({
+        toolName: "read",
+        toolCallId: "call-1",
+      });
+
+      await Promise.all([startPromise, endPromise]);
+      return "agent reply";
+    });
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(addReactionMock).toHaveBeenCalledWith(message, "👀");
+    expect(removeReactionMock).toHaveBeenCalledWith(message, "👀");
+  });
+
   it("ref-counts overlapping tool reactions and removes leftovers on failure", async () => {
     const config = createConfig();
     const registry = createSessionRegistry();

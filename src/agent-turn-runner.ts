@@ -37,6 +37,7 @@ export async function runAgentTurn(
   let eventCount = 0;
   let toolCount = 0;
   const toolInputsByCallId = new Map<string, unknown>();
+  const pendingToolLifecycleTasks = new Set<Promise<void>>();
 
   const model = session.model
     ? `${session.model.provider}/${session.model.id}`
@@ -71,9 +72,15 @@ export async function runAgentTurn(
 
       const input = event.toolName === "bash" ? event.args.command : event.args;
       toolInputsByCallId.set(event.toolCallId, input);
-      void options.onToolStart?.({
-        toolName: event.toolName,
-        toolCallId: event.toolCallId,
+      const onToolStartTask = Promise.resolve(
+        options.onToolStart?.({
+          toolName: event.toolName,
+          toolCallId: event.toolCallId,
+        }),
+      ).then(() => undefined);
+      pendingToolLifecycleTasks.add(onToolStartTask);
+      void onToolStartTask.finally(() => {
+        pendingToolLifecycleTasks.delete(onToolStartTask);
       });
 
       if (event.toolName === "bash") {
@@ -98,10 +105,16 @@ export async function runAgentTurn(
     if (event.type === "tool_execution_end") {
       const input = toolInputsByCallId.get(event.toolCallId);
       toolInputsByCallId.delete(event.toolCallId);
-      void options.onToolEnd?.({
-        toolName: event.toolName,
-        toolCallId: event.toolCallId,
-        isError: event.isError,
+      const onToolEndTask = Promise.resolve(
+        options.onToolEnd?.({
+          toolName: event.toolName,
+          toolCallId: event.toolCallId,
+          isError: event.isError,
+        }),
+      ).then(() => undefined);
+      pendingToolLifecycleTasks.add(onToolEndTask);
+      void onToolEndTask.finally(() => {
+        pendingToolLifecycleTasks.delete(onToolEndTask);
       });
 
       if (event.toolName === "bash") {
@@ -147,6 +160,7 @@ export async function runAgentTurn(
 
   try {
     await session.prompt(prompt, { images: options.images });
+    await Promise.allSettled(Array.from(pendingToolLifecycleTasks));
   } finally {
     unsubscribe();
   }
