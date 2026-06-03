@@ -333,8 +333,14 @@ describe("handleDiscordMessage", () => {
     runAgentTurnMock.mockImplementation(async (_session, _prompt, options) => {
       await options.onToolStart({ toolName: "read", toolCallId: "call-1" });
       await options.onToolEnd({ toolName: "read", toolCallId: "call-1" });
-      await options.onToolStart({ toolName: "custom-tool", toolCallId: "call-2" });
-      await options.onToolEnd({ toolName: "custom-tool", toolCallId: "call-2" });
+      await options.onToolStart({
+        toolName: "custom-tool",
+        toolCallId: "call-2",
+      });
+      await options.onToolEnd({
+        toolName: "custom-tool",
+        toolCallId: "call-2",
+      });
       return "agent reply";
     });
 
@@ -487,9 +493,7 @@ describe("handleDiscordMessage", () => {
       session,
       "transformed:resolved media content",
       expect.objectContaining({
-        images: [
-          { type: "image", data: "base64-data", mimeType: "image/png" },
-        ],
+        images: [{ type: "image", data: "base64-data", mimeType: "image/png" }],
         onToolStart: expect.any(Function),
         onToolEnd: expect.any(Function),
       }),

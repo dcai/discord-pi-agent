@@ -9,10 +9,13 @@ const FENCE_OVERHEAD = 8; // \`\`\`\n + \n\`\`\`
 const MAX_CODE_FENCE_CONTENT = DISCORD_MESSAGE_LIMIT - FENCE_OVERHEAD;
 
 /**
- * Splits text by newlines into chunks that fit within maxSize.
+ * Splits plain text by newlines into chunks that fit within maxSize.
  * Keeps lines intact unless a single line exceeds maxSize.
+ *
+ * Unlike chunkMessage (markdown-aware, token-level), this is for
+ * raw text without markdown structure (e.g. command output).
  */
-function chunkByLines(text: string, maxSize: number): string[] {
+function splitPlainTextIntoChunks(text: string, maxSize: number): string[] {
   const lines = text.split("\n");
   const chunks: string[] = [];
   let current = "";
@@ -181,7 +184,7 @@ export async function sendCommandReply(
     return;
   }
 
-  const chunks = chunkByLines(text, MAX_CODE_FENCE_CONTENT).map(
+  const chunks = splitPlainTextIntoChunks(text, MAX_CODE_FENCE_CONTENT).map(
     (c) => `\`\`\`\n${c}\n\`\`\``,
   );
   const [firstChunk, ...remainingChunks] = chunks;

@@ -184,20 +184,28 @@ describe("chunkMessage", () => {
 
   // ── Large single token ──────────────────────────────────────────
 
-  it("does not split a single oversized token (code block bigger than limit)", () => {
-    const giantCodeBlock = [
-      "```json",
-      '{ "name": "Bender", "occupation": "Bending", "quote": "Bite my shiny metal ass", "id": 2716057 }',
-      "```",
-    ].join("\n");
+  it("splits an oversized code block into multiple valid code blocks", () => {
+    // Body is 2500 chars — exceeds DISCORD_MESSAGE_LIMIT (2000)
+    const bigBody = "console.log('" + "x".repeat(2480) + "');";
+    const giantCodeBlock = ["```js", bigBody, "```"].join("\n");
 
-    const result = chunkMessage(giantCodeBlock, 50);
+    const result = chunkMessage(giantCodeBlock);
     expect(result).toMatchSnapshot();
 
-    // The code block should appear intact in one chunk
-    expect(result.length).toBe(1);
-    expect(result[0]).toContain("```json");
-    expect(result[0]).toContain("```");
+    // Should produce multiple chunks
+    expect(result.length).toBeGreaterThan(1);
+
+    // Each chunk should be a valid fenced code block
+    for (const chunk of result) {
+      expect(chunk).toMatch(/^```js\n/);
+      expect(chunk).toMatch(/\n```$/);
+    }
+
+    // All chunks combined should preserve the full original body text
+    const combinedBody = result
+      .map((c) => c.split("\n").slice(1, -1).join("\n"))
+      .join("");
+    expect(combinedBody).toBe(bigBody);
   });
 
   // ── Mixed content ───────────────────────────────────────────────
@@ -229,7 +237,7 @@ describe("chunkMessage", () => {
       "> Monitor over the next 24 hours.",
     ].join("\n");
 
-    const result = chunkMessage(text, 150);
+    const result = chunkMessage(text, 200);
     expect(result).toMatchSnapshot();
 
     // Spot-check structural integrity
