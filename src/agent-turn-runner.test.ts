@@ -22,7 +22,7 @@ vi.mock("./debug-print", () => {
   };
 });
 
-vi.mock("./markdown-table-transformer", () => {
+vi.mock("./discord-response-formatter", () => {
   return {
     formatResponseForDiscord:
       formatResponseForDiscordMock,

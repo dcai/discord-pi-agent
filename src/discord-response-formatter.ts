@@ -10,7 +10,7 @@
 import { Lexer } from "marked";
 import { createModuleLogger } from "./logger";
 
-const logger = createModuleLogger("markdown-table-transformer");
+const logger = createModuleLogger("discord-response-formatter");
 
 const CODE_BLOCK_WRAPPER = "```\n{TABLE}\n```";
 

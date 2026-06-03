@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatResponseForDiscord } from "./markdown-table-transformer";
+import { formatResponseForDiscord } from "./discord-response-formatter";
 
 describe("markdown-table-transformer", () => {
   describe("formatResponseForDiscord", () => {

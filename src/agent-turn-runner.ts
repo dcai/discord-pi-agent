@@ -5,7 +5,7 @@ import type {
 import type { ImageContent } from "@earendil-works/pi-ai";
 import { debugPrint } from "./debug-print";
 import { createModuleLogger } from "./logger";
-import { formatResponseForDiscord } from "./markdown-table-transformer";
+import { formatResponseForDiscord } from "./discord-response-formatter";
 
 const logger = createModuleLogger("agent-turn-runner");
 
