@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should handle complex table with all features 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should handle complex table with all features 1`] = `
 "# Product Inventory
 
 Below is our **inventory status**:
@@ -16,7 +16,7 @@ Below is our **inventory status**:
 Contact us for more info."
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should handle multiple tables in same document 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should handle multiple tables in same document 1`] = `
 "Here is the first table:
 
 \`\`\`
@@ -36,7 +36,7 @@ And the second table:
 \`\`\`"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should handle table with empty cells 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should handle table with empty cells 1`] = `
 "\`\`\`
 | Name  | Age | City |
 | ----- | --- | ---- |
@@ -46,7 +46,7 @@ exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > shou
 \`\`\`"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should handle table with pipe escaped in cells 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should handle table with pipe escaped in cells 1`] = `
 "\`\`\`
 | Command      | Description        |
 | ------------ | ------------------ |
@@ -55,7 +55,7 @@ exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > shou
 \`\`\`"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should handle table with text before and after 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should handle table with text before and after 1`] = `
 "## Monthly Report
 
 Check out this data:
@@ -71,7 +71,7 @@ Check out this data:
 Total savings are looking good!"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should handle tables with text alignment (left, center, right) 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should handle tables with text alignment (left, center, right) 1`] = `
 "\`\`\`
 | Left  | Center | Right |
 | :---- | :----: | ----: |
@@ -80,7 +80,7 @@ exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > shou
 \`\`\`"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should handle tables with text formatting in cells 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should handle tables with text formatting in cells 1`] = `
 "\`\`\`
 | Feature                     | Status  | Code    |
 | --------------------------- | ------- | ------- |
@@ -90,7 +90,7 @@ exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > shou
 \`\`\`"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should handle tables with varying column widths 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should handle tables with varying column widths 1`] = `
 "\`\`\`
 | Short | Very Long Header |
 | ----- | ---------------- |
@@ -98,7 +98,7 @@ exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > shou
 \`\`\`"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should normalize misplaced code fences at end of text lines 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should normalize misplaced code fences at end of text lines 1`] = `
 "Wait, let me fix the calories — 220 + 200 + 104 = 524, not 450.
 
 \`\`\`
@@ -121,7 +121,7 @@ Omega-3     ✅        Tuna
 Smart move — eggs came back at lunch to make up for the missing breakfast protein. 1,095 kcal deficit with plenty of evening left. Any pickleball plans today?"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should not break when code fence has trailing prose text 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should not break when code fence has trailing prose text 1`] = `
 "Here is the diagram you asked for:
 
 \`\`\`
@@ -137,7 +137,7 @@ That's the basic architecture. The caching layer sits alongside auth.
 Let me know if you want more detail."
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should not split fences with unusual but valid info strings 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should not split fences with unusual but valid info strings 1`] = `
 "\`\`\`c++
 int x = 1;
 \`\`\`
@@ -152,7 +152,7 @@ var y = 2;
 \`\`\`"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should not split valid code fence info strings 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should not split valid code fence info strings 1`] = `
 "Here is some code:
 
 \`\`\`typescript
@@ -162,22 +162,22 @@ const x = 1;
 That was TypeScript."
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should not split when info string has trailing whitespace 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should not split when info string has trailing whitespace 1`] = `
 "\`\`\`java
 System.out.println();
 \`\`\`"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should return text unchanged if no tables 1`] = `"No tables here, just text."`;
+exports[`markdown-table-transformer > formatResponseForDiscord > should return text unchanged if no tables 1`] = `"No tables here, just text."`;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should split fence with multi-word prose after it 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should split fence with multi-word prose after it 1`] = `
 "\`\`\`
 this is prose
 and more content
 \`\`\`"
 `;
 
-exports[`markdown-table-transformer > transformMarkdownTablesToCodeBlocks > should wrap and format a basic table 1`] = `
+exports[`markdown-table-transformer > formatResponseForDiscord > should wrap and format a basic table 1`] = `
 "\`\`\`
 | Name  | Age | City |
 | ----- | --- | ---- |

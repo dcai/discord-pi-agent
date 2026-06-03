@@ -18,7 +18,7 @@ const CODE_BLOCK_WRAPPER = "```\n{TABLE}\n```";
  * Transforms markdown tables in the text to Discord-friendly code blocks.
  * Uses marked's Lexer to properly identify tables.
  */
-export async function transformMarkdownTablesToCodeBlocks(
+export async function formatResponseForDiscord(
   text: string,
 ): Promise<string> {
   // Ensure code fences are on their own lines.

@@ -5,7 +5,7 @@ import type {
 import type { ImageContent } from "@earendil-works/pi-ai";
 import { debugPrint } from "./debug-print";
 import { createModuleLogger } from "./logger";
-import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
+import { formatResponseForDiscord } from "./markdown-table-transformer";
 
 const logger = createModuleLogger("agent-turn-runner");
 
@@ -174,8 +174,8 @@ export async function runAgentTurn(
   }
 
   if (finalText) {
-    const transformed = await transformMarkdownTablesToCodeBlocks(finalText);
-    debugPrint(finalText, "BEFORE TRANSFORM");
+    const transformed = await formatResponseForDiscord(finalText);
+    debugPrint(finalText, "RAW RESPONSE");
     debugPrint(transformed, "TRANSFORMED");
     return transformed;
   }

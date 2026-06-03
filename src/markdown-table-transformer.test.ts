@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { transformMarkdownTablesToCodeBlocks } from "./markdown-table-transformer";
+import { formatResponseForDiscord } from "./markdown-table-transformer";
 
 describe("markdown-table-transformer", () => {
-  describe("transformMarkdownTablesToCodeBlocks", () => {
+  describe("formatResponseForDiscord", () => {
     it("should wrap and format a basic table", async () => {
       const input = `| Name | Age | City |
 |------|-----|------|
 | Alice | 30 | NYC |
 | Bob | 25 | LA |`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -17,7 +17,7 @@ describe("markdown-table-transformer", () => {
     it("should return text unchanged if no tables", async () => {
       const input = "No tables here, just text.";
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -27,7 +27,7 @@ describe("markdown-table-transformer", () => {
 |-------|------------------|
 | A | B |`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -38,7 +38,7 @@ describe("markdown-table-transformer", () => {
 | Alice | 30 | NYC |
 | Bob | 25 | LA |`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -50,7 +50,7 @@ describe("markdown-table-transformer", () => {
 | *Italic* | Pending | \`false\` |
 | [Link](https://example.com) | Done | \`const\` |`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -70,7 +70,7 @@ And the second table:
 | NYC | USA |
 | London | UK |`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -88,7 +88,7 @@ Check out this data:
 
 Total savings are looking good!`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -100,7 +100,7 @@ Total savings are looking good!`;
 | | 25 | NYC |
 | Bob | | LA |`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -111,7 +111,7 @@ Total savings are looking good!`;
 | \`&#124;\` | Escaped pipe |
 | \`a &#124; b\` | Pipe in expression |`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -129,7 +129,7 @@ Below is our **inventory status**:
 
 Contact us for more info.`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toMatchSnapshot();
     });
@@ -150,7 +150,7 @@ Cache    Logging
 
 Let me know if you want more detail.`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       // The closing ``` must be on its own line, with prose moved to next line.
       // Must NOT have unbalanced ``` caused by Prettier "fixing" the open block.
@@ -161,7 +161,7 @@ Let me know if you want more detail.`;
       const input =
         "Here is some code:\n\n\`\`\`typescript\nconst x = 1;\n\`\`\`\n\nThat was TypeScript.";
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       // \`\`\`typescript should stay intact, not split into \`\`\` + typescript
       expect(result).toContain("\`\`\`typescript");
@@ -174,7 +174,7 @@ Let me know if you want more detail.`;
       const input =
         "\`\`\`c++\nint x = 1;\n\`\`\`\n\n\`\`\`c#\nvar y = 2;\n\`\`\`\n\n\`\`\`diff:ts\n+ added\n- removed\n\`\`\`";
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       expect(result).toContain("\`\`\`c++");
       expect(result).toContain("\`\`\`c#");
@@ -186,7 +186,7 @@ Let me know if you want more detail.`;
       // "```this is prose" — has spaces, not an info string
       const input = "\`\`\`this is prose\nand more content\n\`\`\`";
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       // ``` should be on its own line, "this is prose" on the next
       expect(result).toContain("\`\`\`\nthis is prose");
@@ -197,7 +197,7 @@ Let me know if you want more detail.`;
       // ```java   (with trailing spaces) is valid
       const input = "\`\`\`java   \nSystem.out.println();\n\`\`\`";
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       // Should keep as a valid fence, not split
       expect(result).not.toContain("\`\`\`\njava");
@@ -227,7 +227,7 @@ Omega-3     ✅        Tuna
 
 Smart move — eggs came back at lunch to make up for the missing breakfast protein. 1,095 kcal deficit with plenty of evening left. Any pickleball plans today?`;
 
-      const result = await transformMarkdownTablesToCodeBlocks(input);
+      const result = await formatResponseForDiscord(input);
 
       // Must not contain a spurious trailing ```
       expect(result).not.toMatch(/\n```\s*$/);

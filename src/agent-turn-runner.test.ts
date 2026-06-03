@@ -5,11 +5,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { runAgentTurn } from "./agent-turn-runner";
 
-const { debugPrintMock, transformMarkdownTablesToCodeBlocksMock } = vi.hoisted(
+const { debugPrintMock, formatResponseForDiscordMock } = vi.hoisted(
   () => {
     return {
       debugPrintMock: vi.fn(),
-      transformMarkdownTablesToCodeBlocksMock: vi.fn(async (text: string) => {
+      formatResponseForDiscordMock: vi.fn(async (text: string) => {
         return `transformed:${text}`;
       }),
     };
@@ -24,8 +24,8 @@ vi.mock("./debug-print", () => {
 
 vi.mock("./markdown-table-transformer", () => {
   return {
-    transformMarkdownTablesToCodeBlocks:
-      transformMarkdownTablesToCodeBlocksMock,
+    formatResponseForDiscord:
+      formatResponseForDiscordMock,
   };
 });
 
@@ -103,7 +103,7 @@ describe("runAgentTurn", () => {
     expect(session.prompt).toHaveBeenCalledWith("prompt", {
       images: undefined,
     });
-    expect(transformMarkdownTablesToCodeBlocksMock).toHaveBeenCalledWith(
+    expect(formatResponseForDiscordMock).toHaveBeenCalledWith(
       "Hello world",
     );
     expect(debugPrintMock).toHaveBeenCalledWith("prompt", "Full Prompt");
@@ -155,7 +155,7 @@ describe("runAgentTurn", () => {
     await expect(runAgentTurn(session, "prompt")).resolves.toBe(
       "model exploded",
     );
-    expect(transformMarkdownTablesToCodeBlocksMock).not.toHaveBeenCalled();
+    expect(formatResponseForDiscordMock).not.toHaveBeenCalled();
   });
 
   it("returns a default message when no assistant text exists", async () => {
