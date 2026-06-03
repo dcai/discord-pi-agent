@@ -208,6 +208,22 @@ describe("chunkMessage", () => {
     expect(combinedBody).toBe(bigBody);
   });
 
+  it("shows oversized multi-line code blocks split cleanly at line boundaries", () => {
+    const lines = Array.from({ length: 120 }, (_, index) => {
+      return `const line${String(index + 1).padStart(3, "0")} = ${index + 1};`;
+    });
+    const text = ["```ts", ...lines, "```"].join("\n");
+
+    const result = chunkMessage(text);
+    expect(result).toMatchSnapshot();
+
+    const combinedBody = result
+      .map((chunk) => chunk.split("\n").slice(1, -1).join("\n"))
+      .join("\n");
+
+    expect(combinedBody).toBe(lines.join("\n"));
+  });
+
   // ── Mixed content ───────────────────────────────────────────────
 
   it("handles mixed markdown with code, tables, and paragraphs", () => {

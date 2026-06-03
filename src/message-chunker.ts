@@ -94,14 +94,61 @@ function splitOversizedCodeBlock(token: Tokens.Code, maxChunkSize: number): stri
   }
 
   const body = token.text;
+  const lines = body.split("\n");
   const subChunks: string[] = [];
-  let offset = 0;
+  let currentLines: string[] = [];
+  let currentSize = 0;
 
-  while (offset < body.length) {
-    const segment = body.slice(offset, offset + maxBodySize);
-    subChunks.push([header, segment, footer].join("\n"));
-    offset += maxBodySize;
-  }
+  const flushChunk = () => {
+    if (currentLines.length === 0) {
+      return;
+    }
+
+    subChunks.push([header, currentLines.join("\n"), footer].join("\n"));
+    currentLines = [];
+    currentSize = 0;
+  };
+
+  const splitOversizedLine = (line: string): string[] => {
+    const segments: string[] = [];
+    let offset = 0;
+
+    while (offset < line.length) {
+      segments.push(line.slice(offset, offset + maxBodySize));
+      offset += maxBodySize;
+    }
+
+    return segments;
+  };
+
+  lines.forEach((line, index) => {
+    const lineSize = line.length;
+    const newlineOverhead = currentLines.length > 0 ? 1 : 0;
+
+    if (lineSize > maxBodySize) {
+      flushChunk();
+
+      splitOversizedLine(line).forEach((segment) => {
+        subChunks.push([header, segment, footer].join("\n"));
+      });
+
+      if (index < lines.length - 1) {
+        currentLines = [""];
+        currentSize = 0;
+      }
+
+      return;
+    }
+
+    if (currentSize + newlineOverhead + lineSize > maxBodySize) {
+      flushChunk();
+    }
+
+    currentLines.push(line);
+    currentSize += (currentLines.length > 1 ? 1 : 0) + lineSize;
+  });
+
+  flushChunk();
 
   return subChunks;
 }

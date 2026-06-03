@@ -125,6 +125,135 @@ exports[`chunkMessage > returns single-element array when text is under the limi
 ]
 `;
 
+exports[`chunkMessage > shows oversized multi-line code blocks split cleanly at line boundaries 1`] = `
+[
+  "\`\`\`ts
+const line001 = 1;
+const line002 = 2;
+const line003 = 3;
+const line004 = 4;
+const line005 = 5;
+const line006 = 6;
+const line007 = 7;
+const line008 = 8;
+const line009 = 9;
+const line010 = 10;
+const line011 = 11;
+const line012 = 12;
+const line013 = 13;
+const line014 = 14;
+const line015 = 15;
+const line016 = 16;
+const line017 = 17;
+const line018 = 18;
+const line019 = 19;
+const line020 = 20;
+const line021 = 21;
+const line022 = 22;
+const line023 = 23;
+const line024 = 24;
+const line025 = 25;
+const line026 = 26;
+const line027 = 27;
+const line028 = 28;
+const line029 = 29;
+const line030 = 30;
+const line031 = 31;
+const line032 = 32;
+const line033 = 33;
+const line034 = 34;
+const line035 = 35;
+const line036 = 36;
+const line037 = 37;
+const line038 = 38;
+const line039 = 39;
+const line040 = 40;
+const line041 = 41;
+const line042 = 42;
+const line043 = 43;
+const line044 = 44;
+const line045 = 45;
+const line046 = 46;
+const line047 = 47;
+const line048 = 48;
+const line049 = 49;
+const line050 = 50;
+const line051 = 51;
+const line052 = 52;
+const line053 = 53;
+const line054 = 54;
+const line055 = 55;
+const line056 = 56;
+const line057 = 57;
+const line058 = 58;
+const line059 = 59;
+const line060 = 60;
+const line061 = 61;
+const line062 = 62;
+const line063 = 63;
+const line064 = 64;
+const line065 = 65;
+const line066 = 66;
+const line067 = 67;
+const line068 = 68;
+const line069 = 69;
+const line070 = 70;
+const line071 = 71;
+const line072 = 72;
+const line073 = 73;
+const line074 = 74;
+const line075 = 75;
+const line076 = 76;
+const line077 = 77;
+const line078 = 78;
+const line079 = 79;
+const line080 = 80;
+const line081 = 81;
+const line082 = 82;
+const line083 = 83;
+const line084 = 84;
+const line085 = 85;
+const line086 = 86;
+const line087 = 87;
+const line088 = 88;
+const line089 = 89;
+const line090 = 90;
+const line091 = 91;
+const line092 = 92;
+const line093 = 93;
+const line094 = 94;
+const line095 = 95;
+\`\`\`",
+  "\`\`\`ts
+const line096 = 96;
+const line097 = 97;
+const line098 = 98;
+const line099 = 99;
+const line100 = 100;
+const line101 = 101;
+const line102 = 102;
+const line103 = 103;
+const line104 = 104;
+const line105 = 105;
+const line106 = 106;
+const line107 = 107;
+const line108 = 108;
+const line109 = 109;
+const line110 = 110;
+const line111 = 111;
+const line112 = 112;
+const line113 = 113;
+const line114 = 114;
+const line115 = 115;
+const line116 = 116;
+const line117 = 117;
+const line118 = 118;
+const line119 = 119;
+const line120 = 120;
+\`\`\`",
+]
+`;
+
 exports[`chunkMessage > splits an oversized code block into multiple valid code blocks 1`] = `
 [
   "\`\`\`js
