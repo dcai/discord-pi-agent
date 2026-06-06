@@ -5,16 +5,14 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { runAgentTurn } from "./agent-turn-runner";
 
-const { debugPrintMock, formatResponseForDiscordMock } = vi.hoisted(
-  () => {
-    return {
-      debugPrintMock: vi.fn(),
-      formatResponseForDiscordMock: vi.fn(async (text: string) => {
-        return `transformed:${text}`;
-      }),
-    };
-  },
-);
+const { debugPrintMock, formatResponseForDiscordMock } = vi.hoisted(() => {
+  return {
+    debugPrintMock: vi.fn(),
+    formatResponseForDiscordMock: vi.fn(async (text: string) => {
+      return `transformed:${text}`;
+    }),
+  };
+});
 
 vi.mock("./debug-print", () => {
   return {
@@ -24,8 +22,7 @@ vi.mock("./debug-print", () => {
 
 vi.mock("./discord-response-formatter", () => {
   return {
-    formatResponseForDiscord:
-      formatResponseForDiscordMock,
+    formatResponseForDiscord: formatResponseForDiscordMock,
   };
 });
 
@@ -103,9 +100,7 @@ describe("runAgentTurn", () => {
     expect(session.prompt).toHaveBeenCalledWith("prompt", {
       images: undefined,
     });
-    expect(formatResponseForDiscordMock).toHaveBeenCalledWith(
-      "Hello world",
-    );
+    expect(formatResponseForDiscordMock).toHaveBeenCalledWith("Hello world");
     expect(debugPrintMock).toHaveBeenCalledWith("prompt", "Full Prompt");
     expect(onToolStart).toHaveBeenCalledWith({
       toolName: "bash",

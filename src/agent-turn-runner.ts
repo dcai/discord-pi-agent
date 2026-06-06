@@ -145,6 +145,37 @@ export async function runAgentTurn(
       }
     }
 
+    if (event.type === "auto_retry_start") {
+      logger.warn(
+        {
+          model,
+          attempt: event.attempt,
+          maxAttempts: event.maxAttempts,
+          delayMs: event.delayMs,
+          errorMessage: event.errorMessage,
+        },
+        "auto-retry: transient provider error, will retry",
+      );
+    }
+
+    if (event.type === "auto_retry_end") {
+      if (event.success) {
+        logger.info(
+          { model, attempt: event.attempt },
+          "auto-retry: succeeded after retry",
+        );
+      } else {
+        logger.error(
+          {
+            model,
+            attempt: event.attempt,
+            finalError: event.finalError,
+          },
+          "auto-retry: exhausted all retries, provider still failing",
+        );
+      }
+    }
+
     // if (event.type === "agent_end") {
     //   logger.debug(
     //     {
@@ -170,6 +201,16 @@ export async function runAgentTurn(
   const finalText = streamedText.trim() || fallbackText.trim();
 
   if (errorMessage) {
+    logger.error(
+      {
+        model,
+        errorMessage,
+        toolCount,
+        eventCount,
+        hasStreamedText: streamedText.length > 0,
+      },
+      "agent turn FAILED: provider/model returned an error",
+    );
     return errorMessage;
   }
 
