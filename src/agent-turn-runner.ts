@@ -211,7 +211,13 @@ export async function runAgentTurn(
       },
       "agent turn FAILED: provider/model returned an error",
     );
-    return errorMessage;
+
+    if (finalText) {
+      const transformed = await formatResponseForDiscord(finalText);
+      return `${transformed}\n\n> *[Response cut off — the model provider encountered a network error. Try again.]*`;
+    }
+
+    return `The model provider returned an error. This is usually a temporary network issue — please try again.\n\n> \`${errorMessage}\``;
   }
 
   if (finalText) {

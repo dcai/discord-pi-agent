@@ -136,19 +136,57 @@ describe("runAgentTurn", () => {
     );
   });
 
-  it("returns the error message when the session ends with one", async () => {
+  it("returns partial response with note when error occurs after streaming", async () => {
     const session = createSession({
       agent: { state: { errorMessage: "  model exploded  " } } as never,
       messages: [
         {
           role: "assistant",
-          content: [{ type: "text", text: "ignored" }],
+          content: [{ type: "text", text: "partial response" }],
+        } as never,
+      ],
+      prompt: vi.fn(async () => {
+        emit(session, {
+          type: "message_update",
+          assistantMessageEvent: { type: "text_delta", delta: "streamed " },
+        } as AgentSessionEvent);
+        emit(session, {
+          type: "message_update",
+          assistantMessageEvent: { type: "text_delta", delta: "text" },
+        } as AgentSessionEvent);
+      }),
+    });
+
+    await expect(runAgentTurn(session, "prompt")).resolves.toBe(
+      "transformed:streamed text\n\n> *[Response cut off — the model provider encountered a network error. Try again.]*",
+    );
+    expect(formatResponseForDiscordMock).toHaveBeenCalledWith("streamed text");
+  });
+
+  it("returns fallback text with note when error occurs without streaming", async () => {
+    const session = createSession({
+      agent: { state: { errorMessage: "  model exploded  " } } as never,
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "fallback text" }],
         } as never,
       ],
     });
 
     await expect(runAgentTurn(session, "prompt")).resolves.toBe(
-      "model exploded",
+      "transformed:fallback text\n\n> *[Response cut off — the model provider encountered a network error. Try again.]*",
+    );
+    expect(formatResponseForDiscordMock).toHaveBeenCalledWith("fallback text");
+  });
+
+  it("returns friendly error when session errors with no text at all", async () => {
+    const session = createSession({
+      agent: { state: { errorMessage: "  socket died  " } } as never,
+    });
+
+    await expect(runAgentTurn(session, "prompt")).resolves.toBe(
+      "The model provider returned an error. This is usually a temporary network issue — please try again.\n\n> `socket died`",
     );
     expect(formatResponseForDiscordMock).not.toHaveBeenCalled();
   });
