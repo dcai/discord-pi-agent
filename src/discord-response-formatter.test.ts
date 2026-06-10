@@ -204,6 +204,22 @@ Let me know if you want more detail.`;
       expect(result).toMatchSnapshot();
     });
 
+    it("should normalize inline opening fences with info strings", async () => {
+      const input = `I found the duplicate entry. Let me fix that.\`\`\`text
+Summary
+Calories 1500
+Protein 105g
+\`\`\`
+
+Looks good now.`;
+
+      const result = await formatResponseForDiscord(input);
+
+      expect(result).toContain("Let me fix that.\n\n\`\`\`text");
+      expect(result).not.toMatch(/\n```\s*$/);
+      expect(result).toMatchSnapshot();
+    });
+
     it("should normalize misplaced code fences at end of text lines", async () => {
       // Real AI output: first ``` is at end of a paragraph line, not on its own.
       // Discord renders this fine, but CommonMark parsers (marked + Prettier)

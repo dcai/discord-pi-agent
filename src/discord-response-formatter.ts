@@ -52,8 +52,9 @@ export async function formatResponseForDiscord(
  * AI output often has ``` in positions that Discord renders fine but break
  * standard markdown parsing:
  *
- *   1. "some text.```"   → fence at end of text line → split to own line
- *   2. "```some text"    → fence at start with text after → split to own line
+ *   1. "some text.```"       → fence at end of text line → split to own line
+ *   2. "some text.```text"   → inline opening fence → split before the fence
+ *   3. "```some text"        → fence at start with text after → split to own line
  *
  * Without this, Prettier may "fix" unbalanced fences by adding spurious ```.
  */
@@ -63,17 +64,30 @@ function normalizeCodeFences(text: string): string {
 
   for (const line of lines) {
     const trimmed = line.trimEnd();
+    const inlineFenceIndex = findInlineFenceIndex(trimmed);
 
-    // Case 1: fence at end of non-fence line (e.g., "hello world.```")
-    if (trimmed.endsWith("```") && !trimmed.startsWith("```")) {
-      const beforeFence = trimmed.slice(0, -3).trimEnd();
+    // Case 1/2: fence appears mid-line after prose.
+    // "hello world.```" → split before bare fence.
+    // "hello world.```text" → split before valid opening fence with info string.
+    if (inlineFenceIndex !== -1) {
+      const beforeFence = trimmed.slice(0, inlineFenceIndex).trimEnd();
+      const fenceAndAfter = trimmed.slice(inlineFenceIndex);
 
       if (beforeFence) {
         result.push(beforeFence);
       }
 
-      result.push("```");
-      // Case 2: fence at start with trailing text that is NOT a valid info string.
+      if (isValidFenceLine(fenceAndAfter)) {
+        result.push(fenceAndAfter);
+      } else {
+        result.push("```");
+        const afterFence = fenceAndAfter.slice(3).trimStart();
+
+        if (afterFence) {
+          result.push(afterFence);
+        }
+      }
+      // Case 3: fence at start with trailing text that is NOT a valid info string.
       // "```java" → keep as-is (info string). "```修正了" → split (prose text).
     } else if (trimmed.startsWith("```") && !isValidFenceLine(trimmed)) {
       result.push("```");
@@ -88,6 +102,22 @@ function normalizeCodeFences(text: string): string {
   }
 
   return result.join("\n");
+}
+
+function findInlineFenceIndex(line: string): number {
+  const firstFenceIndex = line.indexOf("```");
+
+  if (firstFenceIndex <= 0) {
+    return -1;
+  }
+
+  const nextFenceIndex = line.indexOf("```", firstFenceIndex + 3);
+
+  if (nextFenceIndex !== -1) {
+    return -1;
+  }
+
+  return firstFenceIndex;
 }
 
 /**

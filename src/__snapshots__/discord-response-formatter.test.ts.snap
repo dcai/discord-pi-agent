@@ -98,6 +98,18 @@ exports[`markdown-table-transformer > formatResponseForDiscord > should handle t
 \`\`\`"
 `;
 
+exports[`markdown-table-transformer > formatResponseForDiscord > should normalize inline opening fences with info strings 1`] = `
+"I found the duplicate entry. Let me fix that.
+
+\`\`\`text
+Summary
+Calories 1500
+Protein 105g
+\`\`\`
+
+Looks good now."
+`;
+
 exports[`markdown-table-transformer > formatResponseForDiscord > should normalize misplaced code fences at end of text lines 1`] = `
 "Wait, let me fix the calories — 220 + 200 + 104 = 524, not 450.
 
