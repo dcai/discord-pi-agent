@@ -137,4 +137,62 @@ describe("scheduled-job-loader", () => {
       }),
     ).rejects.toThrow("must be greater than 0");
   });
+
+  it("reloads the latest file contents after the jobs file changes", async () => {
+    const jobsFile = await createJobsModule(`
+      export const jobs = [
+        {
+          id: "hello-dm",
+          prompt: "Say hello",
+          schedule: { type: "daily-at", hour: 19, minute: 32 },
+        },
+      ];
+    `);
+
+    await expect(
+      loadScheduledJobs({
+        jobsFile,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "hello-dm",
+        schedule: {
+          type: "daily-at",
+          hour: 19,
+          minute: 32,
+          timeZone: undefined,
+        },
+      }),
+    ]);
+
+    await fs.writeFile(
+      jobsFile,
+      `
+        export const jobs = [
+          {
+            id: "hello-dm",
+            prompt: "Say hello",
+            schedule: { type: "daily-at", hour: 19, minute: 50 },
+          },
+        ];
+      `,
+      "utf8",
+    );
+
+    await expect(
+      loadScheduledJobs({
+        jobsFile,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "hello-dm",
+        schedule: {
+          type: "daily-at",
+          hour: 19,
+          minute: 50,
+          timeZone: undefined,
+        },
+      }),
+    ]);
+  });
 });

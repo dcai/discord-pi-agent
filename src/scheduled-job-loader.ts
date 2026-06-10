@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type {
@@ -34,11 +35,7 @@ export function resolveTaskSchedulerConfig(
 export async function loadScheduledJobs(
   config: ResolvedTaskSchedulerConfig,
 ): Promise<ScheduledTaskDefinition[]> {
-  const moduleUrl = new URL(
-    `?t=${Date.now()}`,
-    pathToFileURL(config.jobsFile),
-  ).href;
-  const importedModule = (await import(moduleUrl)) as JobsModule;
+  const importedModule = await importJobsModule(config.jobsFile);
   const exportedValue = await resolveJobsExport(importedModule);
 
   if (!Array.isArray(exportedValue)) {
@@ -50,6 +47,23 @@ export async function loadScheduledJobs(
   return exportedValue.map((job, index) => {
     return normalizeScheduledJob(job, index, config.jobsFile);
   });
+}
+
+async function importJobsModule(jobsFile: string): Promise<JobsModule> {
+  const directory = path.dirname(jobsFile);
+  const extension = path.extname(jobsFile) || ".mjs";
+  const tempModulePath = path.join(
+    directory,
+    `.scheduled-jobs-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extension}`,
+  );
+
+  await fs.copyFile(jobsFile, tempModulePath);
+
+  try {
+    return (await import(pathToFileURL(tempModulePath).href)) as JobsModule;
+  } finally {
+    await fs.rm(tempModulePath, { force: true });
+  }
 }
 
 async function resolveJobsExport(module: JobsModule): Promise<unknown> {
