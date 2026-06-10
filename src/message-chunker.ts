@@ -59,7 +59,10 @@ export function chunkMessage(
       token.type === "code" &&
       currentTokens.length === 0
     ) {
-      const subChunks = splitOversizedCodeBlock(token as Tokens.Code, maxChunkSize);
+      const subChunks = splitOversizedCodeBlock(
+        token as Tokens.Code,
+        maxChunkSize,
+      );
       chunks.push(...subChunks);
       continue;
     }
@@ -78,7 +81,10 @@ export function chunkMessage(
  * code blocks, each under maxChunkSize. Each sub-chunk gets
  * its own opening and closing fences with the same language tag.
  */
-function splitOversizedCodeBlock(token: Tokens.Code, maxChunkSize: number): string[] {
+function splitOversizedCodeBlock(
+  token: Tokens.Code,
+  maxChunkSize: number,
+): string[] {
   const lang = token.lang || "";
   const fenceChar = token.raw.startsWith("```") ? "```" : "~~~";
   const header = fenceChar + lang;

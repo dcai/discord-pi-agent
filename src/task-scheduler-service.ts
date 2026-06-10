@@ -322,6 +322,7 @@ export class TaskSchedulerService {
 
     return {
       id: jobState.definition.id,
+      prompt: jobState.definition.prompt,
       description: jobState.definition.description,
       source: jobState.definition.source,
       schedule: jobState.definition.schedule,

@@ -31,7 +31,7 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 
 Any other text is sent to the active session (DM or thread).
 
-When the scheduler is enabled, `!jobs` and `!job <id>` read the loaded runtime state, `!jobs reload` reloads the jobs file without restarting the process, and `!job update <freeform request>` turns your request into a scheduler-aware agent prompt that edits the jobs file in the normal agentic way.
+When the scheduler is enabled, `!jobs` shows the loaded runtime state with a prompt preview for each job, `!job <id>` shows one job with its full prompt, `!jobs reload` reloads the jobs file without restarting the process, and `!job update <freeform request>` turns your request into a scheduler-aware agent prompt that edits the jobs file in the normal agentic way.
 
 `!remind <when>, <task>` creates a one-off runtime reminder from natural language. It is parsed through a temporary in-memory agent session, shows up in `!jobs`, runs once, and is then forgotten. It is not written back to the scheduled jobs file.
 

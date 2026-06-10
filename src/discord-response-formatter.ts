@@ -18,9 +18,7 @@ const CODE_BLOCK_WRAPPER = "```\n{TABLE}\n```";
  * Transforms markdown tables in the text to Discord-friendly code blocks.
  * Uses marked's Lexer to properly identify tables.
  */
-export async function formatResponseForDiscord(
-  text: string,
-): Promise<string> {
+export async function formatResponseForDiscord(text: string): Promise<string> {
   // Ensure code fences are on their own lines.
   // AI responses sometimes place ``` at the end of a text line
   // (e.g. "some text.```"). This breaks CommonMark parsing — marked

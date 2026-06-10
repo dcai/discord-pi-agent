@@ -106,6 +106,7 @@ function createTaskSchedulerMock(
     listJobs: () => [
       {
         id: "daily-summary",
+        prompt: "Write the summary",
         description: "Daily update",
         source: "file",
         schedule: {
@@ -137,6 +138,7 @@ function createTaskSchedulerMock(
 
       return {
         id: "daily-summary",
+        prompt: "Write the summary",
         description: "Daily update",
         source: "file",
         schedule: {
@@ -170,6 +172,7 @@ function createTaskSchedulerMock(
     addRuntimeReminder: vi.fn((input) => {
       return {
         id: input.id,
+        prompt: input.prompt,
         description: input.description,
         source: "runtime",
         schedule: {
@@ -572,6 +575,7 @@ describe("executeSessionCommand", () => {
       handled: true,
       response: expect.stringContaining("- daily-summary"),
     });
+    expect(result.response).toContain("prompt: Write the summary");
     expect(result.response).toContain("source: file");
     expect(result.response).toContain("schedule: daily at 09:00 (UTC)");
     expect(result.response).toContain("target: discord-dm:user-1");
@@ -592,6 +596,7 @@ describe("executeSessionCommand", () => {
       response: expect.stringContaining("id: daily-summary"),
     });
     expect(result.response).toContain("description: Daily update");
+    expect(result.response).toContain("prompt:\n  Write the summary");
     expect(result.response).toContain("source: file");
     expect(result.response).toContain("next-run-at: 2026-01-01T09:00:00.000Z");
     expect(result.response).toContain("session-mode: fresh");
@@ -693,6 +698,7 @@ describe("executeSessionCommand", () => {
     let jobs: Array<TaskJobRuntimeState> = [
       {
         id: "daily-summary",
+        prompt: "Write the summary",
         description: "Daily update",
         source: "file",
         schedule: {
@@ -728,6 +734,7 @@ describe("executeSessionCommand", () => {
         ...jobs,
         {
           id: "hello-dm",
+          prompt: "Say hello in the DM",
           description: "Send a hello DM",
           source: "file",
           schedule: {
@@ -782,7 +789,9 @@ describe("executeSessionCommand", () => {
     expect(response).toContain("task-scheduler-running: true");
     expect(response).toContain("next-tick-at: 2026-01-01T00:05:00.000Z");
     expect(response).toContain("- daily-summary");
+    expect(response).toContain("prompt: Write the summary");
     expect(response).toContain("- hello-dm");
+    expect(response).toContain("prompt: Say hello in the DM");
     expect(response).toContain("schedule: daily at 19:50 (UTC)");
   });
 
@@ -808,6 +817,7 @@ describe("executeSessionCommand", () => {
       "Jobs file: /tmp/scheduled-jobs.ts",
     );
     expect(result.forwardedInput).toContain("Loaded scheduler runtime state:");
+    expect(result.forwardedInput).toContain("prompt: Write the summary");
     expect(result.forwardedInput).toContain(
       "- After editing, remind the user to run `!jobs reload` to reload the scheduler.",
     );

@@ -169,6 +169,7 @@ export type TaskJobSource = "file" | "runtime";
 
 export type TaskJobRuntimeState = {
   id: string;
+  prompt: string;
   description?: string;
   source: TaskJobSource;
   schedule: TaskJobSchedule;

@@ -45,6 +45,8 @@ type CommandHandler = (
   context: CommandContext,
 ) => Promise<CommandResult | null>;
 
+const JOB_PROMPT_PREVIEW_LENGTH = 80;
+
 function getSessionStatusText(
   session: AgentSession,
   promptQueue: PromptQueue,
@@ -472,6 +474,7 @@ function formatJobsResponse(
     ...jobs.map((job) => {
       return [
         `- ${job.id}`,
+        `  prompt: ${formatJobPromptPreview(job.prompt)}`,
         `  source: ${formatJobSource(job.source)}`,
         `  schedule: ${formatTaskSchedule(job.schedule)}`,
         `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
@@ -520,6 +523,7 @@ async function handleJobCommand(
     response: [
       `id: ${job.id}`,
       `description: ${job.description ?? "(none)"}`,
+      ...formatJobPromptLines(job.prompt),
       `source: ${formatJobSource(job.source)}`,
       `schedule: ${formatTaskSchedule(job.schedule)}`,
       `session: ${formatSessionTarget(job.session)}`,
@@ -685,6 +689,22 @@ function formatSessionReuse(reuseSession: boolean): string {
   return reuseSession ? "reuse" : "fresh";
 }
 
+function formatJobPromptPreview(prompt: string): string {
+  const singleLinePrompt = prompt.replace(/\s+/g, " ").trim();
+
+  if (singleLinePrompt.length <= JOB_PROMPT_PREVIEW_LENGTH) {
+    return singleLinePrompt;
+  }
+
+  return `${singleLinePrompt.slice(0, JOB_PROMPT_PREVIEW_LENGTH - 3)}...`;
+}
+
+function formatJobPromptLines(prompt: string): string[] {
+  const promptLines = prompt.replace(/\r\n/g, "\n").split("\n");
+
+  return ["prompt:", ...promptLines.map((line) => `  ${line}`)];
+}
+
 function formatJobSource(source: TaskJobRuntimeState["source"]): string {
   return source;
 }
@@ -699,6 +719,7 @@ function buildJobUpdatePrompt(
         .map((job) => {
           return [
             `- id: ${job.id}`,
+            `  prompt: ${formatJobPromptPreview(job.prompt)}`,
             `  source: ${formatJobSource(job.source)}`,
             `  schedule: ${formatTaskSchedule(job.schedule)}`,
             `  session: ${formatSessionTarget(job.session)}`,

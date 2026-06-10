@@ -243,6 +243,7 @@ describe("TaskSchedulerService", () => {
 
     expect(service.getJob("daily-summary")).toEqual({
       id: "daily-summary",
+      prompt: "Write the summary",
       description: "Daily update",
       source: "file",
       schedule: {
@@ -276,6 +277,7 @@ describe("TaskSchedulerService", () => {
     expect(service.listJobs()).toEqual([
       {
         id: "heartbeat",
+        prompt: "Ping",
         description: undefined,
         source: "file",
         schedule: {
@@ -311,6 +313,7 @@ describe("TaskSchedulerService", () => {
       }),
     ).toEqual({
       id: "reminder-aapl",
+      prompt: "Check AAPL share price",
       description: "AAPL reminder",
       source: "runtime",
       schedule: {

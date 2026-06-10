@@ -27,7 +27,10 @@ const logger = createModuleLogger("index");
 export { formatDiscordPromptTime } from "./prompt-context";
 export { loadDiscordGatewayConfigFromEnv, resolveConfig } from "./config";
 export { defineScheduledJobs } from "./scheduled-job-definition";
-export { loadScheduledJobs, resolveTaskSchedulerConfig } from "./scheduled-job-loader";
+export {
+  loadScheduledJobs,
+  resolveTaskSchedulerConfig,
+} from "./scheduled-job-loader";
 export type {
   AgentStatus,
   DiscordGateway,

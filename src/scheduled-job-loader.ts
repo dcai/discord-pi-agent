@@ -26,7 +26,9 @@ export function resolveTaskSchedulerConfig(
   }
 
   return {
-    jobsFile: path.isAbsolute(jobsFile) ? jobsFile : path.resolve(cwd, jobsFile),
+    jobsFile: path.isAbsolute(jobsFile)
+      ? jobsFile
+      : path.resolve(cwd, jobsFile),
   };
 }
 
@@ -41,12 +43,7 @@ async function loadJobsFromSubprocess(jobsFile: string): Promise<unknown> {
   try {
     const { stdout } = await execFileAsync(
       process.execPath,
-      [
-        "--input-type=module",
-        "-e",
-        buildJobsLoaderScript(),
-        jobsFile,
-      ],
+      ["--input-type=module", "-e", buildJobsLoaderScript(), jobsFile],
       {
         maxBuffer: 1024 * 1024 * 10,
       },
