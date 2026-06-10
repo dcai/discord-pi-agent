@@ -86,13 +86,18 @@ export type TaskResultTarget =
       channelId: string;
     };
 
+export type TaskSessionScope = "dm" | `thread:${string}` | `job:${string}`;
+
+export type TaskSessionStrategy = "fresh" | "reuse" | "ephemeral";
+
 export type TaskSessionTarget =
   | {
-      strategy?: "dedicated";
+      strategy?: "fresh" | "reuse";
+      scope?: TaskSessionScope;
     }
   | {
-      strategy: "scope";
-      scope: "dm" | `thread:${string}` | `job:${string}`;
+      strategy: "ephemeral";
+      scope?: undefined;
     };
 
 export type ScheduledTaskDefinition = {
@@ -100,8 +105,13 @@ export type ScheduledTaskDefinition = {
   prompt: string;
   description?: string;
   schedule: TaskSchedule;
+  /**
+   * Session execution for this job.
+   *
+   * Omit for the default: a fresh dedicated persistent session under
+   * sessions/job-<id>/.
+   */
   session?: TaskSessionTarget;
-  reuseSession?: boolean;
   result?: TaskResultTarget;
 };
 
@@ -174,7 +184,6 @@ export type TaskJobRuntimeState = {
   source: TaskJobSource;
   schedule: TaskJobSchedule;
   session: TaskSessionTarget | undefined;
-  reuseSession: boolean;
   result: TaskResultTarget | undefined;
   nextRunAt: string | null;
   lastRunAt: string | null;
@@ -190,7 +199,6 @@ export type CreateRuntimeReminderInput = {
   runAt: string;
   description?: string;
   session?: TaskSessionTarget;
-  reuseSession?: boolean;
   result: TaskResultTarget;
 };
 

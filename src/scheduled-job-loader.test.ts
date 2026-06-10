@@ -45,7 +45,7 @@ describe("scheduled-job-loader", () => {
             id: "daily-standup",
             prompt: "Review current work.",
             schedule: { type: "daily-at", hour: 9, minute: 0, timeZone: "UTC" },
-            session: { strategy: "scope", scope: "dm" },
+            session: { strategy: "reuse", scope: "dm" },
             result: { target: "discord-dm", userId: "123" },
           },
         ];
@@ -68,10 +68,9 @@ describe("scheduled-job-loader", () => {
           timeZone: "UTC",
         },
         session: {
-          strategy: "scope",
+          strategy: "reuse",
           scope: "dm",
         },
-        reuseSession: false,
         result: {
           target: "discord-dm",
           userId: "123",
@@ -102,7 +101,6 @@ describe("scheduled-job-loader", () => {
         description: undefined,
         schedule: { type: "every-minutes", interval: 15 },
         session: undefined,
-        reuseSession: false,
         result: undefined,
       },
     ]);

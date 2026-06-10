@@ -48,6 +48,8 @@ export type {
   TaskScheduler,
   TaskSchedulerConfig,
   TaskSchedulerStatus,
+  TaskSessionScope,
+  TaskSessionStrategy,
   TaskSessionTarget,
 } from "./types";
 
@@ -135,6 +137,7 @@ async function startRuntime(
     ? await createTaskScheduler(
         resolvedConfig,
         options.schedulerConfig,
+        agentService,
         sessionRegistry,
       )
     : null;
@@ -190,6 +193,7 @@ function createGatewayAccessConfig(
 async function createTaskScheduler(
   config: ResolvedDiscordGatewayConfig,
   schedulerConfig: TaskSchedulerConfig,
+  agentService: AgentService,
   sessionRegistry: SessionRegistry,
 ): Promise<TaskSchedulerService> {
   const resolvedSchedulerConfig = resolveTaskSchedulerConfig(
@@ -202,6 +206,7 @@ async function createTaskScheduler(
     config,
     schedulerConfig: resolvedSchedulerConfig,
     jobs,
+    agentService,
     sessionRegistry,
     deliveryService: new ScheduledJobDeliveryService(null),
   });

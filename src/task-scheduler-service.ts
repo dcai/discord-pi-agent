@@ -1,6 +1,7 @@
 import { createModuleLogger } from "./logger";
 import { wrapXmlTag, formatDiscordPromptTime } from "./prompt-context";
 import { runAgentTurn } from "./agent-turn-runner";
+import type { AgentService } from "./agent-service";
 import type { SessionScope, SessionRegistry } from "./session-registry";
 import type {
   CreateRuntimeReminderInput,
@@ -13,6 +14,7 @@ import type {
   TaskJobSchedule,
   TaskSchedulerStatus,
   TaskResultTarget,
+  TaskSessionStrategy,
   TaskSessionTarget,
 } from "./types";
 import { ScheduledJobDeliveryService } from "./scheduled-job-delivery";
@@ -24,6 +26,7 @@ type TaskSchedulerServiceOptions = {
   config: ResolvedDiscordGatewayConfig;
   schedulerConfig: ResolvedTaskSchedulerConfig;
   jobs: ScheduledTaskDefinition[];
+  agentService: AgentService;
   sessionRegistry: SessionRegistry;
   deliveryService: ScheduledJobDeliveryService;
 };
@@ -52,7 +55,6 @@ type RuntimeReminderJobDefinition = {
   description?: string;
   schedule: RunAtTaskSchedule;
   session?: TaskSessionTarget;
-  reuseSession?: boolean;
   result: TaskResultTarget;
   source: "runtime";
   deleteAfterRun: true;
@@ -70,6 +72,7 @@ export class TaskSchedulerService {
     string,
     RuntimeReminderJobDefinition
   >();
+  private readonly agentService: AgentService;
   private readonly sessionRegistry: SessionRegistry;
   private deliveryService: ScheduledJobDeliveryService;
   private jobStates = new Map<string, MutableJobState>();
@@ -82,6 +85,7 @@ export class TaskSchedulerService {
     this.config = options.config;
     this.schedulerConfig = options.schedulerConfig;
     this.fileJobs = options.jobs.map(asFileBackedJob);
+    this.agentService = options.agentService;
     this.sessionRegistry = options.sessionRegistry;
     this.deliveryService = options.deliveryService;
     this.jobStates = buildJobStateMap(this.getAllJobs(), this.jobStates);
@@ -140,7 +144,6 @@ export class TaskSchedulerService {
         runAt: input.runAt,
       },
       session: input.session,
-      reuseSession: input.reuseSession,
       result: input.result,
       source: "runtime",
       deleteAfterRun: true,
@@ -271,9 +274,13 @@ export class TaskSchedulerService {
   }
 
   private async runJob(job: ManagedJobDefinition, now: Date): Promise<void> {
-    const scope = resolveJobScope(job);
+    const sessionStrategy = getTaskSessionStrategy(job.session);
+    const scope = sessionStrategy === "ephemeral" ? null : resolveJobScope(job);
     const jobState = this.jobStates.get(job.id);
-    logger.info({ jobId: job.id, scope }, "running scheduled job");
+    logger.info(
+      { jobId: job.id, scope, sessionStrategy },
+      "running scheduled job",
+    );
 
     if (jobState) {
       jobState.running = true;
@@ -283,19 +290,28 @@ export class TaskSchedulerService {
     }
 
     try {
-      const { entry } = await this.sessionRegistry.getOrCreate(scope, {
-        reuseExisting: job.reuseSession ?? false,
-      });
       const prompt = await buildTaskPrompt(job, this.config, now);
-      const response = await entry.promptQueue.enqueue(async () => {
-        return runAgentTurn(entry.session, prompt);
-      });
+      let response: string;
+
+      if (sessionStrategy === "ephemeral") {
+        response = await this.runEphemeralJob(prompt);
+      } else {
+        const persistentScope = resolveJobScope(job);
+        response = await this.runPersistentJob(
+          persistentScope,
+          sessionStrategy,
+          prompt,
+        );
+      }
 
       await this.deliveryService.deliverResult(job, response);
       if (jobState) {
         jobState.lastSuccessAt = now;
       }
-      logger.info({ jobId: job.id, scope }, "scheduled job finished");
+      logger.info(
+        { jobId: job.id, scope, sessionStrategy },
+        "scheduled job finished",
+      );
     } catch (error) {
       if (jobState) {
         jobState.lastErrorAt = now;
@@ -313,6 +329,33 @@ export class TaskSchedulerService {
     }
   }
 
+  private async runPersistentJob(
+    scope: SessionScope,
+    sessionStrategy: "fresh" | "reuse",
+    prompt: string,
+  ): Promise<string> {
+    const { entry } = await this.sessionRegistry.getOrCreate(scope, {
+      reuseExisting: sessionStrategy === "reuse",
+    });
+
+    return entry.promptQueue.enqueue(async () => {
+      return runAgentTurn(entry.session, prompt);
+    });
+  }
+
+  private async runEphemeralJob(prompt: string): Promise<string> {
+    const session = await this.agentService.createTemporarySession({
+      thinkingLevel: this.config.thinkingLevel,
+    });
+
+    try {
+      await this.agentService.models.ensureSessionHasConfiguredModel(session);
+      return runAgentTurn(session, prompt);
+    } finally {
+      session.dispose();
+    }
+  }
+
   private getJobState(jobId: string, now: Date): TaskJobRuntimeState {
     const jobState = this.jobStates.get(jobId);
 
@@ -327,7 +370,6 @@ export class TaskSchedulerService {
       source: jobState.definition.source,
       schedule: jobState.definition.schedule,
       session: jobState.definition.session,
-      reuseSession: jobState.definition.reuseSession ?? false,
       result: jobState.definition.result,
       nextRunAt: formatDate(
         findNextRunAt(jobState.definition, now, this.config.promptTimeZone),
@@ -367,11 +409,21 @@ export class TaskSchedulerService {
 function resolveJobScope(job: ManagedJobDefinition): SessionScope {
   const session = job.session;
 
-  if (!session || session.strategy === "dedicated") {
-    return `job:${job.id}`;
+  if (session?.strategy === "ephemeral") {
+    throw new Error(`Ephemeral jobs do not have a persistent scope: ${job.id}`);
   }
 
-  return session.strategy === "scope" ? session.scope : `job:${job.id}`;
+  return session?.scope ?? `job:${job.id}`;
+}
+
+function getTaskSessionStrategy(
+  session: TaskSessionTarget | undefined,
+): TaskSessionStrategy {
+  if (session?.strategy === "ephemeral") {
+    return "ephemeral";
+  }
+
+  return session?.strategy ?? "fresh";
 }
 
 async function buildTaskPrompt(

@@ -14,7 +14,11 @@ import { AgentModelService } from "./agent-model-service";
 import { AgentResourceService } from "./agent-resource-service";
 import { createModuleLogger } from "./logger";
 import { runAgentTurn } from "./agent-turn-runner";
-import type { AgentStatus, ResolvedDiscordGatewayConfig } from "./types";
+import type {
+  AgentStatus,
+  ResolvedDiscordGatewayConfig,
+  ThinkingLevel,
+} from "./types";
 
 const logger = createModuleLogger("agent-service");
 
@@ -91,7 +95,11 @@ export class AgentService {
    * description — no file persistence, no cleanup needed. The caller must
    * setModel() before prompting and dispose() when done.
    */
-  async createTemporarySession(): Promise<AgentSession> {
+  async createTemporarySession(
+    options: {
+      thinkingLevel?: ThinkingLevel;
+    } = {},
+  ): Promise<AgentSession> {
     const { session } = await createAgentSession({
       cwd: this.config.cwd,
       agentDir: this.config.agentDir,
@@ -100,7 +108,7 @@ export class AgentService {
       resourceLoader: this.resourceLoader,
       settingsManager: this.settingsManager,
       sessionManager: SessionManager.inMemory(),
-      thinkingLevel: "off",
+      thinkingLevel: options.thinkingLevel ?? "off",
     });
     logger.debug({ sessionId: session.sessionId }, "temporary session created");
     return session;

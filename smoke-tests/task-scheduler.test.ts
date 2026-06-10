@@ -89,7 +89,6 @@ async function createDefaultJobsFile(tempDir: string): Promise<string> {
       '    id: "smoke-default-job",',
       '    prompt: "Smoke test prompt from scheduled job definition.",',
       '    schedule: { type: "every-minutes", interval: 1 },',
-      "    reuseSession: false,",
       '    result: { target: "logs" },',
       "  },",
       "];",

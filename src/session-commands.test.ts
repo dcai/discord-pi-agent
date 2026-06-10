@@ -115,10 +115,7 @@ function createTaskSchedulerMock(
           minute: 0,
           timeZone: "UTC",
         },
-        session: {
-          strategy: "dedicated",
-        },
-        reuseSession: false,
+        session: undefined,
         result: {
           target: "discord-dm",
           userId: "user-1",
@@ -147,10 +144,7 @@ function createTaskSchedulerMock(
           minute: 0,
           timeZone: "UTC",
         },
-        session: {
-          strategy: "dedicated",
-        },
-        reuseSession: false,
+        session: undefined,
         result: {
           target: "discord-dm",
           userId: "user-1",
@@ -180,7 +174,6 @@ function createTaskSchedulerMock(
           runAt: input.runAt,
         },
         session: undefined,
-        reuseSession: false,
         result: input.result,
         nextRunAt: input.runAt,
         lastRunAt: null,
@@ -737,10 +730,7 @@ describe("executeSessionCommand", () => {
           minute: 0,
           timeZone: "UTC",
         },
-        session: {
-          strategy: "dedicated",
-        },
-        reuseSession: false,
+        session: undefined,
         result: {
           target: "discord-dm",
           userId: "user-1",
@@ -773,10 +763,7 @@ describe("executeSessionCommand", () => {
             minute: 50,
             timeZone: "UTC",
           },
-          session: {
-            strategy: "dedicated",
-          },
-          reuseSession: false,
+          session: undefined,
           result: {
             target: "discord-dm",
             userId: "user-2",

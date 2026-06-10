@@ -1,5 +1,9 @@
 import { z } from "zod";
-import type { ScheduledTaskDefinition, TaskSessionTarget } from "./types";
+import type {
+  ScheduledTaskDefinition,
+  TaskSessionScope,
+  TaskSessionTarget,
+} from "./types";
 
 type ScheduledJobsFactory = () =>
   | ScheduledTaskDefinition[]
@@ -15,16 +19,12 @@ const optionalTrimmedStringSchema = z
     return trimmedValue ? trimmedValue : undefined;
   });
 
-const sessionScopeSchema = z.custom<ScopedTaskSessionTarget["scope"]>(
-  (value) => {
-    return (
-      typeof value === "string" &&
-      (value === "dm" ||
-        value.startsWith("thread:") ||
-        value.startsWith("job:"))
-    );
-  },
-);
+const sessionScopeSchema = z.custom<TaskSessionScope>((value) => {
+  return (
+    typeof value === "string" &&
+    (value === "dm" || value.startsWith("thread:") || value.startsWith("job:"))
+  );
+});
 
 const timeZoneSchema = z
   .string()
@@ -57,11 +57,11 @@ const taskScheduleSchema = z.discriminatedUnion("type", [
 
 const taskSessionTargetSchema = z.union([
   z.object({
-    strategy: z.literal("dedicated").optional(),
+    strategy: z.literal("ephemeral"),
   }),
   z.object({
-    strategy: z.literal("scope"),
-    scope: sessionScopeSchema,
+    strategy: z.enum(["fresh", "reuse"]).optional().default("fresh"),
+    scope: sessionScopeSchema.optional(),
   }),
 ]);
 
@@ -85,7 +85,6 @@ const scheduledJobDefinitionSchema = z.object({
   description: optionalTrimmedStringSchema,
   schedule: taskScheduleSchema,
   session: taskSessionTargetSchema.optional(),
-  reuseSession: z.boolean().optional().default(false),
   result: taskResultTargetSchema.optional(),
 });
 
@@ -113,9 +112,27 @@ export function normalizeScheduledJobs(
   value: unknown,
   _sourceLabel: string,
 ): ScheduledTaskDefinition[] {
-  return scheduledJobsSchema.parse(value);
+  return scheduledJobsSchema.parse(value).map((job) => {
+    return {
+      ...job,
+      session: normalizeTaskSessionTarget(job.session),
+    };
+  });
 }
-type ScopedTaskSessionTarget = Extract<
-  TaskSessionTarget,
-  { strategy: "scope" }
->;
+
+function normalizeTaskSessionTarget(
+  session: TaskSessionTarget | undefined,
+): TaskSessionTarget | undefined {
+  if (!session) {
+    return undefined;
+  }
+
+  if (session.strategy === "ephemeral") {
+    return session;
+  }
+
+  return {
+    strategy: session.strategy ?? "fresh",
+    ...(session.scope ? { scope: session.scope } : {}),
+  };
+}

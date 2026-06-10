@@ -151,7 +151,6 @@ export const jobs: ScheduledTaskDefinition[] = defineScheduledJobs([
       interval: 30,
     },
     prompt: "Check the repo and summarize anything important.",
-    reuseSession: false,
     result: {
       target: "logs",
     },
@@ -166,12 +165,26 @@ export const jobs: ScheduledTaskDefinition[] = defineScheduledJobs([
     },
     prompt: "Review recent work and draft a standup update.",
     session: {
-      strategy: "dedicated",
+      strategy: "reuse",
+      scope: "dm",
     },
-    reuseSession: true,
     result: {
       target: "discord-dm",
       userId: "123456789012345678",
+    },
+  },
+  {
+    id: "one-shot-report",
+    schedule: {
+      type: "every-minutes",
+      interval: 60,
+    },
+    prompt: "Build a quick status report and post it.",
+    session: {
+      strategy: "ephemeral",
+    },
+    result: {
+      target: "logs",
     },
   },
 ]);
@@ -184,15 +197,22 @@ export const jobs: ScheduledTaskDefinition[] = defineScheduledJobs([
 - `every-minutes`
 - `daily-at`
 
-### Session strategies
+### Session strategy
 
-- `dedicated` — default, stored under `sessions/job-<id>/`
-- `scope` — reuse an existing scope like `dm`, `thread:<id>`, or `job:<id>`
+When `session` is omitted, the default is a fresh dedicated persistent session stored under `sessions/job-<id>/`.
 
-### Session reuse
+- `strategy: "fresh"` — create a fresh persistent session for the run
+- `strategy: "reuse"` — reuse the existing persistent session for the job or scope
+- `strategy: "ephemeral"` — use a temporary in-memory session for the run
+- `scope: "dm" | "thread:<id>" | "job:<id>"` — optional persistent scope to target with `fresh` or `reuse`
 
-- `reuseSession: false` — default, aborts the active scoped job session and starts a fresh one for the run
-- `reuseSession: true` — resumes the existing scoped pi session for that job or scope
+Examples:
+
+- `{ strategy: "fresh" }` — fresh dedicated persistent job session
+- `{ strategy: "reuse" }` — reuse the dedicated job session at `sessions/job-<id>/`
+- `{ strategy: "reuse", scope: "dm" }` — reuse the DM session
+- `{ strategy: "fresh", scope: "thread:123" }` — replace the thread session with a fresh persistent one
+- `{ strategy: "ephemeral" }` — one-shot in-memory session, never saved
 
 ### Result targets
 
@@ -311,7 +331,8 @@ This is the npm-side replacement for the old `bun update` workflow.
 - scheduled jobs are opt-in through `startDiscordGateway(config, { scheduler })`
 - `startTaskScheduler()` runs the scheduler without inbound Discord message handling
 - Forum thread sessions are stored in `sessions/thread-<id>/` (one directory per thread)
-- Scheduled job sessions are stored in `sessions/job-<id>/` when using dedicated sessions
+- Scheduled job sessions are stored in `sessions/job-<id>/` when using dedicated persistent sessions
+- Ephemeral scheduled jobs use in-memory sessions and do not write session files
 - Sessions survive restarts — `SessionManager.continueRecent()` resumes the latest `.jsonl`
 - Single Discord client with all intents (DM + Guild + MessageContent)
 - No mode flags — forum support activates when `discordAllowedForumChannelIds` is set

@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { TaskSchedulerService } from "./task-scheduler-service";
+import type { AgentService } from "./agent-service";
 import type {
   ResolvedDiscordGatewayConfig,
   ResolvedTaskSchedulerConfig,
@@ -99,14 +100,50 @@ function createDeliveryService(): {
   };
 }
 
+function createAgentService(): {
+  agentService: AgentService;
+  createTemporarySessionMock: ReturnType<typeof vi.fn>;
+  ensureSessionHasConfiguredModelMock: ReturnType<typeof vi.fn>;
+  tempSession: {
+    sessionId: string;
+    dispose: ReturnType<typeof vi.fn>;
+  };
+} {
+  const tempSession = {
+    sessionId: "temp-session-1",
+    dispose: vi.fn(),
+  };
+  const createTemporarySessionMock = vi.fn(async () => tempSession);
+  const ensureSessionHasConfiguredModelMock = vi.fn(async () => undefined);
+
+  return {
+    agentService: {
+      createTemporarySession: createTemporarySessionMock,
+      models: {
+        ensureSessionHasConfiguredModel: ensureSessionHasConfiguredModelMock,
+      },
+    } as unknown as AgentService,
+    createTemporarySessionMock,
+    ensureSessionHasConfiguredModelMock,
+    tempSession,
+  };
+}
+
 function createService(jobs: ScheduledTaskDefinition[]) {
   const { registry, getOrCreateMock, enqueueMock } = createSessionRegistry();
   const { deliveryService, deliverResultMock, deliverErrorMock } =
     createDeliveryService();
+  const {
+    agentService,
+    createTemporarySessionMock,
+    ensureSessionHasConfiguredModelMock,
+    tempSession,
+  } = createAgentService();
   const service = new TaskSchedulerService({
     config: createConfig(),
     schedulerConfig: createSchedulerConfig(),
     jobs,
+    agentService,
     sessionRegistry: registry,
     deliveryService,
   });
@@ -117,6 +154,9 @@ function createService(jobs: ScheduledTaskDefinition[]) {
     enqueueMock,
     deliverResultMock,
     deliverErrorMock,
+    createTemporarySessionMock,
+    ensureSessionHasConfiguredModelMock,
+    tempSession,
   };
 }
 
@@ -174,10 +214,9 @@ describe("TaskSchedulerService", () => {
           timeZone: "UTC",
         },
         session: {
-          strategy: "scope",
+          strategy: "reuse",
           scope: "dm",
         },
-        reuseSession: true,
       },
     ]);
 
@@ -188,6 +227,46 @@ describe("TaskSchedulerService", () => {
       reuseExisting: true,
     });
     expect(deliverResultMock).toHaveBeenCalledOnce();
+  });
+
+  it("runs ephemeral jobs in a temporary in-memory session", async () => {
+    const {
+      service,
+      getOrCreateMock,
+      deliverResultMock,
+      createTemporarySessionMock,
+      ensureSessionHasConfiguredModelMock,
+      tempSession,
+    } = createService([
+      {
+        id: "ephemeral-summary",
+        prompt: "Write a one-shot summary",
+        schedule: { type: "every-minutes", interval: 5 },
+        session: {
+          strategy: "ephemeral",
+        },
+      },
+    ]);
+
+    service.start();
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(getOrCreateMock).not.toHaveBeenCalled();
+    expect(createTemporarySessionMock).toHaveBeenCalledWith({
+      thinkingLevel: "medium",
+    });
+    expect(ensureSessionHasConfiguredModelMock).toHaveBeenCalledWith(
+      tempSession,
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      tempSession,
+      "Write a one-shot summary",
+    );
+    expect(tempSession.dispose).toHaveBeenCalledOnce();
+    expect(deliverResultMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ephemeral-summary" }),
+      "scheduled reply",
+    );
   });
 
   it("surfaces delivery errors when job execution fails", async () => {
@@ -253,7 +332,6 @@ describe("TaskSchedulerService", () => {
         timeZone: "UTC",
       },
       session: undefined,
-      reuseSession: false,
       result: {
         target: "logs",
       },
@@ -285,7 +363,6 @@ describe("TaskSchedulerService", () => {
           interval: 15,
         },
         session: undefined,
-        reuseSession: false,
         result: undefined,
         nextRunAt: "2026-01-01T00:15:00.000Z",
         lastRunAt: null,
@@ -321,7 +398,6 @@ describe("TaskSchedulerService", () => {
         runAt: "2026-01-01T00:05:00.000Z",
       },
       session: undefined,
-      reuseSession: false,
       result: {
         target: "discord-channel",
         channelId: "channel-1",

@@ -480,7 +480,7 @@ function formatJobsResponse(
         `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
         `  target: ${formatResultTarget(job.result)}`,
         `  session: ${formatSessionTarget(job.session)}`,
-        `  session-mode: ${formatSessionReuse(job.reuseSession)}`,
+        `  session-mode: ${formatSessionStrategy(job.session)}`,
         `  running: ${job.running}`,
       ].join("\n");
     }),
@@ -527,7 +527,7 @@ async function handleJobCommand(
       `source: ${formatJobSource(job.source)}`,
       `schedule: ${formatTaskSchedule(job.schedule)}`,
       `session: ${formatSessionTarget(job.session)}`,
-      `session-mode: ${formatSessionReuse(job.reuseSession)}`,
+      `session-mode: ${formatSessionStrategy(job.session)}`,
       `result: ${formatResultTarget(job.result)}`,
       `next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
       `last-run-at: ${job.lastRunAt ?? "(never)"}`,
@@ -604,7 +604,7 @@ async function handleRemindCommand(
         `source: ${formatJobSource(reminder.source)}`,
         `target: ${formatResultTarget(reminder.result)}`,
         `target-resolution: ${formatReminderTargetResolution(context.scope, context.channelId)}`,
-        `session-mode: ${formatSessionReuse(reminder.reuseSession)}`,
+        `session-mode: ${formatSessionStrategy(reminder.session)}`,
       ].join("\n"),
     };
   } catch (error) {
@@ -697,15 +697,19 @@ function formatReminderTargetResolution(
 }
 
 function formatSessionTarget(session: TaskSessionTarget | undefined): string {
-  if (!session || session.strategy === "dedicated") {
-    return "dedicated";
+  if (session?.strategy === "ephemeral") {
+    return "ephemeral";
   }
 
-  return session.strategy === "scope" ? `scope:${session.scope}` : "dedicated";
+  return session?.scope ? `scope:${session.scope}` : "dedicated";
 }
 
-function formatSessionReuse(reuseSession: boolean): string {
-  return reuseSession ? "reuse" : "fresh";
+function formatSessionStrategy(session: TaskSessionTarget | undefined): string {
+  if (session?.strategy === "ephemeral") {
+    return "ephemeral";
+  }
+
+  return session?.strategy ?? "fresh";
 }
 
 function formatJobPromptPreview(prompt: string): string {
@@ -742,7 +746,7 @@ function buildJobUpdatePrompt(
             `  source: ${formatJobSource(job.source)}`,
             `  schedule: ${formatTaskSchedule(job.schedule)}`,
             `  session: ${formatSessionTarget(job.session)}`,
-            `  session-mode: ${formatSessionReuse(job.reuseSession)}`,
+            `  session-mode: ${formatSessionStrategy(job.session)}`,
             `  result: ${formatResultTarget(job.result)}`,
             `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
             `  last-error: ${job.lastErrorMessage ?? "(none)"}`,

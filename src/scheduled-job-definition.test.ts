@@ -30,7 +30,6 @@ describe("scheduled-job-definition", () => {
           timeZone: undefined,
         },
         session: undefined,
-        reuseSession: false,
         result: undefined,
       },
     ]);
@@ -60,13 +59,12 @@ describe("scheduled-job-definition", () => {
           interval: 15,
         },
         session: undefined,
-        reuseSession: false,
         result: undefined,
       },
     ]);
   });
 
-  it("accepts explicit session reuse for a job", () => {
+  it("accepts explicit session strategies for a job", () => {
     expect(
       defineScheduledJobs([
         {
@@ -76,7 +74,21 @@ describe("scheduled-job-definition", () => {
             type: "every-minutes",
             interval: 10,
           },
-          reuseSession: true,
+          session: {
+            strategy: "reuse",
+            scope: "dm",
+          },
+        },
+        {
+          id: "ephemeral-session",
+          prompt: "Run once in memory",
+          schedule: {
+            type: "every-minutes",
+            interval: 30,
+          },
+          session: {
+            strategy: "ephemeral",
+          },
         },
       ]),
     ).toEqual([
@@ -88,8 +100,23 @@ describe("scheduled-job-definition", () => {
           type: "every-minutes",
           interval: 10,
         },
-        session: undefined,
-        reuseSession: true,
+        session: {
+          strategy: "reuse",
+          scope: "dm",
+        },
+        result: undefined,
+      },
+      {
+        id: "ephemeral-session",
+        prompt: "Run once in memory",
+        description: undefined,
+        schedule: {
+          type: "every-minutes",
+          interval: 30,
+        },
+        session: {
+          strategy: "ephemeral",
+        },
         result: undefined,
       },
     ]);

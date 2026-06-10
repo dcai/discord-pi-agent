@@ -196,6 +196,23 @@ describe("AgentService", () => {
     );
   });
 
+  it("accepts a custom thinking level for temporary sessions", async () => {
+    const service = new AgentService(createConfig());
+    const tempSession = createSession({ sessionId: "temp-session-thinking" });
+    createAgentSessionMock.mockResolvedValueOnce({ session: tempSession });
+
+    await expect(
+      service.createTemporarySession({ thinkingLevel: "medium" }),
+    ).resolves.toBe(tempSession);
+
+    expect(createAgentSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thinkingLevel: "medium",
+        sessionManager: { kind: "in-memory" },
+      }),
+    );
+  });
+
   it("creates a scoped session and ensures the configured model", async () => {
     const service = new AgentService(createConfig());
     const scopedSession = createSession({ sessionId: "thread-session" });
