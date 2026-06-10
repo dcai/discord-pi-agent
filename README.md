@@ -10,6 +10,8 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - accepts DM messages and forum thread messages from allowed users
 - serializes prompts per-scope through FIFO queues
 - exposes built-in session commands (per-scope, including `!archive`)
+- can run scheduled prompt jobs from a JS/TS jobs file
+- can run in Discord-only, scheduler-only, or combined mode
 
 ## Built-in commands
 
@@ -78,6 +80,105 @@ await startDiscordGateway(config);
 Each forum post creates a scoped pi session in `sessions/thread-<id>/`.
 The initial post body becomes the first prompt. Sessions survive restarts.
 
+### Discord + scheduler
+
+```ts
+import {
+  loadDiscordGatewayConfigFromEnv,
+  startDiscordGateway,
+} from "@friendlyrobot/discord-pi-agent";
+
+const config = loadDiscordGatewayConfigFromEnv({
+  cwd: process.cwd(),
+});
+
+await startDiscordGateway(config, {
+  scheduler: {
+    jobsFile: "./scheduled-jobs.ts",
+  },
+});
+```
+
+### Scheduler-only mode
+
+```ts
+import {
+  loadDiscordGatewayConfigFromEnv,
+  startTaskScheduler,
+} from "@friendlyrobot/discord-pi-agent";
+
+const config = loadDiscordGatewayConfigFromEnv({
+  cwd: process.cwd(),
+});
+
+await startTaskScheduler(config, {
+  jobsFile: "./scheduled-jobs.ts",
+});
+```
+
+Scheduler-only mode does not handle inbound Discord user messages. It only runs scheduled jobs and sends results to the configured targets.
+
+## Scheduled jobs
+
+Scheduled jobs are defined in a trusted JS/TS module. The file can export either:
+
+- `jobs`
+- `defineJobs()`
+- a default export with either of those shapes
+
+Example:
+
+```ts
+import type { ScheduledTaskDefinition } from "@friendlyrobot/discord-pi-agent";
+
+export const jobs: ScheduledTaskDefinition[] = [
+  {
+    id: "repo-heartbeat",
+    schedule: {
+      type: "every-minutes",
+      interval: 30,
+    },
+    prompt: "Check the repo and summarize anything important.",
+    result: {
+      target: "logs",
+    },
+  },
+  {
+    id: "daily-standup",
+    schedule: {
+      type: "daily-at",
+      hour: 9,
+      minute: 0,
+      timeZone: "Australia/Sydney",
+    },
+    prompt: "Review recent work and draft a standup update.",
+    session: {
+      strategy: "dedicated",
+    },
+    result: {
+      target: "discord-dm",
+      userId: "123456789012345678",
+    },
+  },
+];
+```
+
+### Supported schedules
+
+- `every-minutes`
+- `daily-at`
+
+### Session strategies
+
+- `dedicated` — default, stored under `sessions/job-<id>/`
+- `scope` — reuse an existing scope like `dm`, `thread:<id>`, or `job:<id>`
+
+### Result targets
+
+- `logs`
+- `discord-dm`
+- `discord-channel` — can also target a thread by using the thread ID
+
 ## Config
 
 ### Required
@@ -97,6 +198,11 @@ The initial post body becomes the first prompt. Sessions survive restarts.
 - `promptTransform` default: identity
 - `startupMessage` default: `Bot is online and ready.`
 - `shutdownOnSignals` default: `true`
+- scheduler via `startDiscordGateway(config, { scheduler: { jobsFile } })`
+
+### Scheduler config
+
+- `jobsFile` — required JS/TS jobs module path, resolved from `cwd` when relative
 
 ### Logging
 
@@ -181,7 +287,10 @@ This is the npm-side replacement for the old `bun update` workflow.
 ## Notes
 
 - DM and forum threads supported via `startDiscordGateway`
+- scheduled jobs are opt-in through `startDiscordGateway(config, { scheduler })`
+- `startTaskScheduler()` runs the scheduler without inbound Discord message handling
 - Forum thread sessions are stored in `sessions/thread-<id>/` (one directory per thread)
+- Scheduled job sessions are stored in `sessions/job-<id>/` when using dedicated sessions
 - Sessions survive restarts — `SessionManager.continueRecent()` resumes the latest `.jsonl`
 - Single Discord client with all intents (DM + Guild + MessageContent)
 - No mode flags — forum support activates when `discordAllowedForumChannelIds` is set

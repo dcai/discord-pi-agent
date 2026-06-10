@@ -1,5 +1,6 @@
-import { Client, Events, GatewayIntentBits, Partials } from "discord.js";
+import { Events, type Client } from "discord.js";
 import type { AgentService } from "./agent-service";
+import { createDiscordClient, loginDiscordClient } from "./discord-client";
 import { handleDiscordMessage } from "./discord-message-handler";
 import { sendReply } from "./discord-replies";
 import { createModuleLogger } from "./logger";
@@ -17,39 +18,7 @@ export async function startGatewayClient(
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
 ): Promise<Client> {
-  const client = new Client({
-    intents: [
-      GatewayIntentBits.DirectMessages,
-      GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.MessageContent,
-    ],
-    partials: [Partials.Channel],
-  });
-
-  client.once(Events.ClientReady, async (readyClient) => {
-    logger.info({ userTag: readyClient.user.tag }, "logged in");
-
-    if (!accessConfig.startupMessage) {
-      return;
-    }
-
-    try {
-      const user = await readyClient.users.fetch(
-        accessConfig.discordAllowedUserId,
-      );
-      const dmChannel = await user.createDM();
-      await dmChannel.send(accessConfig.startupMessage);
-      logger.info(
-        {
-          userId: accessConfig.discordAllowedUserId,
-        },
-        "sent startup dm",
-      );
-    } catch (error) {
-      logger.error({ error }, "failed to send startup dm");
-    }
-  });
+  const client = createDiscordClient(config, accessConfig);
 
   client.on(Events.MessageCreate, async (message) => {
     try {
@@ -75,6 +44,6 @@ export async function startGatewayClient(
     await sessionRegistry.remove(scope);
   });
 
-  await client.login(config.discordBotToken);
+  await loginDiscordClient(client, config);
   return client;
 }

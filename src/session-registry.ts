@@ -5,7 +5,7 @@ import { createModuleLogger } from "./logger";
 import { PromptQueue } from "./prompt-queue";
 import { DEFAULT_WORKING_EMOJI } from "./discord-replies";
 
-export type SessionScope = "dm" | `thread:${string}`;
+export type SessionScope = "dm" | `thread:${string}` | `job:${string}`;
 
 export type ScopedSessionEntry = {
   session: AgentSession;
@@ -31,6 +31,11 @@ export function sessionDirForScope(
   if (scope.startsWith("thread:")) {
     const threadId = scope.slice(7);
     return path.join(agentDir, "sessions", `thread-${threadId}`);
+  }
+
+  if (scope.startsWith("job:")) {
+    const jobId = scope.slice(4);
+    return path.join(agentDir, "sessions", `job-${jobId}`);
   }
 
   throw new Error(`Unknown session scope: ${scope}`);

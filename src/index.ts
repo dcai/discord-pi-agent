@@ -1,28 +1,50 @@
 import type { Client } from "discord.js";
 import { AgentService } from "./agent-service";
 import { resolveConfig } from "./config";
+import { createDiscordClient, loginDiscordClient } from "./discord-client";
 import { startGatewayClient } from "./discord-gateway-client";
 import { createModuleLogger } from "./logger";
+import {
+  loadScheduledJobs,
+  resolveTaskSchedulerConfig,
+} from "./scheduled-job-loader";
+import { ScheduledJobDeliveryService } from "./scheduled-job-delivery";
 import { SessionRegistry } from "./session-registry";
+import { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   DiscordGateway,
   DiscordGatewayConfig,
   GatewayAccessConfig,
   ResolvedDiscordGatewayConfig,
+  StartDiscordGatewayOptions,
+  TaskScheduler,
+  TaskSchedulerConfig,
+  TaskSchedulerStatus,
 } from "./types";
 
 const logger = createModuleLogger("index");
 
 export { formatDiscordPromptTime } from "./prompt-context";
 export { loadDiscordGatewayConfigFromEnv, resolveConfig } from "./config";
+export { loadScheduledJobs, resolveTaskSchedulerConfig } from "./scheduled-job-loader";
 export type {
   AgentStatus,
   DiscordGateway,
   DiscordGatewayConfig,
+  DailyAtTaskSchedule,
+  EveryMinutesTaskSchedule,
+  ScheduledTaskDefinition,
   PromptTransform,
   PromptTransformContext,
   ResolvedDiscordGatewayConfig,
   GatewayAccessConfig,
+  StartDiscordGatewayOptions,
+  TaskResultTarget,
+  TaskSchedule,
+  TaskScheduler,
+  TaskSchedulerConfig,
+  TaskSchedulerStatus,
+  TaskSessionTarget,
 } from "./types";
 
 /**
@@ -31,7 +53,71 @@ export type {
  */
 export async function startDiscordGateway(
   config: DiscordGatewayConfig,
+  options: StartDiscordGatewayOptions = {},
 ): Promise<DiscordGateway> {
+  const runtime = await startRuntime(config, {
+    enableGatewayHandlers: true,
+    schedulerConfig: options.scheduler,
+  });
+
+  if (runtime.config.shutdownOnSignals) {
+    registerSignalHandlers(runtime.stop);
+  }
+
+  return {
+    client: runtime.client!,
+    stop: runtime.stop,
+    getStatus: () => {
+      return runtime.agentService.getStatus();
+    },
+    getTaskSchedulerStatus: () => {
+      return runtime.taskScheduler?.getStatus() ?? null;
+    },
+  };
+}
+
+export async function startTaskScheduler(
+  config: DiscordGatewayConfig,
+  schedulerConfig: TaskSchedulerConfig,
+): Promise<TaskScheduler> {
+  const runtime = await startRuntime(config, {
+    enableGatewayHandlers: false,
+    schedulerConfig,
+  });
+
+  if (!runtime.taskScheduler) {
+    throw new Error("Task scheduler failed to initialize.");
+  }
+
+  if (runtime.config.shutdownOnSignals) {
+    registerSignalHandlers(runtime.stop);
+  }
+
+  return {
+    client: runtime.client,
+    stop: runtime.stop,
+    getAgentStatus: () => {
+      return runtime.agentService.getStatus();
+    },
+    getTaskSchedulerStatus: () => {
+      return runtime.taskScheduler!.getStatus();
+    },
+  };
+}
+
+async function startRuntime(
+  config: DiscordGatewayConfig,
+  options: {
+    enableGatewayHandlers: boolean;
+    schedulerConfig?: TaskSchedulerConfig;
+  },
+): Promise<{
+  agentService: AgentService;
+  client: Client | null;
+  config: ResolvedDiscordGatewayConfig;
+  stop: () => Promise<void>;
+  taskScheduler: TaskSchedulerService | null;
+}> {
   const resolvedConfig = resolveConfig(config);
   const agentService = new AgentService(resolvedConfig);
 
@@ -39,47 +125,96 @@ export async function startDiscordGateway(
   await agentService.initialize();
   logger.info(agentService.getStatus(), "agent ready");
 
-  const accessConfig: GatewayAccessConfig = {
-    discordAllowedUserId: resolvedConfig.discordAllowedUserId,
-    discordAllowedForumChannelIds: resolvedConfig.discordAllowedForumChannelIds,
-    discordAllowedUserIds: resolvedConfig.discordAllowedUserIds,
-    startupMessage: resolvedConfig.startupMessage,
-  };
-
+  const accessConfig = createGatewayAccessConfig(resolvedConfig);
   const sessionRegistry = new SessionRegistry(agentService);
+  const taskScheduler = options.schedulerConfig
+    ? await createTaskScheduler(
+        resolvedConfig,
+        options.schedulerConfig,
+        sessionRegistry,
+      )
+    : null;
 
-  const client = await startGatewayClient(
-    resolvedConfig,
-    agentService,
-    sessionRegistry,
-    accessConfig,
-  );
+  let client: Client | null = null;
+
+  if (options.enableGatewayHandlers) {
+    client = await startGatewayClient(
+      resolvedConfig,
+      agentService,
+      sessionRegistry,
+      accessConfig,
+    );
+  } else if (taskScheduler?.usesDiscordDelivery()) {
+    client = createDiscordClient(resolvedConfig, accessConfig);
+    await loginDiscordClient(client, resolvedConfig);
+  }
+
+  if (taskScheduler) {
+    replaceTaskSchedulerDeliveryClient(taskScheduler, client);
+    taskScheduler.start();
+  }
 
   const stop = createGatewayStopHandler(
     client,
     agentService,
     sessionRegistry,
     resolvedConfig,
+    taskScheduler,
   );
 
-  if (resolvedConfig.shutdownOnSignals) {
-    registerSignalHandlers(stop);
-  }
-
   return {
+    agentService,
     client,
+    config: resolvedConfig,
     stop,
-    getStatus: () => {
-      return agentService.getStatus();
-    },
+    taskScheduler,
   };
 }
 
+function createGatewayAccessConfig(
+  config: ResolvedDiscordGatewayConfig,
+): GatewayAccessConfig {
+  return {
+    discordAllowedUserId: config.discordAllowedUserId,
+    discordAllowedForumChannelIds: config.discordAllowedForumChannelIds,
+    discordAllowedUserIds: config.discordAllowedUserIds,
+    startupMessage: config.startupMessage,
+  };
+}
+
+async function createTaskScheduler(
+  config: ResolvedDiscordGatewayConfig,
+  schedulerConfig: TaskSchedulerConfig,
+  sessionRegistry: SessionRegistry,
+): Promise<TaskSchedulerService> {
+  const resolvedSchedulerConfig = resolveTaskSchedulerConfig(
+    schedulerConfig,
+    config.cwd,
+  );
+  const jobs = await loadScheduledJobs(resolvedSchedulerConfig);
+
+  return new TaskSchedulerService({
+    config,
+    schedulerConfig: resolvedSchedulerConfig,
+    jobs,
+    sessionRegistry,
+    deliveryService: new ScheduledJobDeliveryService(null),
+  });
+}
+
+function replaceTaskSchedulerDeliveryClient(
+  taskScheduler: TaskSchedulerService,
+  client: Client | null,
+): void {
+  taskScheduler.setDeliveryService(new ScheduledJobDeliveryService(client));
+}
+
 function createGatewayStopHandler(
-  client: Client,
+  client: Client | null,
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
   config: ResolvedDiscordGatewayConfig,
+  taskScheduler: TaskSchedulerService | null,
 ): () => Promise<void> {
   let stopped = false;
 
@@ -96,7 +231,8 @@ function createGatewayStopHandler(
       },
       "stopping discord gateway",
     );
-    client.destroy();
+    taskScheduler?.stop();
+    client?.destroy();
     await sessionRegistry.shutdownAll();
     await agentService.shutdown();
   };

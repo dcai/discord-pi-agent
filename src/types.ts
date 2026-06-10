@@ -52,6 +52,63 @@ export type DiscordGatewayConfig = {
   discordAllowedUserIds?: string[];
 };
 
+export type EveryMinutesTaskSchedule = {
+  type: "every-minutes";
+  interval: number;
+};
+
+export type DailyAtTaskSchedule = {
+  type: "daily-at";
+  hour: number;
+  minute: number;
+  timeZone?: string;
+};
+
+export type TaskSchedule = EveryMinutesTaskSchedule | DailyAtTaskSchedule;
+
+export type TaskResultTarget =
+  | {
+      target: "logs";
+    }
+  | {
+      target: "discord-dm";
+      userId: string;
+    }
+  | {
+      target: "discord-channel";
+      channelId: string;
+    };
+
+export type TaskSessionTarget =
+  | {
+      strategy?: "dedicated";
+    }
+  | {
+      strategy: "scope";
+      scope: "dm" | `thread:${string}` | `job:${string}`;
+    };
+
+export type ScheduledTaskDefinition = {
+  id: string;
+  prompt: string;
+  description?: string;
+  schedule: TaskSchedule;
+  session?: TaskSessionTarget;
+  result?: TaskResultTarget;
+};
+
+export type TaskSchedulerConfig = {
+  jobsFile: string;
+};
+
+export type ResolvedTaskSchedulerConfig = {
+  jobsFile: string;
+};
+
+export type StartDiscordGatewayOptions = {
+  scheduler?: TaskSchedulerConfig;
+};
+
 export type ResolvedDiscordGatewayConfig = {
   discordBotToken: string;
   discordAllowedUserId: string;
@@ -93,8 +150,23 @@ export type GatewayAccessConfig = {
   startupMessage: string | false;
 };
 
+export type TaskSchedulerStatus = {
+  jobsFile: string;
+  jobCount: number;
+  nextTickAt: string | null;
+  running: boolean;
+};
+
 export type DiscordGateway = {
   client: Client;
   stop: () => Promise<void>;
   getStatus: () => AgentStatus;
+  getTaskSchedulerStatus: () => TaskSchedulerStatus | null;
+};
+
+export type TaskScheduler = {
+  client: Client | null;
+  stop: () => Promise<void>;
+  getAgentStatus: () => AgentStatus;
+  getTaskSchedulerStatus: () => TaskSchedulerStatus;
 };

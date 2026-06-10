@@ -93,6 +93,18 @@ describe("SessionRegistry", () => {
         `${agentDir}/sessions/thread-abc-456`,
       );
     });
+
+    it("passes correct session dir for job scope", async () => {
+      const agentDir = "/tmp/test-agent";
+      const agentService = mockAgentService(agentDir);
+      const registry = new SessionRegistry(agentService);
+
+      await registry.getOrCreate("job:daily-standup");
+
+      expect(agentService.createSession).toHaveBeenCalledWith(
+        `${agentDir}/sessions/job-daily-standup`,
+      );
+    });
   });
 
   describe("remove", () => {

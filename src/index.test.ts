@@ -7,18 +7,31 @@ import type {
 const {
   resolveConfigMock,
   startGatewayClientMock,
+  createDiscordClientMock,
+  loginDiscordClientMock,
+  loadScheduledJobsMock,
+  resolveTaskSchedulerConfigMock,
   agentServiceState,
   sessionRegistryState,
+  taskSchedulerState,
   processOnMock,
 } = vi.hoisted(() => {
   return {
     resolveConfigMock: vi.fn(),
     startGatewayClientMock: vi.fn(),
+    createDiscordClientMock: vi.fn(),
+    loginDiscordClientMock: vi.fn(),
+    loadScheduledJobsMock: vi.fn(),
+    resolveTaskSchedulerConfigMock: vi.fn(),
     agentServiceState: {
       instances: [] as Array<Record<string, unknown>>,
     },
     sessionRegistryState: {
       instances: [] as Array<Record<string, unknown>>,
+    },
+    taskSchedulerState: {
+      instances: [] as Array<Record<string, unknown>>,
+      usesDiscordDelivery: false,
     },
     processOnMock: vi.fn(),
   };
@@ -34,6 +47,46 @@ vi.mock("./config", () => {
 vi.mock("./discord-gateway-client", () => {
   return {
     startGatewayClient: startGatewayClientMock,
+  };
+});
+
+vi.mock("./discord-client", () => {
+  return {
+    createDiscordClient: createDiscordClientMock,
+    loginDiscordClient: loginDiscordClientMock,
+  };
+});
+
+vi.mock("./scheduled-job-loader", () => {
+  return {
+    loadScheduledJobs: loadScheduledJobsMock,
+    resolveTaskSchedulerConfig: resolveTaskSchedulerConfigMock,
+  };
+});
+
+vi.mock("./task-scheduler-service", () => {
+  class TaskSchedulerServiceMock {
+    start = vi.fn();
+    stop = vi.fn();
+    setDeliveryService = vi.fn();
+    getStatus = vi.fn(() => ({
+      jobsFile: "/repo/scheduled-jobs.ts",
+      jobCount: 1,
+      nextTickAt: null,
+      running: true,
+    }));
+    usesDiscordDelivery = vi.fn(() => taskSchedulerState.usesDiscordDelivery);
+
+    constructor(options: unknown) {
+      taskSchedulerState.instances.push(
+        this as unknown as Record<string, unknown>,
+      );
+      (this as unknown as { options: unknown }).options = options;
+    }
+  }
+
+  return {
+    TaskSchedulerService: TaskSchedulerServiceMock,
   };
 });
 
@@ -84,8 +137,22 @@ beforeEach(() => {
   vi.clearAllMocks();
   agentServiceState.instances.length = 0;
   sessionRegistryState.instances.length = 0;
+  taskSchedulerState.instances.length = 0;
+  taskSchedulerState.usesDiscordDelivery = false;
   process.on = processOnMock as typeof process.on;
   process.exit = vi.fn() as unknown as typeof process.exit;
+  resolveTaskSchedulerConfigMock.mockImplementation((config) => config);
+  loadScheduledJobsMock.mockResolvedValue([
+    {
+      id: "job-1",
+      prompt: "Ping",
+      schedule: { type: "every-minutes", interval: 15 },
+    },
+  ]);
+  createDiscordClientMock.mockReturnValue({
+    destroy: vi.fn(),
+  });
+  loginDiscordClientMock.mockResolvedValue(undefined);
 });
 
 function createResolvedConfig(
@@ -196,6 +263,95 @@ describe("startDiscordGateway", () => {
       "SIGTERM",
       expect.any(Function),
     );
+  });
+
+  it("starts the scheduler when the gateway opts in", async () => {
+    const { startDiscordGateway } = await import("./index");
+    const resolvedConfig = createResolvedConfig({ shutdownOnSignals: false });
+    const client = {
+      destroy: vi.fn(),
+    };
+
+    resolveConfigMock.mockReturnValue(resolvedConfig);
+    startGatewayClientMock.mockResolvedValue(client);
+
+    const gateway = await startDiscordGateway(
+      {
+        discordBotToken: "token",
+        discordAllowedUserId: "user-1",
+        cwd: "/repo",
+      } as DiscordGatewayConfig,
+      {
+        scheduler: {
+          jobsFile: "./scheduled-jobs.ts",
+        },
+      },
+    );
+
+    const taskScheduler = taskSchedulerState.instances[0] as {
+      start: ReturnType<typeof vi.fn>;
+      getStatus: ReturnType<typeof vi.fn>;
+      setDeliveryService: ReturnType<typeof vi.fn>;
+    };
+
+    expect(resolveTaskSchedulerConfigMock).toHaveBeenCalledWith(
+      { jobsFile: "./scheduled-jobs.ts" },
+      "/repo",
+    );
+    expect(loadScheduledJobsMock).toHaveBeenCalled();
+    expect(taskScheduler.start).toHaveBeenCalledTimes(1);
+    expect(taskScheduler.setDeliveryService).toHaveBeenCalledTimes(1);
+    expect(gateway.getTaskSchedulerStatus()).toEqual({
+      jobsFile: "/repo/scheduled-jobs.ts",
+      jobCount: 1,
+      nextTickAt: null,
+      running: true,
+    });
+  });
+});
+
+describe("startTaskScheduler", () => {
+  it("starts scheduler-only mode without gateway handlers", async () => {
+    const { startTaskScheduler } = await import("./index");
+    const resolvedConfig = createResolvedConfig({ shutdownOnSignals: false });
+
+    resolveConfigMock.mockReturnValue(resolvedConfig);
+
+    const scheduler = await startTaskScheduler(
+      {
+        discordBotToken: "token",
+        discordAllowedUserId: "user-1",
+        cwd: "/repo",
+      } as DiscordGatewayConfig,
+      {
+        jobsFile: "./scheduled-jobs.ts",
+      },
+    );
+
+    const agentService = agentServiceState.instances[0] as {
+      initialize: ReturnType<typeof vi.fn>;
+      shutdown: ReturnType<typeof vi.fn>;
+    };
+    const sessionRegistry = sessionRegistryState.instances[0] as {
+      shutdownAll: ReturnType<typeof vi.fn>;
+    };
+
+    expect(agentService.initialize).toHaveBeenCalled();
+    expect(startGatewayClientMock).not.toHaveBeenCalled();
+    expect(createDiscordClientMock).not.toHaveBeenCalled();
+    expect(loginDiscordClientMock).not.toHaveBeenCalled();
+    expect(scheduler.client).toBeNull();
+    expect(scheduler.getTaskSchedulerStatus()).toEqual({
+      jobsFile: "/repo/scheduled-jobs.ts",
+      jobCount: 1,
+      nextTickAt: null,
+      running: true,
+    });
+
+    await scheduler.stop();
+
+    expect(sessionRegistry.shutdownAll).toHaveBeenCalledTimes(1);
+    expect(agentService.shutdown).toHaveBeenCalledTimes(1);
   });
 });
 
