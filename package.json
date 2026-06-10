@@ -28,7 +28,7 @@
     "test:watch": "LOG_LEVEL=debug vitest",
     "test": "LOG_LEVEL=silent vitest run",
     "test:coverage": "LOG_LEVEL=silent vitest run --coverage",
-    "smoke:task-scheduler": "LOG_LEVEL=silent vitest run src/task-scheduler.smoke.test.ts --reporter=verbose",
+    "smoke:task-scheduler": "LOG_LEVEL=silent vitest run --config vitest.smoke.config.ts --reporter=verbose",
     "format": "prettier --write .",
     "build:clean": "rm -rf dist",
     "build:emit": "tsgo -p tsconfig.build.json --declaration --declarationMap false",

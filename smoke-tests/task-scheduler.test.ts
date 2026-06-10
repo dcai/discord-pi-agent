@@ -3,13 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentService } from "./agent-service";
-import { startTaskScheduler } from "./index";
+import { AgentService } from "../src/agent-service";
+import { startTaskScheduler } from "../src/index";
 import {
   loadScheduledJobs,
   resolveTaskSchedulerConfig,
-} from "./scheduled-job-loader";
-import type { ScheduledTaskDefinition } from "./types";
+} from "../src/scheduled-job-loader";
+import type { ScheduledTaskDefinition } from "../src/types";
 
 type FakeAgentSession = {
   agent: {
