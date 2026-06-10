@@ -163,6 +163,10 @@ function createTaskSchedulerMock(
       nextTickAt: "2026-01-01T00:05:00.000Z",
       running: true,
     }),
+    runJobNow: vi.fn().mockResolvedValue({
+      ok: true,
+      errorMessage: null,
+    }),
     addRuntimeReminder: vi.fn((input) => {
       return {
         id: input.id,
@@ -249,6 +253,15 @@ describe("executeSessionCommand", () => {
       ),
     });
     expect(dmResult.response).toContain("!jobs - list loaded scheduled jobs");
+    expect(dmResult.response).toContain(
+      "!job run <id> - run one scheduled job now",
+    );
+    expect(dmResult.response).toContain(
+      "!job run-here <id> - run one scheduled job now in this conversation",
+    );
+    expect(dmResult.response).toContain(
+      "!job update <what you want changed> - edit the jobs file via the agent",
+    );
     expect(dmResult.response).toContain(
       "!jobs reload - reload scheduled jobs from the jobs file",
     );
@@ -593,6 +606,108 @@ describe("executeSessionCommand", () => {
     expect(result.response).toContain("source: file");
     expect(result.response).toContain("next-run-at: 2026-01-01T09:00:00.000Z");
     expect(result.response).toContain("session-mode: fresh");
+  });
+
+  it("runs a scheduled job immediately with its configured target", async () => {
+    const taskScheduler = createTaskSchedulerMock();
+
+    const result = await executeSessionCommand("!job run daily-summary", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler,
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      channelId: "channel-123",
+    });
+
+    expect(taskScheduler.runJobNow).toHaveBeenCalledWith("daily-summary", {
+      resultOverride: undefined,
+    });
+    expect(result).toEqual({
+      handled: true,
+      response: expect.stringContaining(
+        "Manual job run finished: daily-summary",
+      ),
+    });
+    expect(result.response).toContain("status: success");
+    expect(result.response).toContain("delivery-target: discord-dm:user-1");
+    expect(result.response).toContain("next-run-at: 2026-01-01T09:00:00.000Z");
+  });
+
+  it("runs a scheduled job immediately in the current conversation", async () => {
+    const taskScheduler = createTaskSchedulerMock();
+
+    const result = await executeSessionCommand("!job run-here daily-summary", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler,
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      channelId: "channel-123",
+    });
+
+    expect(taskScheduler.runJobNow).toHaveBeenCalledWith("daily-summary", {
+      resultOverride: {
+        target: "discord-channel",
+        channelId: "channel-123",
+      },
+    });
+    expect(result).toEqual({
+      handled: true,
+      response: expect.stringContaining(
+        "Manual job run here finished: daily-summary",
+      ),
+    });
+    expect(result.response).toContain(
+      "delivery-target: discord-channel:channel-123",
+    );
+    expect(result.response).toContain("configured-target: discord-dm:user-1");
+    expect(result.response).toContain(
+      "target-resolution: current DM via message.channel.id -> discord-channel:channel-123",
+    );
+  });
+
+  it("shows usage when !job run or !job run-here is missing an id", async () => {
+    const runResult = await executeSessionCommand("!job run", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      channelId: "channel-123",
+    });
+    const runHereResult = await executeSessionCommand("!job run-here", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      channelId: "channel-123",
+    });
+
+    expect(runResult).toEqual({
+      handled: true,
+      response: "Usage: !job run <id>",
+    });
+    expect(runHereResult).toEqual({
+      handled: true,
+      response: "Usage: !job run-here <id>",
+    });
+  });
+
+  it("requires a Discord channel context for !job run-here", async () => {
+    const result = await executeSessionCommand("!job run-here daily-summary", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: "This command requires a Discord channel context.",
+    });
   });
 
   it("creates a runtime reminder from natural language", async () => {

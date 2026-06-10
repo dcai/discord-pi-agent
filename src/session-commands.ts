@@ -141,6 +141,9 @@ async function handleHelpCommand(
       "!remind <when>, <task> - create a one-off runtime reminder",
       "!jobs - list loaded scheduled jobs",
       "!job <id> - show one scheduled job",
+      "!job run <id> - run one scheduled job now",
+      "!job run-here <id> - run one scheduled job now in this conversation",
+      "!job update <what you want changed> - edit the jobs file via the agent",
       "!jobs reload - reload scheduled jobs from the jobs file",
       "!reaction - show or set the working reaction emoji",
       extraCommands,
@@ -487,6 +490,100 @@ function formatJobsResponse(
   ].join("\n");
 }
 
+async function handleJobRunCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  const parts = trimmedInput.split(/\s+/);
+  if (parts[0] !== "!job") {
+    return null;
+  }
+
+  const subcommand = parts[1];
+  if (subcommand !== "run" && subcommand !== "run-here") {
+    return null;
+  }
+
+  if (!context.taskScheduler) {
+    return {
+      handled: true,
+      response: "Task scheduler is not enabled.",
+    };
+  }
+
+  if (parts.length !== 3) {
+    return {
+      handled: true,
+      response:
+        subcommand === "run-here"
+          ? "Usage: !job run-here <id>"
+          : "Usage: !job run <id>",
+    };
+  }
+
+  const job = context.taskScheduler.getJob(parts[2]);
+  if (!job) {
+    return {
+      handled: true,
+      response: `Scheduled job not found: ${parts[2]}`,
+    };
+  }
+
+  let resultOverride: TaskResultTarget | undefined;
+  if (subcommand === "run-here") {
+    if (!context.channelId) {
+      return {
+        handled: true,
+        response: "This command requires a Discord channel context.",
+      };
+    }
+
+    resultOverride = {
+      target: "discord-channel",
+      channelId: context.channelId,
+    };
+  }
+
+  try {
+    const runResult = await context.taskScheduler.runJobNow(parts[2], {
+      resultOverride,
+    });
+    const updatedJob = context.taskScheduler.getJob(parts[2]);
+    const deliveryTarget = resultOverride ?? job.result;
+
+    return {
+      handled: true,
+      response: [
+        `${subcommand === "run-here" ? "Manual job run here finished" : "Manual job run finished"}: ${job.id}`,
+        `status: ${runResult.ok ? "success" : "failed"}`,
+        `delivery-target: ${formatResultTarget(deliveryTarget)}`,
+        ...(resultOverride
+          ? [
+              `configured-target: ${formatResultTarget(job.result)}`,
+              `target-resolution: ${formatReminderTargetResolution(context.scope, context.channelId!)}`,
+            ]
+          : []),
+        ...(updatedJob
+          ? [
+              `next-run-at: ${updatedJob.nextRunAt ?? "(unknown)"}`,
+              `last-run-at: ${updatedJob.lastRunAt ?? "(never)"}`,
+              `last-success-at: ${updatedJob.lastSuccessAt ?? "(never)"}`,
+              `last-error: ${updatedJob.lastErrorMessage ?? "(none)"}`,
+            ]
+          : []),
+        ...(runResult.ok || !runResult.errorMessage
+          ? []
+          : [`error: ${runResult.errorMessage}`]),
+      ].join("\n"),
+    };
+  } catch (error) {
+    return {
+      handled: true,
+      response: stringifyCommandError(error),
+    };
+  }
+}
+
 async function handleJobCommand(
   trimmedInput: string,
   context: CommandContext,
@@ -502,7 +599,7 @@ async function handleJobCommand(
     };
   }
 
-  const parts = trimmedInput.split(" ");
+  const parts = trimmedInput.split(/\s+/);
   if (parts.length !== 2) {
     return {
       handled: true,
@@ -788,6 +885,7 @@ const commandHandlers: CommandHandler[] = [
   handleRemindCommand,
   handleJobsCommand,
   handleJobUpdateCommand,
+  handleJobRunCommand,
   handleJobCommand,
   handleResetSessionCommand,
   handleReactionCommand,

@@ -36,6 +36,16 @@ type RunDecision = {
   runKey: string;
 };
 
+type JobRunResult = {
+  ok: boolean;
+  errorMessage: string | null;
+};
+
+type RunJobNowOptions = {
+  resultOverride?: TaskResultTarget;
+  now?: Date;
+};
+
 type MutableJobState = {
   definition: ManagedJobDefinition;
   lastRunAt: Date | null;
@@ -124,6 +134,29 @@ export class TaskSchedulerService {
 
   getJob(jobId: string, now: Date = new Date()): TaskJobRuntimeState | null {
     return this.jobStates.has(jobId) ? this.getJobState(jobId, now) : null;
+  }
+
+  async runJobNow(
+    jobId: string,
+    options: RunJobNowOptions = {},
+  ): Promise<JobRunResult> {
+    const jobState = this.jobStates.get(jobId);
+    if (!jobState) {
+      throw new Error(`Unknown scheduled job: ${jobId}`);
+    }
+
+    if (jobState.running) {
+      throw new Error(`Scheduled job is already running: ${jobId}`);
+    }
+
+    const job = options.resultOverride
+      ? ({
+          ...jobState.definition,
+          result: options.resultOverride,
+        } as ManagedJobDefinition)
+      : jobState.definition;
+
+    return this.runJob(job, options.now ?? new Date());
   }
 
   addRuntimeReminder(input: CreateRuntimeReminderInput): TaskJobRuntimeState {
@@ -273,7 +306,10 @@ export class TaskSchedulerService {
     };
   }
 
-  private async runJob(job: ManagedJobDefinition, now: Date): Promise<void> {
+  private async runJob(
+    job: ManagedJobDefinition,
+    now: Date,
+  ): Promise<JobRunResult> {
     const sessionStrategy = getTaskSessionStrategy(job.session);
     const scope = sessionStrategy === "ephemeral" ? null : resolveJobScope(job);
     const jobState = this.jobStates.get(job.id);
@@ -281,6 +317,18 @@ export class TaskSchedulerService {
       { jobId: job.id, scope, sessionStrategy },
       "running scheduled job",
     );
+
+    if (jobState?.running) {
+      const errorMessage = `Scheduled job is already running: ${job.id}`;
+      logger.warn(
+        { jobId: job.id, scope, sessionStrategy },
+        "scheduled job run skipped because it is already running",
+      );
+      return {
+        ok: false,
+        errorMessage,
+      };
+    }
 
     if (jobState) {
       jobState.running = true;
@@ -312,12 +360,21 @@ export class TaskSchedulerService {
         { jobId: job.id, scope, sessionStrategy },
         "scheduled job finished",
       );
+      return {
+        ok: true,
+        errorMessage: null,
+      };
     } catch (error) {
+      const errorMessage = stringifyError(error);
       if (jobState) {
         jobState.lastErrorAt = now;
-        jobState.lastErrorMessage = stringifyError(error);
+        jobState.lastErrorMessage = errorMessage;
       }
       await this.deliveryService.deliverError(job, error);
+      return {
+        ok: false,
+        errorMessage,
+      };
     } finally {
       if (jobState) {
         jobState.running = false;

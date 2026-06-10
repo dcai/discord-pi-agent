@@ -288,6 +288,133 @@ describe("TaskSchedulerService", () => {
     );
   });
 
+  it("runs a job immediately on demand", async () => {
+    const { service, getOrCreateMock, deliverResultMock } = createService([
+      {
+        id: "daily-summary",
+        prompt: "Write the summary",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+        },
+        result: {
+          target: "discord-dm",
+          userId: "user-1",
+        },
+      },
+    ]);
+
+    await expect(service.runJobNow("daily-summary")).resolves.toEqual({
+      ok: true,
+      errorMessage: null,
+    });
+
+    expect(getOrCreateMock).toHaveBeenCalledWith("job:daily-summary", {
+      reuseExisting: false,
+    });
+    expect(deliverResultMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "daily-summary",
+        result: {
+          target: "discord-dm",
+          userId: "user-1",
+        },
+      }),
+      "scheduled reply",
+    );
+    expect(service.getJob("daily-summary")).toEqual(
+      expect.objectContaining({
+        lastRunAt: "2026-01-01T00:04:30.000Z",
+        lastSuccessAt: "2026-01-01T00:04:30.000Z",
+        lastErrorAt: null,
+        lastErrorMessage: null,
+        running: false,
+      }),
+    );
+  });
+
+  it("can override the result target for a manual run", async () => {
+    const { service, deliverResultMock } = createService([
+      {
+        id: "daily-summary",
+        prompt: "Write the summary",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+        },
+        result: {
+          target: "discord-dm",
+          userId: "user-1",
+        },
+      },
+    ]);
+
+    await service.runJobNow("daily-summary", {
+      resultOverride: {
+        target: "discord-channel",
+        channelId: "channel-123",
+      },
+    });
+
+    expect(deliverResultMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "daily-summary",
+        result: {
+          target: "discord-channel",
+          channelId: "channel-123",
+        },
+      }),
+      "scheduled reply",
+    );
+    expect(service.getJob("daily-summary")).toEqual(
+      expect.objectContaining({
+        result: {
+          target: "discord-dm",
+          userId: "user-1",
+        },
+      }),
+    );
+  });
+
+  it("rejects a manual run when the job is already running", async () => {
+    let releaseRun: (() => void) | null = null;
+    runAgentTurnMock.mockImplementation(
+      async () =>
+        await new Promise<string>((resolve) => {
+          releaseRun = () => {
+            resolve("scheduled reply");
+          };
+        }),
+    );
+
+    const { service } = createService([
+      {
+        id: "daily-summary",
+        prompt: "Write the summary",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+        },
+      },
+    ]);
+
+    const firstRun = service.runJobNow("daily-summary");
+    await Promise.resolve();
+
+    await expect(service.runJobNow("daily-summary")).rejects.toThrow(
+      "Scheduled job is already running: daily-summary",
+    );
+
+    releaseRun?.();
+    await firstRun;
+  });
+
   it("lists jobs with runtime state and reloads definitions", async () => {
     const { service } = createService([
       {
