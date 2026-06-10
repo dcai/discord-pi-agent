@@ -3,11 +3,17 @@ import { wrapXmlTag, formatDiscordPromptTime } from "./prompt-context";
 import { runAgentTurn } from "./agent-turn-runner";
 import type { SessionScope, SessionRegistry } from "./session-registry";
 import type {
+  CreateRuntimeReminderInput,
   ResolvedDiscordGatewayConfig,
   ResolvedTaskSchedulerConfig,
+  RunAtTaskSchedule,
   ScheduledTaskDefinition,
   TaskJobRuntimeState,
+  TaskJobSource,
+  TaskJobSchedule,
   TaskSchedulerStatus,
+  TaskResultTarget,
+  TaskSessionTarget,
 } from "./types";
 import { ScheduledJobDeliveryService } from "./scheduled-job-delivery";
 import { loadScheduledJobs } from "./scheduled-job-loader";
@@ -28,7 +34,7 @@ type RunDecision = {
 };
 
 type MutableJobState = {
-  definition: ScheduledTaskDefinition;
+  definition: ManagedJobDefinition;
   lastRunAt: Date | null;
   lastSuccessAt: Date | null;
   lastErrorAt: Date | null;
@@ -36,10 +42,34 @@ type MutableJobState = {
   running: boolean;
 };
 
+type FileBackedJobDefinition = ScheduledTaskDefinition & {
+  source: "file";
+};
+
+type RuntimeReminderJobDefinition = {
+  id: string;
+  prompt: string;
+  description?: string;
+  schedule: RunAtTaskSchedule;
+  session?: TaskSessionTarget;
+  reuseSession?: boolean;
+  result: TaskResultTarget;
+  source: "runtime";
+  deleteAfterRun: true;
+};
+
+type ManagedJobDefinition =
+  | FileBackedJobDefinition
+  | RuntimeReminderJobDefinition;
+
 export class TaskSchedulerService {
   private readonly config: ResolvedDiscordGatewayConfig;
   private readonly schedulerConfig: ResolvedTaskSchedulerConfig;
-  private jobs: ScheduledTaskDefinition[];
+  private fileJobs: FileBackedJobDefinition[];
+  private readonly runtimeJobs = new Map<
+    string,
+    RuntimeReminderJobDefinition
+  >();
   private readonly sessionRegistry: SessionRegistry;
   private deliveryService: ScheduledJobDeliveryService;
   private jobStates = new Map<string, MutableJobState>();
@@ -51,10 +81,10 @@ export class TaskSchedulerService {
   constructor(options: TaskSchedulerServiceOptions) {
     this.config = options.config;
     this.schedulerConfig = options.schedulerConfig;
-    this.jobs = options.jobs;
+    this.fileJobs = options.jobs.map(asFileBackedJob);
     this.sessionRegistry = options.sessionRegistry;
     this.deliveryService = options.deliveryService;
-    this.jobStates = buildJobStateMap(options.jobs, this.jobStates);
+    this.jobStates = buildJobStateMap(this.getAllJobs(), this.jobStates);
   }
 
   start(): void {
@@ -66,7 +96,7 @@ export class TaskSchedulerService {
     logger.info(
       {
         jobsFile: this.schedulerConfig.jobsFile,
-        jobCount: this.jobs.length,
+        jobCount: this.getAllJobs().length,
       },
       "task scheduler started",
     );
@@ -76,14 +106,14 @@ export class TaskSchedulerService {
   getStatus(): TaskSchedulerStatus {
     return {
       jobsFile: this.schedulerConfig.jobsFile,
-      jobCount: this.jobs.length,
+      jobCount: this.getAllJobs().length,
       nextTickAt: this.nextTickAt ? this.nextTickAt.toISOString() : null,
       running: this.running,
     };
   }
 
   listJobs(now: Date = new Date()): TaskJobRuntimeState[] {
-    return this.jobs.map((job) => {
+    return this.getAllJobs().map((job) => {
       return this.getJobState(job.id, now);
     });
   }
@@ -92,21 +122,50 @@ export class TaskSchedulerService {
     return this.jobStates.has(jobId) ? this.getJobState(jobId, now) : null;
   }
 
+  addRuntimeReminder(input: CreateRuntimeReminderInput): TaskJobRuntimeState {
+    if (this.jobStates.has(input.id)) {
+      throw new Error(`Scheduled job already exists: ${input.id}`);
+    }
+
+    if (Number.isNaN(Date.parse(input.runAt))) {
+      throw new Error(`Invalid reminder datetime: ${input.runAt}`);
+    }
+
+    this.runtimeJobs.set(input.id, {
+      id: input.id,
+      prompt: input.prompt,
+      description: input.description,
+      schedule: {
+        type: "run-at",
+        runAt: input.runAt,
+      },
+      session: input.session,
+      reuseSession: input.reuseSession,
+      result: input.result,
+      source: "runtime",
+      deleteAfterRun: true,
+    });
+    this.syncJobStates();
+    logger.info(
+      {
+        jobId: input.id,
+        runAt: input.runAt,
+      },
+      "runtime reminder added",
+    );
+
+    return this.getJobState(input.id, new Date());
+  }
+
   async reload(): Promise<TaskSchedulerStatus> {
     const reloadedJobs = await loadScheduledJobs(this.schedulerConfig);
-    this.jobs = reloadedJobs;
-    this.jobStates = buildJobStateMap(reloadedJobs, this.jobStates);
-
-    for (const jobId of Array.from(this.lastRunKeys.keys())) {
-      if (!this.jobStates.has(jobId)) {
-        this.lastRunKeys.delete(jobId);
-      }
-    }
+    this.fileJobs = reloadedJobs.map(asFileBackedJob);
+    this.syncJobStates();
 
     logger.info(
       {
         jobsFile: this.schedulerConfig.jobsFile,
-        jobCount: this.jobs.length,
+        jobCount: this.getAllJobs().length,
       },
       "task scheduler reloaded",
     );
@@ -130,7 +189,7 @@ export class TaskSchedulerService {
   }
 
   usesDiscordDelivery(): boolean {
-    return this.jobs.some((job) => {
+    return this.getAllJobs().some((job) => {
       return (job.result?.target ?? "logs") !== "logs";
     });
   }
@@ -160,7 +219,7 @@ export class TaskSchedulerService {
     this.scheduleNextTick();
 
     const tickTime = toMinuteBoundary(now);
-    const dueJobs = this.jobs
+    const dueJobs = this.getAllJobs()
       .map((job) => {
         return {
           job,
@@ -177,7 +236,7 @@ export class TaskSchedulerService {
     );
   }
 
-  private getRunDecision(job: ScheduledTaskDefinition, now: Date): RunDecision {
+  private getRunDecision(job: ManagedJobDefinition, now: Date): RunDecision {
     if (job.schedule.type === "every-minutes") {
       const minuteKey = String(Math.floor(now.getTime() / 60_000));
       const due = Number(minuteKey) % job.schedule.interval === 0;
@@ -185,6 +244,15 @@ export class TaskSchedulerService {
       return {
         due: due && this.lastRunKeys.get(job.id) !== minuteKey,
         runKey: minuteKey,
+      };
+    }
+
+    if (job.schedule.type === "run-at") {
+      return {
+        due:
+          now.getTime() >= Date.parse(job.schedule.runAt) &&
+          this.lastRunKeys.get(job.id) !== job.schedule.runAt,
+        runKey: job.schedule.runAt,
       };
     }
 
@@ -202,7 +270,7 @@ export class TaskSchedulerService {
     };
   }
 
-  private async runJob(job: ScheduledTaskDefinition, now: Date): Promise<void> {
+  private async runJob(job: ManagedJobDefinition, now: Date): Promise<void> {
     const scope = resolveJobScope(job);
     const jobState = this.jobStates.get(job.id);
     logger.info({ jobId: job.id, scope }, "running scheduled job");
@@ -238,6 +306,10 @@ export class TaskSchedulerService {
       if (jobState) {
         jobState.running = false;
       }
+
+      if (isRuntimeReminderJob(job)) {
+        this.removeRuntimeJob(job.id);
+      }
     }
   }
 
@@ -251,6 +323,7 @@ export class TaskSchedulerService {
     return {
       id: jobState.definition.id,
       description: jobState.definition.description,
+      source: jobState.definition.source,
       schedule: jobState.definition.schedule,
       session: jobState.definition.session,
       reuseSession: jobState.definition.reuseSession ?? false,
@@ -265,9 +338,32 @@ export class TaskSchedulerService {
       running: jobState.running,
     };
   }
+
+  private getAllJobs(): ManagedJobDefinition[] {
+    return [...this.fileJobs, ...Array.from(this.runtimeJobs.values())];
+  }
+
+  private syncJobStates(): void {
+    this.jobStates = buildJobStateMap(this.getAllJobs(), this.jobStates);
+
+    for (const jobId of Array.from(this.lastRunKeys.keys())) {
+      if (!this.jobStates.has(jobId)) {
+        this.lastRunKeys.delete(jobId);
+      }
+    }
+  }
+
+  private removeRuntimeJob(jobId: string): void {
+    if (!this.runtimeJobs.delete(jobId)) {
+      return;
+    }
+
+    this.syncJobStates();
+    logger.info({ jobId }, "runtime reminder removed");
+  }
 }
 
-function resolveJobScope(job: ScheduledTaskDefinition): SessionScope {
+function resolveJobScope(job: ManagedJobDefinition): SessionScope {
   const session = job.session;
 
   if (!session || session.strategy === "dedicated") {
@@ -278,7 +374,7 @@ function resolveJobScope(job: ScheduledTaskDefinition): SessionScope {
 }
 
 async function buildTaskPrompt(
-  job: ScheduledTaskDefinition,
+  job: ManagedJobDefinition,
   config: ResolvedDiscordGatewayConfig,
   now: Date,
 ): Promise<string> {
@@ -356,7 +452,7 @@ function requirePart(
 }
 
 function buildJobStateMap(
-  jobs: ScheduledTaskDefinition[],
+  jobs: ManagedJobDefinition[],
   previousState: Map<string, MutableJobState>,
 ): Map<string, MutableJobState> {
   const nextState = new Map<string, MutableJobState>();
@@ -378,10 +474,15 @@ function buildJobStateMap(
 }
 
 function findNextRunAt(
-  job: ScheduledTaskDefinition,
+  job: ManagedJobDefinition,
   now: Date,
   defaultTimeZone: string,
 ): Date | null {
+  if (job.schedule.type === "run-at") {
+    const runAt = new Date(job.schedule.runAt);
+    return Number.isNaN(runAt.getTime()) ? null : runAt;
+  }
+
   const candidate = toMinuteBoundary(new Date(now));
   candidate.setMinutes(candidate.getMinutes() + 1);
 
@@ -408,6 +509,21 @@ function findNextRunAt(
   }
 
   return null;
+}
+
+function asFileBackedJob(
+  job: ScheduledTaskDefinition,
+): FileBackedJobDefinition {
+  return {
+    ...job,
+    source: "file",
+  };
+}
+
+function isRuntimeReminderJob(
+  job: ManagedJobDefinition,
+): job is RuntimeReminderJobDefinition {
+  return job.source === "runtime";
 }
 
 function formatDate(value: Date | null): string | null {

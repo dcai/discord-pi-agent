@@ -87,6 +87,9 @@ export async function handleDiscordMessage(
     promptQueue: entry.promptQueue,
     session: entry.session,
     taskScheduler,
+    channelId: message.channel.id,
+    promptTimeZone: config.promptTimeZone,
+    promptLocale: config.promptLocale,
     scope: preparedMessage.scope,
     workingEmoji: entry.workingEmoji,
   });

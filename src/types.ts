@@ -66,6 +66,13 @@ export type DailyAtTaskSchedule = {
 
 export type TaskSchedule = EveryMinutesTaskSchedule | DailyAtTaskSchedule;
 
+export type RunAtTaskSchedule = {
+  type: "run-at";
+  runAt: string;
+};
+
+export type TaskJobSchedule = TaskSchedule | RunAtTaskSchedule;
+
 export type TaskResultTarget =
   | {
       target: "logs";
@@ -158,10 +165,13 @@ export type TaskSchedulerStatus = {
   running: boolean;
 };
 
+export type TaskJobSource = "file" | "runtime";
+
 export type TaskJobRuntimeState = {
   id: string;
   description?: string;
-  schedule: TaskSchedule;
+  source: TaskJobSource;
+  schedule: TaskJobSchedule;
   session: TaskSessionTarget | undefined;
   reuseSession: boolean;
   result: TaskResultTarget | undefined;
@@ -171,6 +181,16 @@ export type TaskJobRuntimeState = {
   lastErrorAt: string | null;
   lastErrorMessage: string | null;
   running: boolean;
+};
+
+export type CreateRuntimeReminderInput = {
+  id: string;
+  prompt: string;
+  runAt: string;
+  description?: string;
+  session?: TaskSessionTarget;
+  reuseSession?: boolean;
+  result: TaskResultTarget;
 };
 
 export type DiscordGateway = {

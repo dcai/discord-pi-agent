@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeSessionCommand } from "./session-commands";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
@@ -8,6 +8,18 @@ import type { TaskJobRuntimeState, TaskSchedulerStatus } from "./types";
 import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 
 const DM_SCOPE: SessionScope = "dm";
+
+const { parseReminderCommandMock } = vi.hoisted(() => {
+  return {
+    parseReminderCommandMock: vi.fn(),
+  };
+});
+
+vi.mock("./reminder-command-parser", () => {
+  return {
+    parseReminderCommand: parseReminderCommandMock,
+  };
+});
 
 function createPromptQueueMock(
   overrides: Partial<PromptQueue> = {},
@@ -74,6 +86,9 @@ function createAgentServiceMock(
     createSession: vi
       .fn()
       .mockResolvedValue(createSessionMock({ sessionId: "new-session" })),
+    createTemporarySession: vi
+      .fn()
+      .mockResolvedValue(createSessionMock({ sessionId: "temp-session" })),
     ...overrides,
   } as unknown as AgentService;
 }
@@ -92,6 +107,7 @@ function createTaskSchedulerMock(
       {
         id: "daily-summary",
         description: "Daily update",
+        source: "file",
         schedule: {
           type: "daily-at",
           hour: 9,
@@ -122,6 +138,7 @@ function createTaskSchedulerMock(
       return {
         id: "daily-summary",
         description: "Daily update",
+        source: "file",
         schedule: {
           type: "daily-at",
           hour: 9,
@@ -150,9 +167,38 @@ function createTaskSchedulerMock(
       nextTickAt: "2026-01-01T00:05:00.000Z",
       running: true,
     }),
+    addRuntimeReminder: vi.fn((input) => {
+      return {
+        id: input.id,
+        description: input.description,
+        source: "runtime",
+        schedule: {
+          type: "run-at",
+          runAt: input.runAt,
+        },
+        session: undefined,
+        reuseSession: false,
+        result: input.result,
+        nextRunAt: input.runAt,
+        lastRunAt: null,
+        lastSuccessAt: null,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+        running: false,
+      };
+    }),
     ...overrides,
   } as unknown as TaskSchedulerService;
 }
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  parseReminderCommandMock.mockResolvedValue({
+    runAt: "2026-01-02T04:00:00.000Z",
+    prompt: "Check what AAPL's latest share price is.",
+    description: "AAPL reminder",
+  });
+});
 
 describe("executeSessionCommand", () => {
   it("returns handled false for non-command input", async () => {
@@ -209,6 +255,9 @@ describe("executeSessionCommand", () => {
     expect(dmResult.response).toContain("!jobs - list loaded scheduled jobs");
     expect(dmResult.response).toContain(
       "!jobs reload - reload scheduled jobs from the jobs file",
+    );
+    expect(dmResult.response).toContain(
+      "!remind <when>, <task> - create a one-off runtime reminder",
     );
   });
 
@@ -523,6 +572,7 @@ describe("executeSessionCommand", () => {
       handled: true,
       response: expect.stringContaining("- daily-summary"),
     });
+    expect(result.response).toContain("source: file");
     expect(result.response).toContain("schedule: daily at 09:00 (UTC)");
     expect(result.response).toContain("target: discord-dm:user-1");
     expect(result.response).toContain("session-mode: fresh");
@@ -542,8 +592,95 @@ describe("executeSessionCommand", () => {
       response: expect.stringContaining("id: daily-summary"),
     });
     expect(result.response).toContain("description: Daily update");
+    expect(result.response).toContain("source: file");
     expect(result.response).toContain("next-run-at: 2026-01-01T09:00:00.000Z");
     expect(result.response).toContain("session-mode: fresh");
+  });
+
+  it("creates a runtime reminder from natural language", async () => {
+    const taskScheduler = createTaskSchedulerMock({
+      listJobs: () => {
+        return [];
+      },
+    });
+
+    const result = await executeSessionCommand(
+      "!remind tomorrow 14:00, check what is aapl's latest share price",
+      {
+        agentService: createAgentServiceMock(createSessionMock()),
+        promptQueue: createPromptQueueMock(),
+        taskScheduler,
+        scope: DM_SCOPE,
+        workingEmoji: "⚙️",
+        channelId: "channel-123",
+        promptTimeZone: "Australia/Sydney",
+        promptLocale: "en-AU",
+      },
+    );
+
+    expect(parseReminderCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: "tomorrow 14:00, check what is aapl's latest share price",
+        timeZone: "Australia/Sydney",
+        locale: "en-AU",
+      }),
+    );
+    expect(taskScheduler.addRuntimeReminder).toHaveBeenCalledWith({
+      id: "reminder-202601020400-check-what-aapl-s-latest",
+      prompt: "Check what AAPL's latest share price is.",
+      runAt: "2026-01-02T04:00:00.000Z",
+      description: "AAPL reminder",
+      result: {
+        target: "discord-channel",
+        channelId: "channel-123",
+      },
+    });
+    expect(result).toEqual({
+      handled: true,
+      response: [
+        "Reminder created: reminder-202601020400-check-what-aapl-s-latest",
+        "run-at: 2026-01-02T04:00:00.000Z",
+        "source: runtime",
+        "target: discord-channel:channel-123",
+        "session-mode: fresh",
+      ].join("\n"),
+    });
+  });
+
+  it("shows usage when !remind has no request", async () => {
+    const result = await executeSessionCommand("!remind", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      channelId: "channel-123",
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: "Usage: !remind <when>, <what you want to be reminded about>",
+    });
+  });
+
+  it("surfaces reminder parsing errors", async () => {
+    parseReminderCommandMock.mockRejectedValueOnce(
+      new Error("I could not safely determine the reminder time."),
+    );
+
+    const result = await executeSessionCommand("!remind sometime tomorrow", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      channelId: "channel-123",
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: "I could not safely determine the reminder time.",
+    });
   });
 
   it("reloads scheduled jobs when requested", async () => {
@@ -557,6 +694,7 @@ describe("executeSessionCommand", () => {
       {
         id: "daily-summary",
         description: "Daily update",
+        source: "file",
         schedule: {
           type: "daily-at",
           hour: 9,
@@ -591,6 +729,7 @@ describe("executeSessionCommand", () => {
         {
           id: "hello-dm",
           description: "Send a hello DM",
+          source: "file",
           schedule: {
             type: "daily-at",
             hour: 19,
@@ -711,6 +850,13 @@ describe("executeSessionCommand", () => {
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
+    const remindResult = await executeSessionCommand("!remind tomorrow 14:00", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      channelId: "channel-123",
+    });
 
     expect(jobsResult).toEqual({
       handled: true,
@@ -721,6 +867,10 @@ describe("executeSessionCommand", () => {
       response: "Task scheduler is not enabled.",
     });
     expect(jobUpdateResult).toEqual({
+      handled: true,
+      response: "Task scheduler is not enabled.",
+    });
+    expect(remindResult).toEqual({
       handled: true,
       response: "Task scheduler is not enabled.",
     });

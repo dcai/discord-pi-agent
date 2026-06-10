@@ -244,6 +244,7 @@ describe("TaskSchedulerService", () => {
     expect(service.getJob("daily-summary")).toEqual({
       id: "daily-summary",
       description: "Daily update",
+      source: "file",
       schedule: {
         type: "daily-at",
         hour: 9,
@@ -276,6 +277,7 @@ describe("TaskSchedulerService", () => {
       {
         id: "heartbeat",
         description: undefined,
+        source: "file",
         schedule: {
           type: "every-minutes",
           interval: 15,
@@ -291,5 +293,67 @@ describe("TaskSchedulerService", () => {
         running: false,
       },
     ]);
+  });
+
+  it("adds a runtime reminder, lists it, and forgets it after the run", async () => {
+    const { service, getOrCreateMock, deliverResultMock } = createService([]);
+
+    expect(
+      service.addRuntimeReminder({
+        id: "reminder-aapl",
+        prompt: "Check AAPL share price",
+        runAt: "2026-01-01T00:05:00.000Z",
+        description: "AAPL reminder",
+        result: {
+          target: "discord-channel",
+          channelId: "channel-1",
+        },
+      }),
+    ).toEqual({
+      id: "reminder-aapl",
+      description: "AAPL reminder",
+      source: "runtime",
+      schedule: {
+        type: "run-at",
+        runAt: "2026-01-01T00:05:00.000Z",
+      },
+      session: undefined,
+      reuseSession: false,
+      result: {
+        target: "discord-channel",
+        channelId: "channel-1",
+      },
+      nextRunAt: "2026-01-01T00:05:00.000Z",
+      lastRunAt: null,
+      lastSuccessAt: null,
+      lastErrorAt: null,
+      lastErrorMessage: null,
+      running: false,
+    });
+
+    expect(service.listJobs()).toEqual([
+      expect.objectContaining({
+        id: "reminder-aapl",
+        source: "runtime",
+      }),
+    ]);
+
+    service.start();
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(getOrCreateMock).toHaveBeenCalledWith("job:reminder-aapl", {
+      reuseExisting: false,
+    });
+    expect(deliverResultMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "reminder-aapl", source: "runtime" }),
+      "scheduled reply",
+    );
+    expect(service.listJobs()).toEqual([]);
+    expect(service.getStatus()).toEqual({
+      jobsFile: "/repo/scheduled-jobs.ts",
+      jobCount: 0,
+      nextTickAt: "2026-01-01T00:06:00.000Z",
+      running: true,
+    });
   });
 });

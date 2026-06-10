@@ -7,11 +7,12 @@ import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   TaskJobRuntimeState,
   TaskResultTarget,
-  TaskSchedule,
+  TaskJobSchedule,
   TaskSchedulerStatus,
   TaskSessionTarget,
   ThinkingLevel,
 } from "./types";
+import { parseReminderCommand } from "./reminder-command-parser";
 
 export type CommandResult = {
   handled: boolean;
@@ -30,6 +31,9 @@ export type CommandContext = {
   promptQueue: PromptQueue;
   session?: AgentSession;
   taskScheduler?: TaskSchedulerService | null;
+  channelId?: string;
+  promptTimeZone?: string;
+  promptLocale?: string;
   /** Session scope ("dm" or "thread:<id>") for session lifecycle commands. */
   scope: SessionScope;
   /** Current working reaction emoji for this session. */
@@ -132,6 +136,7 @@ async function handleHelpCommand(
       "!compact - compact the persistent session",
       "!reset-session - start a fresh persistent session",
       "!reload - reload resources (AGENTS.md, extensions, skills, etc.)",
+      "!remind <when>, <task> - create a one-off runtime reminder",
       "!jobs - list loaded scheduled jobs",
       "!job <id> - show one scheduled job",
       "!jobs reload - reload scheduled jobs from the jobs file",
@@ -467,6 +472,7 @@ function formatJobsResponse(
     ...jobs.map((job) => {
       return [
         `- ${job.id}`,
+        `  source: ${formatJobSource(job.source)}`,
         `  schedule: ${formatTaskSchedule(job.schedule)}`,
         `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
         `  target: ${formatResultTarget(job.result)}`,
@@ -514,6 +520,7 @@ async function handleJobCommand(
     response: [
       `id: ${job.id}`,
       `description: ${job.description ?? "(none)"}`,
+      `source: ${formatJobSource(job.source)}`,
       `schedule: ${formatTaskSchedule(job.schedule)}`,
       `session: ${formatSessionTarget(job.session)}`,
       `session-mode: ${formatSessionReuse(job.reuseSession)}`,
@@ -526,6 +533,78 @@ async function handleJobCommand(
       `running: ${job.running}`,
     ].join("\n"),
   };
+}
+
+async function handleRemindCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (!trimmedInput.startsWith("!remind")) {
+    return null;
+  }
+
+  if (!context.taskScheduler) {
+    return {
+      handled: true,
+      response: "Task scheduler is not enabled.",
+    };
+  }
+
+  const request = trimmedInput.slice("!remind".length).trim();
+  if (!request) {
+    return {
+      handled: true,
+      response: "Usage: !remind <when>, <what you want to be reminded about>",
+    };
+  }
+
+  if (!context.channelId) {
+    return {
+      handled: true,
+      response: "This reminder command requires a Discord channel context.",
+    };
+  }
+
+  try {
+    const parsedReminder = await parseReminderCommand({
+      agentService: context.agentService,
+      input: request,
+      now: new Date(),
+      timeZone: context.promptTimeZone ?? "UTC",
+      locale: context.promptLocale ?? "en-AU",
+    });
+    const reminderId = buildReminderId(
+      parsedReminder.runAt,
+      parsedReminder.prompt,
+      context.taskScheduler.listJobs(),
+    );
+    const reminder = context.taskScheduler.addRuntimeReminder({
+      id: reminderId,
+      prompt: parsedReminder.prompt,
+      runAt: parsedReminder.runAt,
+      description: parsedReminder.description,
+      result: {
+        target: "discord-channel",
+        channelId: context.channelId,
+      },
+    });
+
+    return {
+      handled: true,
+      response: [
+        `Reminder created: ${reminder.id}`,
+        `run-at: ${reminder.nextRunAt ?? parsedReminder.runAt}`,
+        `source: ${formatJobSource(reminder.source)}`,
+        `target: ${formatResultTarget(reminder.result)}`,
+        `session-mode: ${formatSessionReuse(reminder.reuseSession)}`,
+      ].join("\n"),
+    };
+  } catch (error) {
+    return {
+      handled: true,
+      response: stringifyCommandError(error),
+    };
+  }
 }
 
 async function handleJobUpdateCommand(
@@ -564,9 +643,13 @@ async function handleJobUpdateCommand(
   };
 }
 
-function formatTaskSchedule(schedule: TaskSchedule): string {
+function formatTaskSchedule(schedule: TaskJobSchedule): string {
   if (schedule.type === "every-minutes") {
     return `every ${schedule.interval} minute(s)`;
+  }
+
+  if (schedule.type === "run-at") {
+    return `once at ${schedule.runAt}`;
   }
 
   return `daily at ${String(schedule.hour).padStart(2, "0")}:${String(
@@ -602,6 +685,10 @@ function formatSessionReuse(reuseSession: boolean): string {
   return reuseSession ? "reuse" : "fresh";
 }
 
+function formatJobSource(source: TaskJobRuntimeState["source"]): string {
+  return source;
+}
+
 function buildJobUpdatePrompt(
   request: string,
   jobsFile: string,
@@ -612,6 +699,7 @@ function buildJobUpdatePrompt(
         .map((job) => {
           return [
             `- id: ${job.id}`,
+            `  source: ${formatJobSource(job.source)}`,
             `  schedule: ${formatTaskSchedule(job.schedule)}`,
             `  session: ${formatSessionTarget(job.session)}`,
             `  session-mode: ${formatSessionReuse(job.reuseSession)}`,
@@ -653,6 +741,7 @@ const commandHandlers: CommandHandler[] = [
   handleModelCommand,
   handleCompactCommand,
   handleReloadCommand,
+  handleRemindCommand,
   handleJobsCommand,
   handleJobUpdateCommand,
   handleJobCommand,
@@ -681,4 +770,43 @@ export async function executeSessionCommand(
     handled: true,
     response: `Unknown command: ${trimmedInput}. Try !help.`,
   };
+}
+
+function buildReminderId(
+  runAt: string,
+  prompt: string,
+  existingJobs: TaskJobRuntimeState[],
+): string {
+  const datePart = runAt.replace(/[-:TZ.]/g, "").slice(0, 12) || "runtime";
+  const promptSlug =
+    prompt
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 24) || "reminder";
+  const baseId = `reminder-${datePart}-${promptSlug}`;
+  const existingIds = new Set(
+    existingJobs.map((job) => {
+      return job.id;
+    }),
+  );
+
+  if (!existingIds.has(baseId)) {
+    return baseId;
+  }
+
+  let suffix = 2;
+  while (existingIds.has(`${baseId}-${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${baseId}-${suffix}`;
+}
+
+function stringifyCommandError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }

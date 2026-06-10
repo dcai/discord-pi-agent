@@ -1,9 +1,14 @@
 import type { Client, TextBasedChannel } from "discord.js";
 import { chunkMessage } from "./message-chunker";
 import { createModuleLogger } from "./logger";
-import type { ScheduledTaskDefinition, TaskResultTarget } from "./types";
+import type { TaskResultTarget } from "./types";
 
 const logger = createModuleLogger("scheduled-job-delivery");
+
+type DeliverableJob = {
+  id: string;
+  result?: TaskResultTarget;
+};
 
 export class ScheduledJobDeliveryService {
   private readonly client: Client | null;
@@ -12,10 +17,7 @@ export class ScheduledJobDeliveryService {
     this.client = client;
   }
 
-  async deliverResult(
-    job: ScheduledTaskDefinition,
-    text: string,
-  ): Promise<void> {
+  async deliverResult(job: DeliverableJob, text: string): Promise<void> {
     const resultTarget = job.result ?? { target: "logs" as const };
     const message = `## Scheduled job: ${job.id}\n\n${text}`;
 
@@ -43,13 +45,15 @@ export class ScheduledJobDeliveryService {
     await sendChunkedText(channel, message);
   }
 
-  async deliverError(job: ScheduledTaskDefinition, error: unknown): Promise<void> {
+  async deliverError(job: DeliverableJob, error: unknown): Promise<void> {
     const message = `Job failed: ${stringifyError(error)}`;
     logger.error({ error, jobId: job.id }, "scheduled job failed");
     await this.deliverResult(job, message);
   }
 
-  private requireClient(target: Exclude<TaskResultTarget, { target: "logs" }>): Client {
+  private requireClient(
+    target: Exclude<TaskResultTarget, { target: "logs" }>,
+  ): Client {
     if (!this.client) {
       throw new Error(
         `Scheduled job delivery target ${target.target} requires a Discord client.`,
