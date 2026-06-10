@@ -5,8 +5,10 @@ import type { SessionScope } from "./session-registry";
 import { sessionDirForScope } from "./session-registry";
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
+  TaskJobRuntimeState,
   TaskResultTarget,
   TaskSchedule,
+  TaskSchedulerStatus,
   TaskSessionTarget,
   ThinkingLevel,
 } from "./types";
@@ -419,53 +421,58 @@ async function handleJobsCommand(
   }
 
   if (trimmedInput === "!jobs reload") {
-    const status = await context.taskScheduler.reload();
+    const reloadedStatus = await context.taskScheduler.reload();
+    const jobs = context.taskScheduler.listJobs();
 
     return {
       handled: true,
-      response: [
-        "Task scheduler reloaded.",
-        `jobs-file: ${status.jobsFile}`,
-        `job-count: ${status.jobCount}`,
-        `running: ${status.running}`,
-        `next-tick-at: ${status.nextTickAt ?? "(none)"}`,
-      ].join("\n"),
+      response: formatJobsResponse(reloadedStatus, jobs, ["Task scheduler reloaded."]),
     };
   }
 
   const status = context.taskScheduler.getStatus();
   const jobs = context.taskScheduler.listJobs();
 
-  if (jobs.length === 0) {
-    return {
-      handled: true,
-      response: [
-        "Task scheduler is enabled, but no jobs are loaded.",
-        `jobs-file: ${status.jobsFile}`,
-      ].join("\n"),
-    };
-  }
-
   return {
     handled: true,
-    response: [
-      `task-scheduler-running: ${status.running}`,
+    response: formatJobsResponse(status, jobs),
+  };
+}
+
+function formatJobsResponse(
+  status: TaskSchedulerStatus,
+  jobs: Array<TaskJobRuntimeState>,
+  prefixLines: Array<string> = [],
+): string {
+  if (jobs.length === 0) {
+    return [
+      ...prefixLines,
+      "Task scheduler is enabled, but no jobs are loaded.",
       `jobs-file: ${status.jobsFile}`,
       `job-count: ${status.jobCount}`,
+      `task-scheduler-running: ${status.running}`,
       `next-tick-at: ${status.nextTickAt ?? "(none)"}`,
-      "",
-      ...jobs.map((job) => {
-        return [
-          `- ${job.id}`,
-          `  schedule: ${formatTaskSchedule(job.schedule)}`,
-          `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
-          `  target: ${formatResultTarget(job.result)}`,
-          `  session: ${formatSessionTarget(job.session)}`,
-          `  running: ${job.running}`,
-        ].join("\n");
-      }),
-    ].join("\n"),
-  };
+    ].join("\n");
+  }
+
+  return [
+    ...prefixLines,
+    `task-scheduler-running: ${status.running}`,
+    `jobs-file: ${status.jobsFile}`,
+    `job-count: ${status.jobCount}`,
+    `next-tick-at: ${status.nextTickAt ?? "(none)"}`,
+    "",
+    ...jobs.map((job) => {
+      return [
+        `- ${job.id}`,
+        `  schedule: ${formatTaskSchedule(job.schedule)}`,
+        `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
+        `  target: ${formatResultTarget(job.result)}`,
+        `  session: ${formatSessionTarget(job.session)}`,
+        `  running: ${job.running}`,
+      ].join("\n");
+    }),
+  ].join("\n");
 }
 
 async function handleJobCommand(

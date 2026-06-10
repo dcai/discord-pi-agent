@@ -4,6 +4,7 @@ import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
 import type { SessionScope } from "./session-registry";
 import type { TaskSchedulerService } from "./task-scheduler-service";
+import type { TaskJobRuntimeState, TaskSchedulerStatus } from "./types";
 import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 
 const DM_SCOPE: SessionScope = "dm";
@@ -542,7 +543,82 @@ describe("executeSessionCommand", () => {
   });
 
   it("reloads scheduled jobs when requested", async () => {
-    const taskScheduler = createTaskSchedulerMock();
+    let status: TaskSchedulerStatus = {
+      jobsFile: "/tmp/scheduled-jobs.ts",
+      jobCount: 1,
+      nextTickAt: "2026-01-01T00:05:00.000Z",
+      running: true,
+    };
+    let jobs: Array<TaskJobRuntimeState> = [
+      {
+        id: "daily-summary",
+        description: "Daily update",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+        },
+        session: {
+          strategy: "dedicated",
+        },
+        result: {
+          target: "discord-dm",
+          userId: "user-1",
+        },
+        nextRunAt: "2026-01-01T09:00:00.000Z",
+        lastRunAt: null,
+        lastSuccessAt: null,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+        running: false,
+      },
+    ];
+    const reload = vi.fn().mockImplementation(async () => {
+      status = {
+        jobsFile: "/tmp/scheduled-jobs.ts",
+        jobCount: 2,
+        nextTickAt: "2026-01-01T00:05:00.000Z",
+        running: true,
+      };
+      jobs = [
+        ...jobs,
+        {
+          id: "hello-dm",
+          description: "Send a hello DM",
+          schedule: {
+            type: "daily-at",
+            hour: 19,
+            minute: 50,
+            timeZone: "UTC",
+          },
+          session: {
+            strategy: "dedicated",
+          },
+          result: {
+            target: "discord-dm",
+            userId: "user-2",
+          },
+          nextRunAt: "2026-01-01T19:50:00.000Z",
+          lastRunAt: null,
+          lastSuccessAt: null,
+          lastErrorAt: null,
+          lastErrorMessage: null,
+          running: false,
+        },
+      ];
+
+      return status;
+    });
+    const taskScheduler = createTaskSchedulerMock({
+      getStatus: () => {
+        return status;
+      },
+      listJobs: () => {
+        return jobs;
+      },
+      reload,
+    });
 
     const result = await executeSessionCommand("!jobs reload", {
       agentService: createAgentServiceMock(createSessionMock()),
@@ -552,17 +628,17 @@ describe("executeSessionCommand", () => {
       workingEmoji: "⚙️",
     });
 
-    expect(taskScheduler.reload).toHaveBeenCalledTimes(1);
-    expect(result).toEqual({
-      handled: true,
-      response: [
-        "Task scheduler reloaded.",
-        "jobs-file: /tmp/scheduled-jobs.ts",
-        "job-count: 2",
-        "running: true",
-        "next-tick-at: 2026-01-01T00:05:00.000Z",
-      ].join("\n"),
-    });
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(result.handled).toBe(true);
+    const response = result.response ?? "";
+    expect(response).toContain("Task scheduler reloaded.");
+    expect(response).toContain("jobs-file: /tmp/scheduled-jobs.ts");
+    expect(response).toContain("job-count: 2");
+    expect(response).toContain("task-scheduler-running: true");
+    expect(response).toContain("next-tick-at: 2026-01-01T00:05:00.000Z");
+    expect(response).toContain("- daily-summary");
+    expect(response).toContain("- hello-dm");
+    expect(response).toContain("schedule: daily at 19:50 (UTC)");
   });
 
   it("builds a scheduler-aware agent prompt for !job update", async () => {
