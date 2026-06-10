@@ -1,4 +1,4 @@
-import type { Client, TextBasedChannel } from "discord.js";
+import { MessageFlags, type Client, type TextBasedChannel } from "discord.js";
 import { chunkMessage } from "./message-chunker";
 import { createModuleLogger } from "./logger";
 import type { TaskResultTarget } from "./types";
@@ -70,11 +70,17 @@ async function sendChunkedText(
 ): Promise<void> {
   const chunks = chunkMessage(text);
   const sendableChannel = channel as TextBasedChannel & {
-    send: (value: string) => Promise<unknown>;
+    send: (value: {
+      content: string;
+      flags: MessageFlags;
+    }) => Promise<unknown>;
   };
 
   for (const chunk of chunks) {
-    await sendableChannel.send(chunk);
+    await sendableChannel.send({
+      content: chunk,
+      flags: MessageFlags.SuppressEmbeds,
+    });
   }
 }
 

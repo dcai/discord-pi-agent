@@ -220,6 +220,8 @@ Examples:
 - `discord-dm`
 - `discord-channel` — can also target a thread by using the thread ID
 
+Discord scheduled job deliveries intentionally send each message chunk with embeds suppressed. This keeps digest-style jobs clean when the model includes links. If you still want clickable links without previews, format them as `<https://example.com>` in the prompt or model output.
+
 ## Config
 
 ### Required
