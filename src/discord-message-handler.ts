@@ -30,6 +30,7 @@ import type {
   SessionRegistry,
   SessionScope,
 } from "./session-registry";
+import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   GatewayAccessConfig,
   ResolvedDiscordGatewayConfig,
@@ -58,6 +59,7 @@ export async function handleDiscordMessage(
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
+  taskScheduler?: TaskSchedulerService | null,
 ): Promise<void> {
   const preparedMessage = await prepareDiscordMessage(message, accessConfig);
   if (!preparedMessage) {
@@ -84,6 +86,7 @@ export async function handleDiscordMessage(
     agentService,
     promptQueue: entry.promptQueue,
     session: entry.session,
+    taskScheduler,
     scope: preparedMessage.scope,
     workingEmoji: entry.workingEmoji,
   });

@@ -132,6 +132,7 @@ describe("startGatewayClient", () => {
       expect.anything(),
       sessionRegistry,
       accessConfig,
+      undefined,
     );
 
     await threadDeleteHandler?.({ id: "thread-1" });

@@ -3,6 +3,7 @@ import { executeSessionCommand } from "./session-commands";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
 import type { SessionScope } from "./session-registry";
+import type { TaskSchedulerService } from "./task-scheduler-service";
 import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 
 const DM_SCOPE: SessionScope = "dm";
@@ -76,6 +77,80 @@ function createAgentServiceMock(
   } as unknown as AgentService;
 }
 
+function createTaskSchedulerMock(
+  overrides: Partial<TaskSchedulerService> = {},
+): TaskSchedulerService {
+  return {
+    getStatus: () => ({
+      jobsFile: "/tmp/scheduled-jobs.ts",
+      jobCount: 1,
+      nextTickAt: "2026-01-01T00:05:00.000Z",
+      running: true,
+    }),
+    listJobs: () => [
+      {
+        id: "daily-summary",
+        description: "Daily update",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+        },
+        session: {
+          strategy: "dedicated",
+        },
+        result: {
+          target: "discord-dm",
+          userId: "user-1",
+        },
+        nextRunAt: "2026-01-01T09:00:00.000Z",
+        lastRunAt: null,
+        lastSuccessAt: null,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+        running: false,
+      },
+    ],
+    getJob: (jobId: string) => {
+      if (jobId !== "daily-summary") {
+        return null;
+      }
+
+      return {
+        id: "daily-summary",
+        description: "Daily update",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+        },
+        session: {
+          strategy: "dedicated",
+        },
+        result: {
+          target: "discord-dm",
+          userId: "user-1",
+        },
+        nextRunAt: "2026-01-01T09:00:00.000Z",
+        lastRunAt: null,
+        lastSuccessAt: null,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+        running: false,
+      };
+    },
+    reload: vi.fn().mockResolvedValue({
+      jobsFile: "/tmp/scheduled-jobs.ts",
+      jobCount: 2,
+      nextTickAt: "2026-01-01T00:05:00.000Z",
+      running: true,
+    }),
+    ...overrides,
+  } as unknown as TaskSchedulerService;
+}
+
 describe("executeSessionCommand", () => {
   it("returns handled false for non-command input", async () => {
     const result = await executeSessionCommand("hello", {
@@ -106,6 +181,7 @@ describe("executeSessionCommand", () => {
     const dmResult = await executeSessionCommand("!help", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -116,6 +192,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
       session: createSessionMock(),
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -126,6 +203,7 @@ describe("executeSessionCommand", () => {
         "!archive - archive this thread and end the session",
       ),
     });
+    expect(dmResult.response).toContain("!jobs - list loaded scheduled jobs");
   });
 
   it("shows status including queue, tools, skills, and extensions", async () => {
@@ -139,6 +217,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue,
       session,
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -170,6 +249,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -199,6 +279,7 @@ describe("executeSessionCommand", () => {
       agentService,
       promptQueue: createPromptQueueMock(),
       session,
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -217,6 +298,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -277,6 +359,7 @@ describe("executeSessionCommand", () => {
         agentService,
         promptQueue: createPromptQueueMock(),
         session,
+        taskScheduler: createTaskSchedulerMock(),
         scope: DM_SCOPE,
         workingEmoji: "⚙️",
       },
@@ -294,6 +377,7 @@ describe("executeSessionCommand", () => {
     const dmResult = await executeSessionCommand("!archive", {
       agentService: createAgentServiceMock(null),
       promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -308,6 +392,7 @@ describe("executeSessionCommand", () => {
       agentService: createAgentServiceMock(session),
       promptQueue: createPromptQueueMock(),
       session,
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -328,6 +413,7 @@ describe("executeSessionCommand", () => {
       agentService,
       promptQueue,
       session,
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -335,6 +421,7 @@ describe("executeSessionCommand", () => {
       agentService,
       promptQueue,
       session,
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -361,6 +448,7 @@ describe("executeSessionCommand", () => {
       agentService: threadAgentService,
       promptQueue: threadQueue,
       session: threadSession,
+      taskScheduler: createTaskSchedulerMock(),
       scope: "thread:123" as SessionScope,
       workingEmoji: "⚙️",
     });
@@ -383,6 +471,7 @@ describe("executeSessionCommand", () => {
       agentService: dmAgentService,
       promptQueue: createPromptQueueMock(),
       session: dmSession,
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -404,6 +493,7 @@ describe("executeSessionCommand", () => {
     const result = await executeSessionCommand("!wat", {
       agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
@@ -411,6 +501,88 @@ describe("executeSessionCommand", () => {
     expect(result).toEqual({
       handled: true,
       response: "Unknown command: !wat. Try !help.",
+    });
+  });
+
+  it("lists scheduled jobs from runtime state", async () => {
+    const result = await executeSessionCommand("!jobs", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: expect.stringContaining("- daily-summary"),
+    });
+    expect(result.response).toContain("schedule: daily at 09:00 (UTC)");
+    expect(result.response).toContain("target: discord-dm:user-1");
+  });
+
+  it("shows one scheduled job from runtime state", async () => {
+    const result = await executeSessionCommand("!job daily-summary", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: expect.stringContaining("id: daily-summary"),
+    });
+    expect(result.response).toContain("description: Daily update");
+    expect(result.response).toContain("next-run-at: 2026-01-01T09:00:00.000Z");
+  });
+
+  it("reloads scheduled jobs when requested", async () => {
+    const taskScheduler = createTaskSchedulerMock();
+
+    const result = await executeSessionCommand("!jobs reload", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler,
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(taskScheduler.reload).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      handled: true,
+      response: [
+        "Task scheduler reloaded.",
+        "jobs-file: /tmp/scheduled-jobs.ts",
+        "job-count: 2",
+        "running: true",
+        "next-tick-at: 2026-01-01T00:05:00.000Z",
+      ].join("\n"),
+    });
+  });
+
+  it("reports when scheduler commands are used without a scheduler", async () => {
+    const jobsResult = await executeSessionCommand("!jobs", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+    const jobResult = await executeSessionCommand("!job missing", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(jobsResult).toEqual({
+      handled: true,
+      response: "Task scheduler is not enabled.",
+    });
+    expect(jobResult).toEqual({
+      handled: true,
+      response: "Task scheduler is not enabled.",
     });
   });
 });

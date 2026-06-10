@@ -5,6 +5,7 @@ import { handleDiscordMessage } from "./discord-message-handler";
 import { sendReply } from "./discord-replies";
 import { createModuleLogger } from "./logger";
 import type { SessionRegistry, SessionScope } from "./session-registry";
+import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   GatewayAccessConfig,
   ResolvedDiscordGatewayConfig,
@@ -17,6 +18,7 @@ export async function startGatewayClient(
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
+  taskScheduler?: TaskSchedulerService | null,
 ): Promise<Client> {
   const client = createDiscordClient(config, accessConfig);
 
@@ -28,6 +30,7 @@ export async function startGatewayClient(
         agentService,
         sessionRegistry,
         accessConfig,
+        taskScheduler,
       );
     } catch (error) {
       logger.error({ error, direction: "IN" }, "message handling failed");

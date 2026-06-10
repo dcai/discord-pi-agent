@@ -203,4 +203,86 @@ describe("TaskSchedulerService", () => {
       expect.any(Error),
     );
   });
+
+  it("lists jobs with runtime state and reloads definitions", async () => {
+    const { service } = createService([
+      {
+        id: "daily-summary",
+        prompt: "Write the summary",
+        description: "Daily update",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+        },
+        result: {
+          target: "logs",
+        },
+      },
+    ]);
+
+    const scheduledJobLoader = await import("./scheduled-job-loader");
+    const loadScheduledJobsSpy = vi
+      .spyOn(scheduledJobLoader, "loadScheduledJobs")
+      .mockResolvedValue([
+        {
+          id: "heartbeat",
+          prompt: "Ping",
+          schedule: {
+            type: "every-minutes",
+            interval: 15,
+          },
+        },
+      ]);
+
+    expect(service.getJob("daily-summary")).toEqual({
+      id: "daily-summary",
+      description: "Daily update",
+      schedule: {
+        type: "daily-at",
+        hour: 9,
+        minute: 0,
+        timeZone: "UTC",
+      },
+      session: undefined,
+      result: {
+        target: "logs",
+      },
+      nextRunAt: "2026-01-01T09:00:00.000Z",
+      lastRunAt: null,
+      lastSuccessAt: null,
+      lastErrorAt: null,
+      lastErrorMessage: null,
+      running: false,
+    });
+
+    await expect(service.reload()).resolves.toEqual({
+      jobsFile: "/repo/scheduled-jobs.ts",
+      jobCount: 1,
+      nextTickAt: null,
+      running: false,
+    });
+    expect(loadScheduledJobsSpy).toHaveBeenCalledWith({
+      jobsFile: "/repo/scheduled-jobs.ts",
+    });
+    expect(service.listJobs()).toEqual([
+      {
+        id: "heartbeat",
+        description: undefined,
+        schedule: {
+          type: "every-minutes",
+          interval: 15,
+        },
+        session: undefined,
+        result: undefined,
+        nextRunAt: "2026-01-01T00:15:00.000Z",
+        lastRunAt: null,
+        lastSuccessAt: null,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+        running: false,
+      },
+    ]);
+  });
 });

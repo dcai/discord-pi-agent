@@ -6,9 +6,11 @@ import type {
   ResolvedDiscordGatewayConfig,
   ResolvedTaskSchedulerConfig,
   ScheduledTaskDefinition,
+  TaskJobRuntimeState,
   TaskSchedulerStatus,
 } from "./types";
 import { ScheduledJobDeliveryService } from "./scheduled-job-delivery";
+import { loadScheduledJobs } from "./scheduled-job-loader";
 
 const logger = createModuleLogger("task-scheduler-service");
 
@@ -25,12 +27,22 @@ type RunDecision = {
   runKey: string;
 };
 
+type MutableJobState = {
+  definition: ScheduledTaskDefinition;
+  lastRunAt: Date | null;
+  lastSuccessAt: Date | null;
+  lastErrorAt: Date | null;
+  lastErrorMessage: string | null;
+  running: boolean;
+};
+
 export class TaskSchedulerService {
   private readonly config: ResolvedDiscordGatewayConfig;
   private readonly schedulerConfig: ResolvedTaskSchedulerConfig;
-  private readonly jobs: ScheduledTaskDefinition[];
+  private jobs: ScheduledTaskDefinition[];
   private readonly sessionRegistry: SessionRegistry;
   private deliveryService: ScheduledJobDeliveryService;
+  private jobStates = new Map<string, MutableJobState>();
   private readonly lastRunKeys = new Map<string, string>();
   private timeoutId: NodeJS.Timeout | null = null;
   private nextTickAt: Date | null = null;
@@ -42,6 +54,7 @@ export class TaskSchedulerService {
     this.jobs = options.jobs;
     this.sessionRegistry = options.sessionRegistry;
     this.deliveryService = options.deliveryService;
+    this.jobStates = buildJobStateMap(options.jobs, this.jobStates);
   }
 
   start(): void {
@@ -67,6 +80,38 @@ export class TaskSchedulerService {
       nextTickAt: this.nextTickAt ? this.nextTickAt.toISOString() : null,
       running: this.running,
     };
+  }
+
+  listJobs(now: Date = new Date()): TaskJobRuntimeState[] {
+    return this.jobs.map((job) => {
+      return this.getJobState(job.id, now);
+    });
+  }
+
+  getJob(jobId: string, now: Date = new Date()): TaskJobRuntimeState | null {
+    return this.jobStates.has(jobId) ? this.getJobState(jobId, now) : null;
+  }
+
+  async reload(): Promise<TaskSchedulerStatus> {
+    const reloadedJobs = await loadScheduledJobs(this.schedulerConfig);
+    this.jobs = reloadedJobs;
+    this.jobStates = buildJobStateMap(reloadedJobs, this.jobStates);
+
+    for (const jobId of Array.from(this.lastRunKeys.keys())) {
+      if (!this.jobStates.has(jobId)) {
+        this.lastRunKeys.delete(jobId);
+      }
+    }
+
+    logger.info(
+      {
+        jobsFile: this.schedulerConfig.jobsFile,
+        jobCount: this.jobs.length,
+      },
+      "task scheduler reloaded",
+    );
+
+    return this.getStatus();
   }
 
   stop(): void {
@@ -162,7 +207,15 @@ export class TaskSchedulerService {
 
   private async runJob(job: ScheduledTaskDefinition, now: Date): Promise<void> {
     const scope = resolveJobScope(job);
+    const jobState = this.jobStates.get(job.id);
     logger.info({ jobId: job.id, scope }, "running scheduled job");
+
+    if (jobState) {
+      jobState.running = true;
+      jobState.lastRunAt = now;
+      jobState.lastErrorAt = null;
+      jobState.lastErrorMessage = null;
+    }
 
     try {
       const { entry } = await this.sessionRegistry.getOrCreate(scope);
@@ -172,10 +225,45 @@ export class TaskSchedulerService {
       });
 
       await this.deliveryService.deliverResult(job, response);
+      if (jobState) {
+        jobState.lastSuccessAt = now;
+      }
       logger.info({ jobId: job.id, scope }, "scheduled job finished");
     } catch (error) {
+      if (jobState) {
+        jobState.lastErrorAt = now;
+        jobState.lastErrorMessage = stringifyError(error);
+      }
       await this.deliveryService.deliverError(job, error);
+    } finally {
+      if (jobState) {
+        jobState.running = false;
+      }
     }
+  }
+
+  private getJobState(jobId: string, now: Date): TaskJobRuntimeState {
+    const jobState = this.jobStates.get(jobId);
+
+    if (!jobState) {
+      throw new Error(`Unknown scheduled job: ${jobId}`);
+    }
+
+    return {
+      id: jobState.definition.id,
+      description: jobState.definition.description,
+      schedule: jobState.definition.schedule,
+      session: jobState.definition.session,
+      result: jobState.definition.result,
+      nextRunAt: formatDate(
+        findNextRunAt(jobState.definition, now, this.config.promptTimeZone),
+      ),
+      lastRunAt: formatDate(jobState.lastRunAt),
+      lastSuccessAt: formatDate(jobState.lastSuccessAt),
+      lastErrorAt: formatDate(jobState.lastErrorAt),
+      lastErrorMessage: jobState.lastErrorMessage,
+      running: jobState.running,
+    };
   }
 }
 
@@ -262,4 +350,71 @@ function requirePart(
   }
 
   return part;
+}
+
+function buildJobStateMap(
+  jobs: ScheduledTaskDefinition[],
+  previousState: Map<string, MutableJobState>,
+): Map<string, MutableJobState> {
+  const nextState = new Map<string, MutableJobState>();
+
+  for (const job of jobs) {
+    const previousJobState = previousState.get(job.id);
+
+    nextState.set(job.id, {
+      definition: job,
+      lastRunAt: previousJobState?.lastRunAt ?? null,
+      lastSuccessAt: previousJobState?.lastSuccessAt ?? null,
+      lastErrorAt: previousJobState?.lastErrorAt ?? null,
+      lastErrorMessage: previousJobState?.lastErrorMessage ?? null,
+      running: false,
+    });
+  }
+
+  return nextState;
+}
+
+function findNextRunAt(
+  job: ScheduledTaskDefinition,
+  now: Date,
+  defaultTimeZone: string,
+): Date | null {
+  const candidate = toMinuteBoundary(new Date(now));
+  candidate.setMinutes(candidate.getMinutes() + 1);
+
+  for (let offset = 0; offset < 60 * 48; offset += 1) {
+    const attempt = new Date(candidate);
+    attempt.setMinutes(candidate.getMinutes() + offset);
+
+    if (job.schedule.type === "every-minutes") {
+      const minuteKey = Math.floor(attempt.getTime() / 60_000);
+      if (minuteKey % job.schedule.interval === 0) {
+        return attempt;
+      }
+      continue;
+    }
+
+    const timeZone = job.schedule.timeZone ?? defaultTimeZone;
+    const parts = getTimeParts(attempt, timeZone);
+    if (
+      parts.hour === job.schedule.hour &&
+      parts.minute === job.schedule.minute
+    ) {
+      return attempt;
+    }
+  }
+
+  return null;
+}
+
+function formatDate(value: Date | null): string | null {
+  return value ? value.toISOString() : null;
+}
+
+function stringifyError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }

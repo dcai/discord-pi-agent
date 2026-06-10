@@ -143,6 +143,7 @@ async function startRuntime(
       agentService,
       sessionRegistry,
       accessConfig,
+      taskScheduler,
     );
   } else if (taskScheduler?.usesDiscordDelivery()) {
     client = createDiscordClient(resolvedConfig, accessConfig);

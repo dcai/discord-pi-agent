@@ -216,6 +216,7 @@ describe("startDiscordGateway", () => {
         discordAllowedUserIds: ["user-1", "user-2"],
         startupMessage: false,
       },
+      null,
     );
     expect(gateway.client).toBe(client);
     expect(gateway.getStatus()).toEqual({
@@ -301,6 +302,18 @@ describe("startDiscordGateway", () => {
     expect(loadScheduledJobsMock).toHaveBeenCalled();
     expect(taskScheduler.start).toHaveBeenCalledTimes(1);
     expect(taskScheduler.setDeliveryService).toHaveBeenCalledTimes(1);
+    expect(startGatewayClientMock).toHaveBeenCalledWith(
+      resolvedConfig,
+      expect.anything(),
+      expect.anything(),
+      {
+        discordAllowedUserId: "user-1",
+        discordAllowedForumChannelIds: ["forum-1"],
+        discordAllowedUserIds: ["user-1", "user-2"],
+        startupMessage: false,
+      },
+      taskScheduler,
+    );
     expect(gateway.getTaskSchedulerStatus()).toEqual({
       jobsFile: "/repo/scheduled-jobs.ts",
       jobCount: 1,

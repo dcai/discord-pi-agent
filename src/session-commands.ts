@@ -3,7 +3,13 @@ import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
 import type { SessionScope } from "./session-registry";
 import { sessionDirForScope } from "./session-registry";
-import type { ThinkingLevel } from "./types";
+import type { TaskSchedulerService } from "./task-scheduler-service";
+import type {
+  TaskResultTarget,
+  TaskSchedule,
+  TaskSessionTarget,
+  ThinkingLevel,
+} from "./types";
 
 export type CommandResult = {
   handled: boolean;
@@ -20,6 +26,7 @@ export type CommandContext = {
   agentService: AgentService;
   promptQueue: PromptQueue;
   session?: AgentSession;
+  taskScheduler?: TaskSchedulerService | null;
   /** Session scope ("dm" or "thread:<id>") for session lifecycle commands. */
   scope: SessionScope;
   /** Current working reaction emoji for this session. */
@@ -122,6 +129,9 @@ async function handleHelpCommand(
       "!compact - compact the persistent session",
       "!reset-session - start a fresh persistent session",
       "!reload - reload resources (AGENTS.md, extensions, skills, etc.)",
+      "!jobs - list loaded scheduled jobs",
+      "!job <id> - show one scheduled job",
+      "!jobs reload - reload scheduled jobs from the jobs file",
       "!reaction - show or set the working reaction emoji",
       extraCommands,
       "Any other text goes to the agent session.",
@@ -392,6 +402,160 @@ async function handleReactionCommand(
   };
 }
 
+async function handleJobsCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (trimmedInput !== "!jobs" && trimmedInput !== "!jobs reload") {
+    return null;
+  }
+
+  if (!context.taskScheduler) {
+    return {
+      handled: true,
+      response: "Task scheduler is not enabled.",
+    };
+  }
+
+  if (trimmedInput === "!jobs reload") {
+    const status = await context.taskScheduler.reload();
+
+    return {
+      handled: true,
+      response: [
+        "Task scheduler reloaded.",
+        `jobs-file: ${status.jobsFile}`,
+        `job-count: ${status.jobCount}`,
+        `running: ${status.running}`,
+        `next-tick-at: ${status.nextTickAt ?? "(none)"}`,
+      ].join("\n"),
+    };
+  }
+
+  const status = context.taskScheduler.getStatus();
+  const jobs = context.taskScheduler.listJobs();
+
+  if (jobs.length === 0) {
+    return {
+      handled: true,
+      response: [
+        "Task scheduler is enabled, but no jobs are loaded.",
+        `jobs-file: ${status.jobsFile}`,
+      ].join("\n"),
+    };
+  }
+
+  return {
+    handled: true,
+    response: [
+      `task-scheduler-running: ${status.running}`,
+      `jobs-file: ${status.jobsFile}`,
+      `job-count: ${status.jobCount}`,
+      `next-tick-at: ${status.nextTickAt ?? "(none)"}`,
+      "",
+      ...jobs.map((job) => {
+        return [
+          `- ${job.id}`,
+          `  schedule: ${formatTaskSchedule(job.schedule)}`,
+          `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
+          `  target: ${formatResultTarget(job.result)}`,
+          `  session: ${formatSessionTarget(job.session)}`,
+          `  running: ${job.running}`,
+        ].join("\n");
+      }),
+    ].join("\n"),
+  };
+}
+
+async function handleJobCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (!trimmedInput.startsWith("!job")) {
+    return null;
+  }
+
+  if (!context.taskScheduler) {
+    return {
+      handled: true,
+      response: "Task scheduler is not enabled.",
+    };
+  }
+
+  const parts = trimmedInput.split(" ");
+  if (parts.length !== 2) {
+    return {
+      handled: true,
+      response: "Usage: !job <id>",
+    };
+  }
+
+  const job = context.taskScheduler.getJob(parts[1]);
+  if (!job) {
+    return {
+      handled: true,
+      response: `Scheduled job not found: ${parts[1]}`,
+    };
+  }
+
+  return {
+    handled: true,
+    response: [
+      `id: ${job.id}`,
+      `description: ${job.description ?? "(none)"}`,
+      `schedule: ${formatTaskSchedule(job.schedule)}`,
+      `session: ${formatSessionTarget(job.session)}`,
+      `result: ${formatResultTarget(job.result)}`,
+      `next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
+      `last-run-at: ${job.lastRunAt ?? "(never)"}`,
+      `last-success-at: ${job.lastSuccessAt ?? "(never)"}`,
+      `last-error-at: ${job.lastErrorAt ?? "(never)"}`,
+      `last-error: ${job.lastErrorMessage ?? "(none)"}`,
+      `running: ${job.running}`,
+    ].join("\n"),
+  };
+}
+
+function formatTaskSchedule(
+  schedule: TaskSchedule,
+): string {
+  if (schedule.type === "every-minutes") {
+    return `every ${schedule.interval} minute(s)`;
+  }
+
+  return `daily at ${String(schedule.hour).padStart(2, "0")}:${String(
+    schedule.minute,
+  ).padStart(2, "0")} (${schedule.timeZone ?? "default timezone"})`;
+}
+
+function formatResultTarget(
+  result: TaskResultTarget | undefined,
+): string {
+  if (!result) {
+    return "logs";
+  }
+
+  if (result.target === "logs") {
+    return "logs";
+  }
+
+  if (result.target === "discord-dm") {
+    return `discord-dm:${result.userId}`;
+  }
+
+  return `discord-channel:${result.channelId}`;
+}
+
+function formatSessionTarget(
+  session: TaskSessionTarget | undefined,
+): string {
+  if (!session || session.strategy === "dedicated") {
+    return "dedicated";
+  }
+
+  return session.strategy === "scope" ? `scope:${session.scope}` : "dedicated";
+}
+
 const commandHandlers: CommandHandler[] = [
   handleHelpCommand,
   handleArchiveCommand,
@@ -400,6 +564,8 @@ const commandHandlers: CommandHandler[] = [
   handleModelCommand,
   handleCompactCommand,
   handleReloadCommand,
+  handleJobsCommand,
+  handleJobCommand,
   handleResetSessionCommand,
   handleReactionCommand,
 ];

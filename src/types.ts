@@ -157,6 +157,20 @@ export type TaskSchedulerStatus = {
   running: boolean;
 };
 
+export type TaskJobRuntimeState = {
+  id: string;
+  description?: string;
+  schedule: TaskSchedule;
+  session: TaskSessionTarget | undefined;
+  result: TaskResultTarget | undefined;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  lastErrorMessage: string | null;
+  running: boolean;
+};
+
 export type DiscordGateway = {
   client: Client;
   stop: () => Promise<void>;
