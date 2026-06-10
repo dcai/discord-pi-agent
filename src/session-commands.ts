@@ -14,6 +14,7 @@ import type {
 export type CommandResult = {
   handled: boolean;
   response?: string;
+  forwardedInput?: string;
   /** Set to true when the command wants to archive the current thread. */
   archive?: boolean;
   /** When set, update the session's working reaction emoji. */
@@ -516,6 +517,38 @@ async function handleJobCommand(
   };
 }
 
+async function handleJobUpdateCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (!trimmedInput.startsWith("!job update")) {
+    return null;
+  }
+
+  if (!context.taskScheduler) {
+    return {
+      handled: true,
+      response: "Task scheduler is not enabled.",
+    };
+  }
+
+  const request = trimmedInput.slice("!job update".length).trim();
+  if (!request) {
+    return {
+      handled: true,
+      response: "Usage: !job update <what you want changed>",
+    };
+  }
+
+  const schedulerStatus = context.taskScheduler.getStatus();
+  const jobs = context.taskScheduler.listJobs();
+
+  return {
+    handled: false,
+    forwardedInput: buildJobUpdatePrompt(request, schedulerStatus.jobsFile, jobs),
+  };
+}
+
 function formatTaskSchedule(
   schedule: TaskSchedule,
 ): string {
@@ -556,6 +589,48 @@ function formatSessionTarget(
   return session.strategy === "scope" ? `scope:${session.scope}` : "dedicated";
 }
 
+function buildJobUpdatePrompt(
+  request: string,
+  jobsFile: string,
+  jobs: ReturnType<TaskSchedulerService["listJobs"]>,
+): string {
+  const jobSummary = jobs.length
+    ? jobs
+        .map((job) => {
+          return [
+            `- id: ${job.id}`,
+            `  schedule: ${formatTaskSchedule(job.schedule)}`,
+            `  session: ${formatSessionTarget(job.session)}`,
+            `  result: ${formatResultTarget(job.result)}`,
+            `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
+            `  last-error: ${job.lastErrorMessage ?? "(none)"}`,
+          ].join("\n");
+        })
+        .join("\n")
+    : "(no jobs loaded)";
+
+  return [
+    "Update the scheduled jobs configuration for this repository.",
+    "",
+    `Jobs file: ${jobsFile}`,
+    "",
+    "Loaded scheduler runtime state:",
+    jobSummary,
+    "",
+    "User request:",
+    request,
+    "",
+    "Requirements:",
+    "- Edit the scheduled jobs file, not runtime state directly.",
+    "- Preserve unrelated jobs and unrelated fields unless the user asked to change them.",
+    "- Use the loaded runtime state for context, then read the jobs file if you need full source details.",
+    "- If the target job is missing or ambiguous, inspect the jobs file and explain what you found.",
+    "- After editing, remind the user to run `!jobs reload` to reload the scheduler.",
+    "- Also remind the user to run `!jobs` to see the latest scheduled jobs.",
+    "- Do not claim the live scheduler has changed until `!jobs reload` is run.",
+  ].join("\n");
+}
+
 const commandHandlers: CommandHandler[] = [
   handleHelpCommand,
   handleArchiveCommand,
@@ -565,6 +640,7 @@ const commandHandlers: CommandHandler[] = [
   handleCompactCommand,
   handleReloadCommand,
   handleJobsCommand,
+  handleJobUpdateCommand,
   handleJobCommand,
   handleResetSessionCommand,
   handleReactionCommand,

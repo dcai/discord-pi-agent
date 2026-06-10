@@ -447,6 +447,36 @@ describe("handleDiscordMessage", () => {
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
   });
 
+  it("forwards command-built input into the agent prompt pipeline", async () => {
+    const config = createConfig();
+    const registry = createSessionRegistry();
+    const message = createMessage({ content: "!job update hello-dm" });
+
+    executeSessionCommandMock.mockResolvedValue({
+      handled: false,
+      forwardedInput: "scheduler aware prompt",
+    });
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "transformed:scheduler aware prompt",
+      expect.objectContaining({
+        images: undefined,
+        onToolStart: expect.any(Function),
+        onToolEnd: expect.any(Function),
+      }),
+    );
+    expect(sendReplyMock).toHaveBeenCalledWith(message, "agent reply");
+  });
+
   it("sends queue notice, resolves media, and still cleans up on prompt failure", async () => {
     const config = createConfig();
     const session = createSession();

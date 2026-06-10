@@ -109,7 +109,12 @@ export async function handleDiscordMessage(
     config,
     agentService,
     entry,
-    preparedMessage,
+    commandResult.forwardedInput
+      ? {
+          ...preparedMessage,
+          content: commandResult.forwardedInput,
+        }
+      : preparedMessage,
     channelKey,
   );
 }

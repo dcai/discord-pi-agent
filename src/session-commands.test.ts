@@ -204,6 +204,9 @@ describe("executeSessionCommand", () => {
       ),
     });
     expect(dmResult.response).toContain("!jobs - list loaded scheduled jobs");
+    expect(dmResult.response).toContain(
+      "!jobs reload - reload scheduled jobs from the jobs file",
+    );
   });
 
   it("shows status including queue, tools, skills, and extensions", async () => {
@@ -562,6 +565,49 @@ describe("executeSessionCommand", () => {
     });
   });
 
+  it("builds a scheduler-aware agent prompt for !job update", async () => {
+    const result = await executeSessionCommand(
+      "!job update can you update hello-dm to run 19:50 every day",
+      {
+        agentService: createAgentServiceMock(createSessionMock()),
+        promptQueue: createPromptQueueMock(),
+        taskScheduler: createTaskSchedulerMock(),
+        scope: DM_SCOPE,
+        workingEmoji: "⚙️",
+      },
+    );
+
+    expect(result).toEqual({
+      handled: false,
+      forwardedInput: expect.stringContaining(
+        "User request:\ncan you update hello-dm to run 19:50 every day",
+      ),
+    });
+    expect(result.forwardedInput).toContain("Jobs file: /tmp/scheduled-jobs.ts");
+    expect(result.forwardedInput).toContain("Loaded scheduler runtime state:");
+    expect(result.forwardedInput).toContain(
+      "- After editing, remind the user to run `!jobs reload` to reload the scheduler.",
+    );
+    expect(result.forwardedInput).toContain(
+      "- Also remind the user to run `!jobs` to see the latest scheduled jobs.",
+    );
+  });
+
+  it("shows usage when !job update has no freeform request", async () => {
+    const result = await executeSessionCommand("!job update", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: "Usage: !job update <what you want changed>",
+    });
+  });
+
   it("reports when scheduler commands are used without a scheduler", async () => {
     const jobsResult = await executeSessionCommand("!jobs", {
       agentService: createAgentServiceMock(createSessionMock()),
@@ -575,12 +621,22 @@ describe("executeSessionCommand", () => {
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
+    const jobUpdateResult = await executeSessionCommand("!job update fix it", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
 
     expect(jobsResult).toEqual({
       handled: true,
       response: "Task scheduler is not enabled.",
     });
     expect(jobResult).toEqual({
+      handled: true,
+      response: "Task scheduler is not enabled.",
+    });
+    expect(jobUpdateResult).toEqual({
       handled: true,
       response: "Task scheduler is not enabled.",
     });

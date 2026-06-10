@@ -23,13 +23,14 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - `!reload`
 - `!jobs`
 - `!job <id>`
+- `!job update <freeform request>`
 - `!jobs reload`
 - `!reset-session`
 - `!archive` (forum threads only — archives the thread and shuts down the session)
 
 Any other text is sent to the active session (DM or thread).
 
-When the scheduler is enabled, `!jobs` and `!job <id>` read the loaded runtime state, and `!jobs reload` reloads the jobs file without restarting the process.
+When the scheduler is enabled, `!jobs` and `!job <id>` read the loaded runtime state, `!jobs reload` reloads the jobs file without restarting the process, and `!job update <freeform request>` turns your request into a scheduler-aware agent prompt that edits the jobs file in the normal agentic way.
 
 ## Prompt metadata
 
