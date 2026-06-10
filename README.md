@@ -33,7 +33,7 @@ Any other text is sent to the active session (DM or thread).
 
 When the scheduler is enabled, `!jobs` shows the loaded runtime state with a prompt preview for each job, `!job <id>` shows one job with its full prompt, `!jobs reload` reloads the jobs file without restarting the process, and `!job update <freeform request>` turns your request into a scheduler-aware agent prompt that edits the jobs file in the normal agentic way.
 
-`!remind <when>, <task>` creates a one-off runtime reminder from natural language. It is parsed through a temporary in-memory agent session, shows up in `!jobs`, runs once, and is then forgotten. It is not written back to the scheduled jobs file.
+`!remind <when>, <task>` creates a one-off runtime reminder from natural language. It is parsed through a temporary in-memory agent session, shows up in `!jobs`, runs once, and is then forgotten. It is not written back to the scheduled jobs file. Runtime reminders always target the current Discord conversation by saving `message.channel.id` as a `discord-channel` result target. In a DM, that is the DM channel ID. In a forum thread, that is the thread ID.
 
 ## Prompt metadata
 

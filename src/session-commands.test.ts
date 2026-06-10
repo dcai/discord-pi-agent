@@ -647,6 +647,36 @@ describe("executeSessionCommand", () => {
         "run-at: 2026-01-02T04:00:00.000Z",
         "source: runtime",
         "target: discord-channel:channel-123",
+        "target-resolution: current DM via message.channel.id -> discord-channel:channel-123",
+        "session-mode: fresh",
+      ].join("\n"),
+    });
+  });
+
+  it("notes how thread reminders resolve their result target", async () => {
+    const taskScheduler = createTaskSchedulerMock({
+      listJobs: () => {
+        return [];
+      },
+    });
+
+    const result = await executeSessionCommand("!remind tomorrow 14:00", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler,
+      scope: "thread:thread-123",
+      workingEmoji: "⚙️",
+      channelId: "thread-123",
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: [
+        "Reminder created: reminder-202601020400-check-what-aapl-s-latest",
+        "run-at: 2026-01-02T04:00:00.000Z",
+        "source: runtime",
+        "target: discord-channel:thread-123",
+        "target-resolution: current thread via message.channel.id -> discord-channel:thread-123",
         "session-mode: fresh",
       ].join("\n"),
     });

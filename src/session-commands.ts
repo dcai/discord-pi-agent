@@ -588,6 +588,9 @@ async function handleRemindCommand(
       runAt: parsedReminder.runAt,
       description: parsedReminder.description,
       result: {
+        // We always target the current Discord conversation. In DMs,
+        // message.channel.id is the DM channel ID. In forum threads, it is the
+        // thread ID.
         target: "discord-channel",
         channelId: context.channelId,
       },
@@ -600,6 +603,7 @@ async function handleRemindCommand(
         `run-at: ${reminder.nextRunAt ?? parsedReminder.runAt}`,
         `source: ${formatJobSource(reminder.source)}`,
         `target: ${formatResultTarget(reminder.result)}`,
+        `target-resolution: ${formatReminderTargetResolution(context.scope, context.channelId)}`,
         `session-mode: ${formatSessionReuse(reminder.reuseSession)}`,
       ].join("\n"),
     };
@@ -675,6 +679,21 @@ function formatResultTarget(result: TaskResultTarget | undefined): string {
   }
 
   return `discord-channel:${result.channelId}`;
+}
+
+function formatReminderTargetResolution(
+  scope: SessionScope,
+  channelId: string,
+): string {
+  if (scope === "dm") {
+    return `current DM via message.channel.id -> discord-channel:${channelId}`;
+  }
+
+  if (scope.startsWith("thread:")) {
+    return `current thread via message.channel.id -> discord-channel:${channelId}`;
+  }
+
+  return `current Discord conversation via message.channel.id -> discord-channel:${channelId}`;
 }
 
 function formatSessionTarget(session: TaskSessionTarget | undefined): string {
