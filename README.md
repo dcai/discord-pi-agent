@@ -135,9 +135,12 @@ Scheduled jobs are defined in a trusted JS/TS module. The file can export either
 Example:
 
 ```ts
-import type { ScheduledTaskDefinition } from "@friendlyrobot/discord-pi-agent";
+import {
+  defineScheduledJobs,
+  type ScheduledTaskDefinition,
+} from "@friendlyrobot/discord-pi-agent";
 
-export const jobs: ScheduledTaskDefinition[] = [
+export const jobs: ScheduledTaskDefinition[] = defineScheduledJobs([
   {
     id: "repo-heartbeat",
     schedule: {
@@ -166,8 +169,10 @@ export const jobs: ScheduledTaskDefinition[] = [
       userId: "123456789012345678",
     },
   },
-];
+]);
 ```
+
+`defineScheduledJobs(...)` is optional but recommended. It makes the jobs file contract explicit and validates definitions before the loader consumes them.
 
 ### Supported schedules
 
