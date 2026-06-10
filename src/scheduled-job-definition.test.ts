@@ -30,6 +30,7 @@ describe("scheduled-job-definition", () => {
           timeZone: undefined,
         },
         session: undefined,
+        reuseSession: false,
         result: undefined,
       },
     ]);
@@ -59,6 +60,36 @@ describe("scheduled-job-definition", () => {
           interval: 15,
         },
         session: undefined,
+        reuseSession: false,
+        result: undefined,
+      },
+    ]);
+  });
+
+  it("accepts explicit session reuse for a job", () => {
+    expect(
+      defineScheduledJobs([
+        {
+          id: "reuse-session",
+          prompt: "Reuse the running session",
+          schedule: {
+            type: "every-minutes",
+            interval: 10,
+          },
+          reuseSession: true,
+        },
+      ]),
+    ).toEqual([
+      {
+        id: "reuse-session",
+        prompt: "Reuse the running session",
+        description: undefined,
+        schedule: {
+          type: "every-minutes",
+          interval: 10,
+        },
+        session: undefined,
+        reuseSession: true,
         result: undefined,
       },
     ]);

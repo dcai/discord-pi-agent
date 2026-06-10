@@ -89,6 +89,7 @@ async function createDefaultJobsFile(tempDir: string): Promise<string> {
       '    id: "smoke-default-job",',
       '    prompt: "Smoke test prompt from scheduled job definition.",',
       '    schedule: { type: "every-minutes", interval: 1 },',
+      "    reuseSession: false,",
       '    result: { target: "logs" },',
       "  },",
       "];",
@@ -117,7 +118,7 @@ async function createWrappedJobsFile(
       "}",
       "export const jobs = sourceJobs.map((job, index) => ({",
       "  ...job,",
-      '  id: String(job.id ?? `smoke-job-${index + 1}`),',
+      "  id: String(job.id ?? `smoke-job-${index + 1}`),",
       '  schedule: { type: "every-minutes", interval: 1 },',
       '  result: { target: "logs" },',
       "}));",
@@ -234,14 +235,18 @@ describe("task scheduler smoke", () => {
 
     await vi.advanceTimersByTimeAsync(30_000);
 
-    expect(scheduler.getTaskSchedulerStatus().jobCount).toBe(expectedJobs.length);
+    expect(scheduler.getTaskSchedulerStatus().jobCount).toBe(
+      expectedJobs.length,
+    );
     expect(capturedPrompts).toHaveLength(expectedJobs.length);
 
     expectedJobs.forEach((job) => {
       const matchingPrompt = capturedPrompts.find((capturedPrompt) => {
         return (
           capturedPrompt.includes(smokePrefix) &&
-          capturedPrompt.includes(`<user_message>${job.prompt}</user_message>`) &&
+          capturedPrompt.includes(
+            `<user_message>${job.prompt}</user_message>`,
+          ) &&
           capturedPrompt.includes(`RAW:${job.prompt}`) &&
           capturedPrompt.includes("<datetime>")
         );

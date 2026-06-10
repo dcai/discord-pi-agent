@@ -148,6 +148,7 @@ export const jobs: ScheduledTaskDefinition[] = defineScheduledJobs([
       interval: 30,
     },
     prompt: "Check the repo and summarize anything important.",
+    reuseSession: false,
     result: {
       target: "logs",
     },
@@ -164,6 +165,7 @@ export const jobs: ScheduledTaskDefinition[] = defineScheduledJobs([
     session: {
       strategy: "dedicated",
     },
+    reuseSession: true,
     result: {
       target: "discord-dm",
       userId: "123456789012345678",
@@ -183,6 +185,11 @@ export const jobs: ScheduledTaskDefinition[] = defineScheduledJobs([
 
 - `dedicated` — default, stored under `sessions/job-<id>/`
 - `scope` — reuse an existing scope like `dm`, `thread:<id>`, or `job:<id>`
+
+### Session reuse
+
+- `reuseSession: false` — default, aborts the active scoped job session and starts a fresh one for the run
+- `reuseSession: true` — resumes the existing scoped pi session for that job or scope
 
 ### Result targets
 

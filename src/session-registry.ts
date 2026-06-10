@@ -14,6 +14,10 @@ export type ScopedSessionEntry = {
   workingEmoji: string;
 };
 
+type GetOrCreateSessionOptions = {
+  reuseExisting?: boolean;
+};
+
 /**
  * Derive a deterministic session directory from a scope key.
  *
@@ -53,17 +57,25 @@ export class SessionRegistry {
 
   async getOrCreate(
     scope: SessionScope,
+    options: GetOrCreateSessionOptions = {},
   ): Promise<{ entry: ScopedSessionEntry; created: boolean }> {
+    const reuseExisting = options.reuseExisting ?? true;
     const existing = this.scopes.get(scope);
-    if (existing) {
+    if (existing && reuseExisting) {
       return { entry: existing, created: false };
+    }
+
+    if (existing && !reuseExisting) {
+      await this.remove(scope);
     }
 
     const sessionDir = sessionDirForScope(
       this.agentService.getAgentDir(),
       scope,
     );
-    const session = await this.agentService.createSession(sessionDir);
+    const session = await this.agentService.createSession(sessionDir, {
+      reuseExisting,
+    });
     const promptQueue = new PromptQueue();
 
     const entry: ScopedSessionEntry = {
@@ -78,6 +90,7 @@ export class SessionRegistry {
       {
         scope,
         sessionDir,
+        reuseExisting,
         sessionId: session.sessionId,
       },
       "scope registered",

@@ -144,7 +144,9 @@ describe("TaskSchedulerService", () => {
     service.start();
     await vi.advanceTimersByTimeAsync(30_000);
 
-    expect(getOrCreateMock).toHaveBeenCalledWith("job:heartbeat");
+    expect(getOrCreateMock).toHaveBeenCalledWith("job:heartbeat", {
+      reuseExisting: false,
+    });
     expect(runAgentTurnMock).toHaveBeenCalledWith(
       expect.anything(),
       "Ping the world",
@@ -175,13 +177,16 @@ describe("TaskSchedulerService", () => {
           strategy: "scope",
           scope: "dm",
         },
+        reuseSession: true,
       },
     ]);
 
     service.start();
     await vi.advanceTimersByTimeAsync(30_000);
 
-    expect(getOrCreateMock).toHaveBeenCalledWith("dm");
+    expect(getOrCreateMock).toHaveBeenCalledWith("dm", {
+      reuseExisting: true,
+    });
     expect(deliverResultMock).toHaveBeenCalledOnce();
   });
 
@@ -246,6 +251,7 @@ describe("TaskSchedulerService", () => {
         timeZone: "UTC",
       },
       session: undefined,
+      reuseSession: false,
       result: {
         target: "logs",
       },
@@ -275,6 +281,7 @@ describe("TaskSchedulerService", () => {
           interval: 15,
         },
         session: undefined,
+        reuseSession: false,
         result: undefined,
         nextRunAt: "2026-01-01T00:15:00.000Z",
         lastRunAt: null,

@@ -67,6 +67,9 @@ describe("SessionRegistry", () => {
       expect(agentService.createSession).toHaveBeenCalledTimes(1);
       expect(agentService.createSession).toHaveBeenCalledWith(
         expect.stringContaining("sessions"),
+        {
+          reuseExisting: true,
+        },
       );
     });
 
@@ -79,6 +82,9 @@ describe("SessionRegistry", () => {
 
       expect(agentService.createSession).toHaveBeenCalledWith(
         `${agentDir}/sessions`,
+        {
+          reuseExisting: true,
+        },
       );
     });
 
@@ -91,6 +97,9 @@ describe("SessionRegistry", () => {
 
       expect(agentService.createSession).toHaveBeenCalledWith(
         `${agentDir}/sessions/thread-abc-456`,
+        {
+          reuseExisting: true,
+        },
       );
     });
 
@@ -103,6 +112,37 @@ describe("SessionRegistry", () => {
 
       expect(agentService.createSession).toHaveBeenCalledWith(
         `${agentDir}/sessions/job-daily-standup`,
+        {
+          reuseExisting: true,
+        },
+      );
+    });
+
+    it("drops an existing scoped session when fresh mode is requested", async () => {
+      const agentService = mockAgentService();
+      const registry = new SessionRegistry(agentService);
+
+      const first = await registry.getOrCreate("job:daily-standup");
+      const second = await registry.getOrCreate("job:daily-standup", {
+        reuseExisting: false,
+      });
+
+      expect(first.entry.session.abort).toHaveBeenCalledOnce();
+      expect(first.entry.session.dispose).toHaveBeenCalledOnce();
+      expect(second.created).toBe(true);
+      expect(agentService.createSession).toHaveBeenNthCalledWith(
+        1,
+        "/tmp/test-agent/sessions/job-daily-standup",
+        {
+          reuseExisting: true,
+        },
+      );
+      expect(agentService.createSession).toHaveBeenNthCalledWith(
+        2,
+        "/tmp/test-agent/sessions/job-daily-standup",
+        {
+          reuseExisting: false,
+        },
       );
     });
   });

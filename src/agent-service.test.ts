@@ -221,6 +221,27 @@ describe("AgentService", () => {
     expect(ensureModelSpy).toHaveBeenCalledWith(scopedSession);
   });
 
+  it("creates a fresh scoped session when reuse is disabled", async () => {
+    const service = new AgentService(createConfig());
+    const scopedSession = createSession({ sessionId: "fresh-thread-session" });
+    createAgentSessionMock.mockResolvedValueOnce({ session: scopedSession });
+    const ensureModelSpy = vi
+      .spyOn(service.models, "ensureSessionHasConfiguredModel")
+      .mockResolvedValue(undefined);
+
+    await expect(
+      service.createSession("/repo/.pi-agent/sessions/thread-1", {
+        reuseExisting: false,
+      }),
+    ).resolves.toBe(scopedSession);
+
+    expect(sessionManagerCreateMock).toHaveBeenCalledWith(
+      "/repo",
+      "/repo/.pi-agent/sessions/thread-1",
+    );
+    expect(ensureModelSpy).toHaveBeenCalledWith(scopedSession);
+  });
+
   it("transforms prompts before collecting replies", async () => {
     const service = new AgentService(createConfig());
     const session = createSession();

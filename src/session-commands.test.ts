@@ -101,6 +101,7 @@ function createTaskSchedulerMock(
         session: {
           strategy: "dedicated",
         },
+        reuseSession: false,
         result: {
           target: "discord-dm",
           userId: "user-1",
@@ -130,6 +131,7 @@ function createTaskSchedulerMock(
         session: {
           strategy: "dedicated",
         },
+        reuseSession: false,
         result: {
           target: "discord-dm",
           userId: "user-1",
@@ -523,6 +525,7 @@ describe("executeSessionCommand", () => {
     });
     expect(result.response).toContain("schedule: daily at 09:00 (UTC)");
     expect(result.response).toContain("target: discord-dm:user-1");
+    expect(result.response).toContain("session-mode: fresh");
   });
 
   it("shows one scheduled job from runtime state", async () => {
@@ -540,6 +543,7 @@ describe("executeSessionCommand", () => {
     });
     expect(result.response).toContain("description: Daily update");
     expect(result.response).toContain("next-run-at: 2026-01-01T09:00:00.000Z");
+    expect(result.response).toContain("session-mode: fresh");
   });
 
   it("reloads scheduled jobs when requested", async () => {
@@ -562,6 +566,7 @@ describe("executeSessionCommand", () => {
         session: {
           strategy: "dedicated",
         },
+        reuseSession: false,
         result: {
           target: "discord-dm",
           userId: "user-1",
@@ -595,6 +600,7 @@ describe("executeSessionCommand", () => {
           session: {
             strategy: "dedicated",
           },
+          reuseSession: false,
           result: {
             target: "discord-dm",
             userId: "user-2",
@@ -659,7 +665,9 @@ describe("executeSessionCommand", () => {
         "User request:\ncan you update hello-dm to run 19:50 every day",
       ),
     });
-    expect(result.forwardedInput).toContain("Jobs file: /tmp/scheduled-jobs.ts");
+    expect(result.forwardedInput).toContain(
+      "Jobs file: /tmp/scheduled-jobs.ts",
+    );
     expect(result.forwardedInput).toContain("Loaded scheduler runtime state:");
     expect(result.forwardedInput).toContain(
       "- After editing, remind the user to run `!jobs reload` to reload the scheduler.",

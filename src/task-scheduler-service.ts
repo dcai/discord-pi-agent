@@ -177,10 +177,7 @@ export class TaskSchedulerService {
     );
   }
 
-  private getRunDecision(
-    job: ScheduledTaskDefinition,
-    now: Date,
-  ): RunDecision {
+  private getRunDecision(job: ScheduledTaskDefinition, now: Date): RunDecision {
     if (job.schedule.type === "every-minutes") {
       const minuteKey = String(Math.floor(now.getTime() / 60_000));
       const due = Number(minuteKey) % job.schedule.interval === 0;
@@ -218,7 +215,9 @@ export class TaskSchedulerService {
     }
 
     try {
-      const { entry } = await this.sessionRegistry.getOrCreate(scope);
+      const { entry } = await this.sessionRegistry.getOrCreate(scope, {
+        reuseExisting: job.reuseSession ?? false,
+      });
       const prompt = await buildTaskPrompt(job, this.config, now);
       const response = await entry.promptQueue.enqueue(async () => {
         return runAgentTurn(entry.session, prompt);
@@ -254,6 +253,7 @@ export class TaskSchedulerService {
       description: jobState.definition.description,
       schedule: jobState.definition.schedule,
       session: jobState.definition.session,
+      reuseSession: jobState.definition.reuseSession ?? false,
       result: jobState.definition.result,
       nextRunAt: formatDate(
         findNextRunAt(jobState.definition, now, this.config.promptTimeZone),
@@ -285,7 +285,7 @@ async function buildTaskPrompt(
   const prompt = job.prompt;
   const timeZone =
     job.schedule.type === "daily-at"
-      ? job.schedule.timeZone ?? config.promptTimeZone
+      ? (job.schedule.timeZone ?? config.promptTimeZone)
       : config.promptTimeZone;
 
   return config.promptTransform({
@@ -312,7 +312,10 @@ function toMinuteBoundary(date: Date): Date {
   return normalizedDate;
 }
 
-function getTimeParts(date: Date, timeZone: string): {
+function getTimeParts(
+  date: Date,
+  timeZone: string,
+): {
   year: string;
   month: string;
   day: string;

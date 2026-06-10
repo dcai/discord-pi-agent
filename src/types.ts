@@ -94,6 +94,7 @@ export type ScheduledTaskDefinition = {
   description?: string;
   schedule: TaskSchedule;
   session?: TaskSessionTarget;
+  reuseSession?: boolean;
   result?: TaskResultTarget;
 };
 
@@ -162,6 +163,7 @@ export type TaskJobRuntimeState = {
   description?: string;
   schedule: TaskSchedule;
   session: TaskSessionTarget | undefined;
+  reuseSession: boolean;
   result: TaskResultTarget | undefined;
   nextRunAt: string | null;
   lastRunAt: string | null;

@@ -426,7 +426,9 @@ async function handleJobsCommand(
 
     return {
       handled: true,
-      response: formatJobsResponse(reloadedStatus, jobs, ["Task scheduler reloaded."]),
+      response: formatJobsResponse(reloadedStatus, jobs, [
+        "Task scheduler reloaded.",
+      ]),
     };
   }
 
@@ -469,6 +471,7 @@ function formatJobsResponse(
         `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
         `  target: ${formatResultTarget(job.result)}`,
         `  session: ${formatSessionTarget(job.session)}`,
+        `  session-mode: ${formatSessionReuse(job.reuseSession)}`,
         `  running: ${job.running}`,
       ].join("\n");
     }),
@@ -513,6 +516,7 @@ async function handleJobCommand(
       `description: ${job.description ?? "(none)"}`,
       `schedule: ${formatTaskSchedule(job.schedule)}`,
       `session: ${formatSessionTarget(job.session)}`,
+      `session-mode: ${formatSessionReuse(job.reuseSession)}`,
       `result: ${formatResultTarget(job.result)}`,
       `next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
       `last-run-at: ${job.lastRunAt ?? "(never)"}`,
@@ -552,13 +556,15 @@ async function handleJobUpdateCommand(
 
   return {
     handled: false,
-    forwardedInput: buildJobUpdatePrompt(request, schedulerStatus.jobsFile, jobs),
+    forwardedInput: buildJobUpdatePrompt(
+      request,
+      schedulerStatus.jobsFile,
+      jobs,
+    ),
   };
 }
 
-function formatTaskSchedule(
-  schedule: TaskSchedule,
-): string {
+function formatTaskSchedule(schedule: TaskSchedule): string {
   if (schedule.type === "every-minutes") {
     return `every ${schedule.interval} minute(s)`;
   }
@@ -568,9 +574,7 @@ function formatTaskSchedule(
   ).padStart(2, "0")} (${schedule.timeZone ?? "default timezone"})`;
 }
 
-function formatResultTarget(
-  result: TaskResultTarget | undefined,
-): string {
+function formatResultTarget(result: TaskResultTarget | undefined): string {
   if (!result) {
     return "logs";
   }
@@ -586,14 +590,16 @@ function formatResultTarget(
   return `discord-channel:${result.channelId}`;
 }
 
-function formatSessionTarget(
-  session: TaskSessionTarget | undefined,
-): string {
+function formatSessionTarget(session: TaskSessionTarget | undefined): string {
   if (!session || session.strategy === "dedicated") {
     return "dedicated";
   }
 
   return session.strategy === "scope" ? `scope:${session.scope}` : "dedicated";
+}
+
+function formatSessionReuse(reuseSession: boolean): string {
+  return reuseSession ? "reuse" : "fresh";
 }
 
 function buildJobUpdatePrompt(
@@ -608,6 +614,7 @@ function buildJobUpdatePrompt(
             `- id: ${job.id}`,
             `  schedule: ${formatTaskSchedule(job.schedule)}`,
             `  session: ${formatSessionTarget(job.session)}`,
+            `  session-mode: ${formatSessionReuse(job.reuseSession)}`,
             `  result: ${formatResultTarget(job.result)}`,
             `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
             `  last-error: ${job.lastErrorMessage ?? "(none)"}`,

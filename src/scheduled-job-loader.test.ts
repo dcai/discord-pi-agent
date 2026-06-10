@@ -71,6 +71,7 @@ describe("scheduled-job-loader", () => {
           strategy: "scope",
           scope: "dm",
         },
+        reuseSession: false,
         result: {
           target: "discord-dm",
           userId: "123",
@@ -101,6 +102,7 @@ describe("scheduled-job-loader", () => {
         description: undefined,
         schedule: { type: "every-minutes", interval: 15 },
         session: undefined,
+        reuseSession: false,
         result: undefined,
       },
     ]);

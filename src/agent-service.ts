@@ -106,7 +106,13 @@ export class AgentService {
     return session;
   }
 
-  async createSession(sessionDir: string): Promise<AgentSession> {
+  async createSession(
+    sessionDir: string,
+    options: {
+      reuseExisting?: boolean;
+    } = {},
+  ): Promise<AgentSession> {
+    const reuseExisting = options.reuseExisting ?? true;
     await fs.mkdir(sessionDir, { recursive: true });
     const { session } = await createAgentSession({
       cwd: this.config.cwd,
@@ -115,15 +121,15 @@ export class AgentService {
       modelRegistry: this.modelRegistry,
       resourceLoader: this.resourceLoader,
       settingsManager: this.settingsManager,
-      sessionManager: SessionManager.continueRecent(
-        this.config.cwd,
-        sessionDir,
-      ),
+      sessionManager: reuseExisting
+        ? SessionManager.continueRecent(this.config.cwd, sessionDir)
+        : SessionManager.create(this.config.cwd, sessionDir),
       thinkingLevel: this.config.thinkingLevel,
     });
     logger.debug(
       {
         sessionDir,
+        reuseExisting,
         sessionId: session.sessionId,
         sessionFile: session.sessionFile,
       },

@@ -15,24 +15,32 @@ const optionalTrimmedStringSchema = z
     return trimmedValue ? trimmedValue : undefined;
   });
 
-const sessionScopeSchema = z.custom<ScopedTaskSessionTarget["scope"]>((value) => {
-  return (
-    typeof value === "string" &&
-    (value === "dm" || value.startsWith("thread:") || value.startsWith("job:"))
-  );
-});
+const sessionScopeSchema = z.custom<ScopedTaskSessionTarget["scope"]>(
+  (value) => {
+    return (
+      typeof value === "string" &&
+      (value === "dm" ||
+        value.startsWith("thread:") ||
+        value.startsWith("job:"))
+    );
+  },
+);
 
-const timeZoneSchema = z.string().trim().min(1).refine((value) => {
-  try {
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: value,
-      hour: "2-digit",
-    }).format(new Date());
-    return true;
-  } catch {
-    return false;
-  }
-});
+const timeZoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((value) => {
+    try {
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: value,
+        hour: "2-digit",
+      }).format(new Date());
+      return true;
+    } catch {
+      return false;
+    }
+  });
 
 const taskScheduleSchema = z.discriminatedUnion("type", [
   z.object({
@@ -77,6 +85,7 @@ const scheduledJobDefinitionSchema = z.object({
   description: optionalTrimmedStringSchema,
   schedule: taskScheduleSchema,
   session: taskSessionTargetSchema.optional(),
+  reuseSession: z.boolean().optional().default(false),
   result: taskResultTargetSchema.optional(),
 });
 
@@ -106,4 +115,7 @@ export function normalizeScheduledJobs(
 ): ScheduledTaskDefinition[] {
   return scheduledJobsSchema.parse(value);
 }
-type ScopedTaskSessionTarget = Extract<TaskSessionTarget, { strategy: "scope" }>;
+type ScopedTaskSessionTarget = Extract<
+  TaskSessionTarget,
+  { strategy: "scope" }
+>;
