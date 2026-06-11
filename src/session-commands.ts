@@ -140,8 +140,9 @@ async function handleHelpCommand(
       "!reload - reload resources (AGENTS.md, extensions, skills, etc.)",
       "!remind <when>, <task> - create a one-off runtime reminder",
       "!jobs - list loaded scheduled jobs",
-      "!job <id> - show one scheduled job",
-      "!job run <id> - run one scheduled job now",
+      "!job <id> - run one scheduled job in this conversation",
+      "!job info <id> - show one scheduled job",
+      "!job run <id> - run one scheduled job now (configured target)",
       "!job run-here <id> - run one scheduled job now in this conversation",
       "!job update <what you want changed> - edit the jobs file via the agent",
       "!jobs reload - reload scheduled jobs from the jobs file",
@@ -490,20 +491,17 @@ function formatJobsResponse(
   ].join("\n");
 }
 
-async function handleJobRunCommand(
-  trimmedInput: string,
+const RESERVED_JOB_SUBCOMMANDS = new Set(["run", "run-here", "info", "update"]);
+
+type RunScheduledJobCommandOptions = {
+  runHere: boolean;
+};
+
+async function runScheduledJobCommand(
+  jobId: string,
   context: CommandContext,
-): Promise<CommandResult | null> {
-  const parts = trimmedInput.split(/\s+/);
-  if (parts[0] !== "!job") {
-    return null;
-  }
-
-  const subcommand = parts[1];
-  if (subcommand !== "run" && subcommand !== "run-here") {
-    return null;
-  }
-
+  options: RunScheduledJobCommandOptions,
+): Promise<CommandResult> {
   if (!context.taskScheduler) {
     return {
       handled: true,
@@ -511,26 +509,18 @@ async function handleJobRunCommand(
     };
   }
 
-  if (parts.length !== 3) {
-    return {
-      handled: true,
-      response:
-        subcommand === "run-here"
-          ? "Usage: !job run-here <id>"
-          : "Usage: !job run <id>",
-    };
-  }
-
-  const job = context.taskScheduler.getJob(parts[2]);
+  const job = context.taskScheduler.getJob(jobId);
   if (!job) {
     return {
       handled: true,
-      response: `Scheduled job not found: ${parts[2]}`,
+      response: `Scheduled job not found: ${jobId}`,
     };
   }
 
   let resultOverride: TaskResultTarget | undefined;
-  if (subcommand === "run-here") {
+  let targetResolution: string | undefined;
+
+  if (options.runHere) {
     if (!context.channelId) {
       return {
         handled: true,
@@ -542,25 +532,29 @@ async function handleJobRunCommand(
       target: "discord-channel",
       channelId: context.channelId,
     };
+    targetResolution = formatReminderTargetResolution(
+      context.scope,
+      context.channelId,
+    );
   }
 
   try {
-    const runResult = await context.taskScheduler.runJobNow(parts[2], {
+    const runResult = await context.taskScheduler.runJobNow(jobId, {
       resultOverride,
     });
-    const updatedJob = context.taskScheduler.getJob(parts[2]);
+    const updatedJob = context.taskScheduler.getJob(jobId);
     const deliveryTarget = resultOverride ?? job.result;
 
     return {
       handled: true,
       response: [
-        `${subcommand === "run-here" ? "Manual job run here finished" : "Manual job run finished"}: ${job.id}`,
+        `${options.runHere ? "Manual job run here finished" : "Manual job run finished"}: ${job.id}`,
         `status: ${runResult.ok ? "success" : "failed"}`,
         `delivery-target: ${formatResultTarget(deliveryTarget)}`,
         ...(resultOverride
           ? [
               `configured-target: ${formatResultTarget(job.result)}`,
-              `target-resolution: ${formatReminderTargetResolution(context.scope, context.channelId!)}`,
+              `target-resolution: ${targetResolution}`,
             ]
           : []),
         ...(updatedJob
@@ -584,11 +578,41 @@ async function handleJobRunCommand(
   }
 }
 
-async function handleJobCommand(
+async function handleJobRunCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (!trimmedInput.startsWith("!job")) {
+  const parts = trimmedInput.split(/\s+/);
+  if (parts[0] !== "!job") {
+    return null;
+  }
+
+  const subcommand = parts[1];
+  if (subcommand !== "run" && subcommand !== "run-here") {
+    return null;
+  }
+
+  if (parts.length !== 3) {
+    return {
+      handled: true,
+      response:
+        subcommand === "run-here"
+          ? "Usage: !job run-here <id>"
+          : "Usage: !job run <id>",
+    };
+  }
+
+  return runScheduledJobCommand(parts[2], context, {
+    runHere: subcommand === "run-here",
+  });
+}
+
+async function handleJobInfoCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  const parts = trimmedInput.split(/\s+/);
+  if (parts[0] !== "!job" || parts[1] !== "info") {
     return null;
   }
 
@@ -599,19 +623,18 @@ async function handleJobCommand(
     };
   }
 
-  const parts = trimmedInput.split(/\s+/);
-  if (parts.length !== 2) {
+  if (parts.length !== 3) {
     return {
       handled: true,
-      response: "Usage: !job <id>",
+      response: "Usage: !job info <id>",
     };
   }
 
-  const job = context.taskScheduler.getJob(parts[1]);
+  const job = context.taskScheduler.getJob(parts[2]);
   if (!job) {
     return {
       handled: true,
-      response: `Scheduled job not found: ${parts[1]}`,
+      response: `Scheduled job not found: ${parts[2]}`,
     };
   }
 
@@ -634,6 +657,28 @@ async function handleJobCommand(
       `running: ${job.running}`,
     ].join("\n"),
   };
+}
+
+async function handleJobImplicitRunHereCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  const parts = trimmedInput.split(/\s+/);
+  if (parts[0] !== "!job") {
+    return null;
+  }
+
+  if (parts.length !== 2) {
+    return null;
+  }
+
+  if (RESERVED_JOB_SUBCOMMANDS.has(parts[1])) {
+    return null;
+  }
+
+  return runScheduledJobCommand(parts[1], context, {
+    runHere: true,
+  });
 }
 
 async function handleRemindCommand(
@@ -886,7 +931,8 @@ const commandHandlers: CommandHandler[] = [
   handleJobsCommand,
   handleJobUpdateCommand,
   handleJobRunCommand,
-  handleJobCommand,
+  handleJobImplicitRunHereCommand,
+  handleJobInfoCommand,
   handleResetSessionCommand,
   handleReactionCommand,
 ];

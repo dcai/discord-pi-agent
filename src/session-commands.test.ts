@@ -254,7 +254,13 @@ describe("executeSessionCommand", () => {
     });
     expect(dmResult.response).toContain("!jobs - list loaded scheduled jobs");
     expect(dmResult.response).toContain(
-      "!job run <id> - run one scheduled job now",
+      "!job <id> - run one scheduled job in this conversation",
+    );
+    expect(dmResult.response).toContain(
+      "!job info <id> - show one scheduled job",
+    );
+    expect(dmResult.response).toContain(
+      "!job run <id> - run one scheduled job now (configured target)",
     );
     expect(dmResult.response).toContain(
       "!job run-here <id> - run one scheduled job now in this conversation",
@@ -588,8 +594,8 @@ describe("executeSessionCommand", () => {
     expect(result.response).toContain("session-mode: fresh");
   });
 
-  it("shows one scheduled job from runtime state", async () => {
-    const result = await executeSessionCommand("!job daily-summary", {
+  it("shows one scheduled job from runtime state via !job info", async () => {
+    const result = await executeSessionCommand("!job info daily-summary", {
       agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
       taskScheduler: createTaskSchedulerMock(),
@@ -667,6 +673,40 @@ describe("executeSessionCommand", () => {
     );
   });
 
+  it("runs a job here when no subcommand is given", async () => {
+    const taskScheduler = createTaskSchedulerMock();
+
+    const result = await executeSessionCommand("!job daily-summary", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler,
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      channelId: "channel-123",
+    });
+
+    expect(taskScheduler.runJobNow).toHaveBeenCalledWith("daily-summary", {
+      resultOverride: {
+        target: "discord-channel",
+        channelId: "channel-123",
+      },
+    });
+    expect(result).toEqual({
+      handled: true,
+      response: expect.stringContaining(
+        "Manual job run here finished: daily-summary",
+      ),
+    });
+    expect(result.response).toContain("status: success");
+    expect(result.response).toContain(
+      "delivery-target: discord-channel:channel-123",
+    );
+    expect(result.response).toContain("configured-target: discord-dm:user-1");
+    expect(result.response).toContain(
+      "target-resolution: current DM via message.channel.id -> discord-channel:channel-123",
+    );
+  });
+
   it("shows usage when !job run or !job run-here is missing an id", async () => {
     const runResult = await executeSessionCommand("!job run", {
       agentService: createAgentServiceMock(createSessionMock()),
@@ -697,6 +737,21 @@ describe("executeSessionCommand", () => {
 
   it("requires a Discord channel context for !job run-here", async () => {
     const result = await executeSessionCommand("!job run-here daily-summary", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler: createTaskSchedulerMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(result).toEqual({
+      handled: true,
+      response: "This command requires a Discord channel context.",
+    });
+  });
+
+  it("requires a Discord channel context for !job <id> (implicit run-here)", async () => {
+    const result = await executeSessionCommand("!job daily-summary", {
       agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
       taskScheduler: createTaskSchedulerMock(),
@@ -986,6 +1041,12 @@ describe("executeSessionCommand", () => {
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
+    const jobInfoResult = await executeSessionCommand("!job info missing", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
     const jobUpdateResult = await executeSessionCommand("!job update fix it", {
       agentService: createAgentServiceMock(createSessionMock()),
       promptQueue: createPromptQueueMock(),
@@ -1005,6 +1066,10 @@ describe("executeSessionCommand", () => {
       response: "Task scheduler is not enabled.",
     });
     expect(jobResult).toEqual({
+      handled: true,
+      response: "Task scheduler is not enabled.",
+    });
+    expect(jobInfoResult).toEqual({
       handled: true,
       response: "Task scheduler is not enabled.",
     });

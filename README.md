@@ -24,6 +24,7 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - `!remind <when>, <task>`
 - `!jobs`
 - `!job <id>`
+- `!job info <id>`
 - `!job run <id>`
 - `!job run-here <id>`
 - `!job update <freeform request>`
@@ -33,7 +34,9 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 
 Any other text is sent to the active session (DM or thread).
 
-When the scheduler is enabled, `!jobs` shows the loaded runtime state with a prompt preview for each job, `!job <id>` shows one job with its full prompt, `!job run <id>` runs a loaded job immediately with its configured result target, `!job run-here <id>` runs a loaded job immediately but overrides delivery to the current DM or thread, `!jobs reload` reloads the jobs file without restarting the process, and `!job update <freeform request>` turns your request into a scheduler-aware agent prompt that edits the jobs file in the normal agentic way.
+When the scheduler is enabled, `!jobs` shows the loaded runtime state with a prompt preview for each job, `!job <id>` runs a loaded job immediately in the current DM or thread, `!job info <id>` shows one job with its full prompt, `!job run <id>` runs a loaded job immediately with its configured result target, `!job run-here <id>` runs a loaded job immediately but overrides delivery to the current DM or thread, `!jobs reload` reloads the jobs file without restarting the process, and `!job update <freeform request>` turns your request into a scheduler-aware agent prompt that edits the jobs file in the normal agentic way.
+
+Job IDs should avoid reserved subcommand words like `run`, `run-here`, `info`, and `update`.
 
 `!remind <when>, <task>` creates a one-off runtime reminder from natural language. It is parsed through a temporary in-memory agent session, shows up in `!jobs`, runs once, and is then forgotten. It is not written back to the scheduled jobs file. Runtime reminders always target the current Discord conversation by saving `message.channel.id` as a `discord-channel` result target. In a DM, that is the DM channel ID. In a forum thread, that is the thread ID.
 
