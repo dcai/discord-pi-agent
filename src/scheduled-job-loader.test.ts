@@ -247,4 +247,53 @@ describe("scheduled-job-loader", () => {
       }),
     ]);
   });
+
+  it("reloads imported TypeScript helpers after they change", async () => {
+    const jobsFile = await createJobsModule(`
+      import { promptSuffix } from "./prompt-helper.ts";
+
+      export function loadScheduleJobs() {
+        return [
+          {
+            id: "hello-dm",
+            prompt: "Say hello " + promptSuffix,
+            schedule: { type: "every-minutes", interval: 15 },
+          },
+        ];
+      }
+    `);
+    const helperFile = path.join(path.dirname(jobsFile), "prompt-helper.ts");
+
+    await fs.writeFile(helperFile, 'export const promptSuffix = "today";\n', "utf8");
+
+    await expect(
+      loadScheduledJobs(
+        {
+          jobsFile,
+        },
+        createScheduledJobsContext(jobsFile),
+      ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "hello-dm",
+        prompt: "Say hello today",
+      }),
+    ]);
+
+    await fs.writeFile(helperFile, 'export const promptSuffix = "tomorrow";\n', "utf8");
+
+    await expect(
+      loadScheduledJobs(
+        {
+          jobsFile,
+        },
+        createScheduledJobsContext(jobsFile),
+      ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: "hello-dm",
+        prompt: "Say hello tomorrow",
+      }),
+    ]);
+  });
 });

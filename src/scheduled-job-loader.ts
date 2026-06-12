@@ -1,5 +1,5 @@
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { createJiti } from "jiti/static";
 import { normalizeScheduledJobs } from "./scheduled-job-definition";
 import type {
   LoadScheduleJobs,
@@ -13,8 +13,13 @@ type JobsModule = {
   loadScheduleJobs?: unknown;
 };
 
-// Node caches ESM imports by URL, so each reload gets a unique query string.
-let jobsModuleImportVersion = 0;
+const createJobsLoader = () => {
+  return createJiti(import.meta.url, {
+    fsCache: false,
+    moduleCache: false,
+    interopDefault: true,
+  });
+};
 
 export function resolveTaskSchedulerConfig(
   config: TaskSchedulerConfig,
@@ -59,9 +64,8 @@ async function loadJobsFromModule(
 }
 
 async function importJobsModule(jobsFile: string): Promise<JobsModule> {
-  const jobsFileUrl = pathToFileURL(jobsFile);
-  jobsFileUrl.searchParams.set("v", String((jobsModuleImportVersion += 1)));
-  return import(jobsFileUrl.href);
+  const jobsLoader = createJobsLoader();
+  return jobsLoader.import<JobsModule>(jobsFile);
 }
 
 function getLoadScheduleJobs(importedModule: JobsModule): LoadScheduleJobs {
