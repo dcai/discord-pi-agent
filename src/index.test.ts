@@ -299,7 +299,17 @@ describe("startDiscordGateway", () => {
       { jobsFile: "./scheduled-jobs.ts" },
       "/repo",
     );
-    expect(loadScheduledJobsMock).toHaveBeenCalled();
+    expect(loadScheduledJobsMock).toHaveBeenCalledWith(
+      {
+        jobsFile: "./scheduled-jobs.ts",
+      },
+      {
+        config: resolvedConfig,
+        schedulerConfig: {
+          jobsFile: "./scheduled-jobs.ts",
+        },
+      },
+    );
     expect(taskScheduler.start).toHaveBeenCalledTimes(1);
     expect(taskScheduler.setDeliveryService).toHaveBeenCalledTimes(1);
     expect(startGatewayClientMock).toHaveBeenCalledWith(
@@ -350,6 +360,17 @@ describe("startTaskScheduler", () => {
     };
 
     expect(agentService.initialize).toHaveBeenCalled();
+    expect(loadScheduledJobsMock).toHaveBeenCalledWith(
+      {
+        jobsFile: "./scheduled-jobs.ts",
+      },
+      {
+        config: resolvedConfig,
+        schedulerConfig: {
+          jobsFile: "./scheduled-jobs.ts",
+        },
+      },
+    );
     expect(startGatewayClientMock).not.toHaveBeenCalled();
     expect(createDiscordClientMock).not.toHaveBeenCalled();
     expect(loginDiscordClientMock).not.toHaveBeenCalled();

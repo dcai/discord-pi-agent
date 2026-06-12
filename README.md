@@ -134,68 +134,70 @@ Scheduler-only mode does not handle inbound Discord user messages. It only runs 
 
 ## Scheduled jobs
 
-Scheduled jobs are defined in a trusted JS/TS module. The file can export either:
+Scheduled jobs are defined in a trusted JS/TS module.
 
-- `jobs`
-- `defineJobs()`
-- a default export with either of those shapes
+The file must export:
+
+- `loadScheduleJobs(context)`
+
+The function receives:
+
+- `context.config` — resolved Discord gateway config
+- `context.schedulerConfig` — resolved scheduler config
 
 Example:
 
 ```ts
-import {
-  defineScheduledJobs,
-  type ScheduledTaskDefinition,
-} from "@friendlyrobot/discord-pi-agent";
+import type { ScheduledJobsContext } from "@friendlyrobot/discord-pi-agent";
 
-export const jobs: ScheduledTaskDefinition[] = defineScheduledJobs([
-  {
-    id: "repo-heartbeat",
-    schedule: {
-      type: "every-minutes",
-      interval: 30,
+export function loadScheduleJobs(context: ScheduledJobsContext) {
+  return [
+    {
+      id: "repo-heartbeat",
+      schedule: {
+        type: "every-minutes",
+        interval: 30,
+      },
+      prompt: `Check ${context.config.cwd} and summarize anything important.`,
+      result: {
+        target: "logs",
+      },
     },
-    prompt: "Check the repo and summarize anything important.",
-    result: {
-      target: "logs",
+    {
+      id: "daily-standup",
+      schedule: {
+        type: "daily-at",
+        hour: 9,
+        minute: 0,
+        timeZone: "Australia/Sydney",
+      },
+      prompt: "Review recent work and draft a standup update.",
+      session: {
+        strategy: "reuse",
+        scope: "dm",
+      },
+      result: {
+        target: "discord-dm",
+        userId: context.config.discordAllowedUserId,
+      },
     },
-  },
-  {
-    id: "daily-standup",
-    schedule: {
-      type: "daily-at",
-      hour: 9,
-      minute: 0,
-      timeZone: "Australia/Sydney",
+    {
+      id: "one-shot-report",
+      schedule: {
+        type: "every-minutes",
+        interval: 60,
+      },
+      prompt: "Build a quick status report and post it.",
+      session: {
+        strategy: "ephemeral",
+      },
+      result: {
+        target: "logs",
+      },
     },
-    prompt: "Review recent work and draft a standup update.",
-    session: {
-      strategy: "reuse",
-      scope: "dm",
-    },
-    result: {
-      target: "discord-dm",
-      userId: "123456789012345678",
-    },
-  },
-  {
-    id: "one-shot-report",
-    schedule: {
-      type: "every-minutes",
-      interval: 60,
-    },
-    prompt: "Build a quick status report and post it.",
-    session: {
-      strategy: "ephemeral",
-    },
-    result: {
-      target: "logs",
-    },
-  },
-]);
+  ];
+}
 ```
-
-`defineScheduledJobs(...)` is optional but recommended. It makes the jobs file contract explicit and validates definitions before the loader consumes them.
 
 ### Supported schedules
 

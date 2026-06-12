@@ -26,7 +26,6 @@ const logger = createModuleLogger("index");
 
 export { formatDiscordPromptTime } from "./prompt-context";
 export { loadDiscordGatewayConfigFromEnv, resolveConfig } from "./config";
-export { defineScheduledJobs } from "./scheduled-job-definition";
 export {
   loadScheduledJobs,
   resolveTaskSchedulerConfig,
@@ -42,6 +41,8 @@ export type {
   PromptTransformContext,
   ResolvedDiscordGatewayConfig,
   GatewayAccessConfig,
+  LoadScheduleJobs,
+  ScheduledJobsContext,
   StartDiscordGatewayOptions,
   TaskResultTarget,
   TaskSchedule,
@@ -200,7 +201,10 @@ async function createTaskScheduler(
     schedulerConfig,
     config.cwd,
   );
-  const jobs = await loadScheduledJobs(resolvedSchedulerConfig);
+  const jobs = await loadScheduledJobs(resolvedSchedulerConfig, {
+    config,
+    schedulerConfig: resolvedSchedulerConfig,
+  });
 
   return new TaskSchedulerService({
     config,

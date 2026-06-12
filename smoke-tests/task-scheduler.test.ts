@@ -9,7 +9,10 @@ import {
   loadScheduledJobs,
   resolveTaskSchedulerConfig,
 } from "../src/scheduled-job-loader";
-import type { ScheduledTaskDefinition } from "../src/types";
+import type {
+  ScheduledJobsContext,
+  ScheduledTaskDefinition,
+} from "../src/types";
 
 type FakeAgentSession = {
   agent: {
@@ -84,14 +87,16 @@ async function createDefaultJobsFile(tempDir: string): Promise<string> {
   await fs.writeFile(
     jobsFile,
     [
-      "export const jobs = [",
-      "  {",
-      '    id: "smoke-default-job",',
-      '    prompt: "Smoke test prompt from scheduled job definition.",',
-      '    schedule: { type: "every-minutes", interval: 1 },',
-      '    result: { target: "logs" },',
-      "  },",
-      "];",
+      "export function loadScheduleJobs() {",
+      "  return [",
+      "    {",
+      '      id: "smoke-default-job",',
+      '      prompt: "Smoke test prompt from scheduled job definition.",',
+      '      schedule: { type: "every-minutes", interval: 1 },',
+      '      result: { target: "logs" },',
+      "    },",
+      "  ];",
+      "}",
       "",
     ].join("\n"),
     "utf8",
@@ -111,28 +116,20 @@ async function createWrappedJobsFile(
     wrappedFile,
     [
       `const sourceModule = await import(${JSON.stringify(moduleUrl)});`,
-      "const sourceJobs = await resolveJobs(sourceModule);",
-      "if (!Array.isArray(sourceJobs)) {",
-      '  throw new Error("Source jobs file did not export an array of jobs.");',
-      "}",
-      "export const jobs = sourceJobs.map((job, index) => ({",
-      "  ...job,",
-      "  id: String(job.id ?? `smoke-job-${index + 1}`),",
-      '  schedule: { type: "every-minutes", interval: 1 },',
-      '  result: { target: "logs" },',
-      "}));",
-      "",
-      "async function resolveJobs(module) {",
-      '  if (typeof module.defineJobs === "function") {',
-      "    return module.defineJobs();",
+      "export async function loadScheduleJobs(context) {",
+      '  if (typeof sourceModule.loadScheduleJobs !== "function") {',
+      '    throw new Error("Source jobs file must export loadScheduleJobs(context).");',
       "  }",
-      "  if (Array.isArray(module.jobs)) {",
-      "    return module.jobs;",
+      "  const sourceJobs = await sourceModule.loadScheduleJobs(context);",
+      "  if (!Array.isArray(sourceJobs)) {",
+      '    throw new Error("Source jobs file did not return an array of jobs.");',
       "  }",
-      '  if (typeof module.default === "function") {',
-      "    return module.default();",
-      "  }",
-      "  return module.default;",
+      "  return sourceJobs.map((job, index) => ({",
+      "    ...job,",
+      "    id: String(job.id ?? `smoke-job-${index + 1}`),",
+      '    schedule: { type: "every-minutes", interval: 1 },',
+      '    result: { target: "logs" },',
+      "  }));",
       "}",
       "",
     ].join("\n"),
@@ -140,6 +137,31 @@ async function createWrappedJobsFile(
   );
 
   return wrappedFile;
+}
+
+function createScheduledJobsContext(jobsFile: string): ScheduledJobsContext {
+  return {
+    config: {
+      discordBotToken: "smoke-test-token",
+      discordAllowedUserId: "smoke-test-user",
+      cwd: path.dirname(jobsFile),
+      agentDir: path.join(path.dirname(jobsFile), ".pi-agent"),
+      modelProvider: "openrouter",
+      modelId: "smoke-model",
+      thinkingLevel: "medium",
+      promptTimeZone: "UTC",
+      promptLocale: "en-AU",
+      promptTransform: async (ctx) => ctx.rawContent,
+      startupMessage: false,
+      shutdownOnSignals: true,
+      visionModelId: null,
+      discordAllowedForumChannelIds: [],
+      discordAllowedUserIds: ["smoke-test-user"],
+    },
+    schedulerConfig: {
+      jobsFile,
+    },
+  };
 }
 
 async function createSmokeJobsFiles(): Promise<{
@@ -157,13 +179,15 @@ async function createSmokeJobsFiles(): Promise<{
   const schedulerJobsFile = process.env.SMOKE_JOBS_FILE
     ? await createWrappedJobsFile(tempDir, sourceJobsFile)
     : sourceJobsFile;
+  const resolvedSourceJobsConfig = resolveTaskSchedulerConfig(
+    {
+      jobsFile: sourceJobsFile,
+    },
+    process.cwd(),
+  );
   const expectedJobs = await loadScheduledJobs(
-    resolveTaskSchedulerConfig(
-      {
-        jobsFile: sourceJobsFile,
-      },
-      process.cwd(),
-    ),
+    resolvedSourceJobsConfig,
+    createScheduledJobsContext(resolvedSourceJobsConfig.jobsFile),
   );
 
   return {

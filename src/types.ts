@@ -146,6 +146,15 @@ export type ResolvedDiscordGatewayConfig = {
   discordAllowedUserIds: string[];
 };
 
+export type ScheduledJobsContext = {
+  config: ResolvedDiscordGatewayConfig;
+  schedulerConfig: ResolvedTaskSchedulerConfig;
+};
+
+export type LoadScheduleJobs = (
+  context: ScheduledJobsContext,
+) => ScheduledTaskDefinition[] | Promise<ScheduledTaskDefinition[]>;
+
 export type ContextUsageStatus = {
   tokens: number | null;
   contextWindow: number;

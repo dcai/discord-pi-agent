@@ -1,23 +1,23 @@
 import { describe, expect, it } from "vitest";
-import {
-  defineScheduledJobs,
-  normalizeScheduledJobs,
-} from "./scheduled-job-definition";
+import { normalizeScheduledJobs } from "./scheduled-job-definition";
 
 describe("scheduled-job-definition", () => {
-  it("normalizes jobs via defineScheduledJobs array input", () => {
+  it("normalizes scheduled jobs", () => {
     expect(
-      defineScheduledJobs([
-        {
-          id: "hello-dm",
-          prompt: "Say hello",
-          schedule: {
-            type: "daily-at",
-            hour: 19,
-            minute: 50,
+      normalizeScheduledJobs(
+        [
+          {
+            id: "hello-dm",
+            prompt: "Say hello",
+            schedule: {
+              type: "daily-at",
+              hour: 19,
+              minute: 50,
+            },
           },
-        },
-      ]),
+        ],
+        "scheduled-jobs.ts",
+      ),
     ).toEqual([
       {
         id: "hello-dm",
@@ -35,62 +35,36 @@ describe("scheduled-job-definition", () => {
     ]);
   });
 
-  it("normalizes jobs via defineScheduledJobs factory input", async () => {
-    const factory = defineScheduledJobs(async () => {
-      return [
-        {
-          id: "heartbeat",
-          prompt: "Ping",
-          schedule: {
-            type: "every-minutes",
-            interval: 15,
-          },
-        },
-      ];
-    });
-
-    await expect(factory()).resolves.toEqual([
-      {
-        id: "heartbeat",
-        prompt: "Ping",
-        description: undefined,
-        schedule: {
-          type: "every-minutes",
-          interval: 15,
-        },
-        session: undefined,
-        result: undefined,
-      },
-    ]);
-  });
-
   it("accepts explicit session strategies for a job", () => {
     expect(
-      defineScheduledJobs([
-        {
-          id: "reuse-session",
-          prompt: "Reuse the running session",
-          schedule: {
-            type: "every-minutes",
-            interval: 10,
+      normalizeScheduledJobs(
+        [
+          {
+            id: "reuse-session",
+            prompt: "Reuse the running session",
+            schedule: {
+              type: "every-minutes",
+              interval: 10,
+            },
+            session: {
+              strategy: "reuse",
+              scope: "dm",
+            },
           },
-          session: {
-            strategy: "reuse",
-            scope: "dm",
+          {
+            id: "ephemeral-session",
+            prompt: "Run once in memory",
+            schedule: {
+              type: "every-minutes",
+              interval: 30,
+            },
+            session: {
+              strategy: "ephemeral",
+            },
           },
-        },
-        {
-          id: "ephemeral-session",
-          prompt: "Run once in memory",
-          schedule: {
-            type: "every-minutes",
-            interval: 30,
-          },
-          session: {
-            strategy: "ephemeral",
-          },
-        },
-      ]),
+        ],
+        "scheduled-jobs.ts",
+      ),
     ).toEqual([
       {
         id: "reuse-session",
@@ -136,7 +110,7 @@ describe("scheduled-job-definition", () => {
             },
           },
         ],
-        "defineScheduledJobs()",
+        "scheduled-jobs.ts",
       );
     }).toThrow();
   });

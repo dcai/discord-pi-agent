@@ -1,20 +1,20 @@
-import { execFile } from "node:child_process";
 import path from "node:path";
-import { promisify } from "node:util";
+import { pathToFileURL } from "node:url";
 import { normalizeScheduledJobs } from "./scheduled-job-definition";
 import type {
+  LoadScheduleJobs,
   ResolvedTaskSchedulerConfig,
+  ScheduledJobsContext,
   ScheduledTaskDefinition,
   TaskSchedulerConfig,
 } from "./types";
 
 type JobsModule = {
-  default?: unknown;
-  jobs?: unknown;
-  defineJobs?: (() => unknown | Promise<unknown>) | unknown;
+  loadScheduleJobs?: unknown;
 };
 
-const execFileAsync = promisify(execFile);
+// Node caches ESM imports by URL, so each reload gets a unique query string.
+let jobsModuleImportVersion = 0;
 
 export function resolveTaskSchedulerConfig(
   config: TaskSchedulerConfig,
@@ -34,67 +34,44 @@ export function resolveTaskSchedulerConfig(
 
 export async function loadScheduledJobs(
   config: ResolvedTaskSchedulerConfig,
+  context: ScheduledJobsContext,
 ): Promise<ScheduledTaskDefinition[]> {
-  const exportedValue = await loadJobsFromSubprocess(config.jobsFile);
+  const exportedValue = await loadJobsFromModule(config.jobsFile, context);
   return normalizeScheduledJobs(exportedValue, config.jobsFile);
 }
 
-async function loadJobsFromSubprocess(jobsFile: string): Promise<unknown> {
+async function loadJobsFromModule(
+  jobsFile: string,
+  context: ScheduledJobsContext,
+): Promise<unknown> {
   try {
-    const { stdout } = await execFileAsync(
-      process.execPath,
-      ["--input-type=module", "-e", buildJobsLoaderScript(), jobsFile],
-      {
-        maxBuffer: 1024 * 1024 * 10,
-      },
-    );
+    const importedModule = await importJobsModule(jobsFile);
+    const loadScheduleJobs = getLoadScheduleJobs(importedModule);
 
-    return JSON.parse(stdout);
+    return await loadScheduleJobs(context);
   } catch (error) {
-    const stderr =
-      typeof error === "object" &&
-      error !== null &&
-      "stderr" in error &&
-      typeof error.stderr === "string"
-        ? error.stderr.trim()
-        : "";
+    const message = error instanceof Error ? error.message : String(error);
 
-    if (stderr) {
-      throw new Error(
-        `Failed to load scheduled jobs from ${jobsFile}:\n${stderr}`,
-      );
-    }
-
-    if (error instanceof SyntaxError) {
-      throw new Error(
-        `Scheduled jobs loader returned invalid JSON for ${jobsFile}: ${error.message}`,
-      );
-    }
-
-    throw error;
+    throw new Error(
+      `Failed to load scheduled jobs from ${jobsFile}:\n${message}`,
+    );
   }
 }
 
-function buildJobsLoaderScript(): string {
-  return [
-    'import { pathToFileURL } from "node:url";',
-    "",
-    "const jobsFile = process.argv[1];",
-    "const importedModule = await import(pathToFileURL(jobsFile).href);",
-    "const exportedValue = await resolveJobsExport(importedModule);",
-    "process.stdout.write(JSON.stringify(exportedValue));",
-    "",
-    "async function resolveJobsExport(module) {",
-    '  if (typeof module.defineJobs === "function") {',
-    "    return module.defineJobs();",
-    "  }",
-    "  if (Array.isArray(module.jobs)) {",
-    "    return module.jobs;",
-    "  }",
-    '  if (typeof module.default === "function") {',
-    "    return module.default();",
-    "  }",
-    "  return module.default;",
-    "}",
-  ].join("\n");
+async function importJobsModule(jobsFile: string): Promise<JobsModule> {
+  const jobsFileUrl = pathToFileURL(jobsFile);
+  jobsFileUrl.searchParams.set("v", String((jobsModuleImportVersion += 1)));
+  return import(jobsFileUrl.href);
+}
+
+function getLoadScheduleJobs(importedModule: JobsModule): LoadScheduleJobs {
+  const { loadScheduleJobs } = importedModule;
+
+  if (typeof loadScheduleJobs !== "function") {
+    throw new Error(
+      "Scheduled jobs file must export `loadScheduleJobs(context)`.",
+    );
+  }
+
+  return loadScheduleJobs as LoadScheduleJobs;
 }

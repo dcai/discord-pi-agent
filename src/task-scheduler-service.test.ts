@@ -476,9 +476,20 @@ describe("TaskSchedulerService", () => {
       nextTickAt: null,
       running: false,
     });
-    expect(loadScheduledJobsSpy).toHaveBeenCalledWith({
-      jobsFile: "/repo/scheduled-jobs.ts",
-    });
+    expect(loadScheduledJobsSpy).toHaveBeenCalledWith(
+      {
+        jobsFile: "/repo/scheduled-jobs.ts",
+      },
+      {
+        config: expect.objectContaining({
+          cwd: "/repo",
+          agentDir: "/repo/.pi-agent",
+        }),
+        schedulerConfig: {
+          jobsFile: "/repo/scheduled-jobs.ts",
+        },
+      },
+    );
     expect(service.listJobs()).toEqual([
       {
         id: "heartbeat",

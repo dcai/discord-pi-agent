@@ -194,7 +194,10 @@ export class TaskSchedulerService {
   }
 
   async reload(): Promise<TaskSchedulerStatus> {
-    const reloadedJobs = await loadScheduledJobs(this.schedulerConfig);
+    const reloadedJobs = await loadScheduledJobs(this.schedulerConfig, {
+      config: this.config,
+      schedulerConfig: this.schedulerConfig,
+    });
     this.fileJobs = reloadedJobs.map(asFileBackedJob);
     this.syncJobStates();
 

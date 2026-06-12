@@ -1,13 +1,5 @@
 import { z } from "zod";
-import type {
-  ScheduledTaskDefinition,
-  TaskSessionScope,
-  TaskSessionTarget,
-} from "./types";
-
-type ScheduledJobsFactory = () =>
-  | ScheduledTaskDefinition[]
-  | Promise<ScheduledTaskDefinition[]>;
+import type { TaskSessionScope, TaskSessionTarget } from "./types";
 
 const trimmedStringSchema = z.string().trim().min(1);
 
@@ -90,28 +82,7 @@ const scheduledJobDefinitionSchema = z.object({
 
 const scheduledJobsSchema = z.array(scheduledJobDefinitionSchema);
 
-export function defineScheduledJobs(
-  jobs: ScheduledTaskDefinition[],
-): ScheduledTaskDefinition[];
-export function defineScheduledJobs(
-  factory: ScheduledJobsFactory,
-): ScheduledJobsFactory;
-export function defineScheduledJobs(
-  value: ScheduledTaskDefinition[] | ScheduledJobsFactory,
-): ScheduledTaskDefinition[] | ScheduledJobsFactory {
-  if (typeof value === "function") {
-    return async () => {
-      return normalizeScheduledJobs(await value(), "defineScheduledJobs()");
-    };
-  }
-
-  return normalizeScheduledJobs(value, "defineScheduledJobs()");
-}
-
-export function normalizeScheduledJobs(
-  value: unknown,
-  _sourceLabel: string,
-): ScheduledTaskDefinition[] {
+export function normalizeScheduledJobs(value: unknown, _sourceLabel: string) {
   return scheduledJobsSchema.parse(value).map((job) => {
     return {
       ...job,
