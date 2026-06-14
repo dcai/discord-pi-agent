@@ -274,6 +274,10 @@ Log level env vars:
 - `DISCORD_PI_AGENT_LOG_LEVEL`
 - `LOG_LEVEL` fallback
 
+Optional observability env vars:
+
+- `DISCORD_PI_AGENT_LOG_RAW_EVENTS=true` — log short summaries of raw Discord gateway packets (`t`, `op`, `s`, ids, short preview)
+
 Default level is `info`.
 
 For detailed prompt and tool monitoring during local runs, use:

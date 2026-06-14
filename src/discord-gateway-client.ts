@@ -16,6 +16,110 @@ import type {
 
 const logger = createModuleLogger("discord-gateway");
 
+type GatewayMessageLogInput = {
+  type?: unknown;
+  content?: string | null;
+  partial?: boolean;
+};
+
+type RawGatewayEventInput = {
+  t?: unknown;
+  s?: unknown;
+  op?: unknown;
+  d?: unknown;
+};
+
+function shortenMessageForLog(
+  content: string | null | undefined,
+  maxLength = 120,
+): string {
+  const normalized = (content ?? "").replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "(empty)";
+  }
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength)}...`;
+}
+
+function logGatewayMessageSummary(
+  eventName: "message create" | "message update",
+  message: GatewayMessageLogInput,
+): void {
+  logger.info(
+    {
+      eventName,
+      messageType: String(message.type ?? "unknown"),
+      partial: message.partial ?? false,
+      preview: shortenMessageForLog(message.content),
+    },
+    `${eventName} received`,
+  );
+}
+
+function isRawGatewayEventLoggingEnabled(): boolean {
+  const value = process.env.DISCORD_PI_AGENT_LOG_RAW_EVENTS;
+
+  return value === "1" || value === "true";
+}
+
+function getRawGatewayEventData(
+  value: unknown,
+): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function getRawGatewayEventStringField(
+  data: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = data?.[key];
+
+  if (typeof value !== "string" || value.length === 0) {
+    return undefined;
+  }
+
+  return value;
+}
+
+function logRawGatewayEventSummary(packet: RawGatewayEventInput): void {
+  const data = getRawGatewayEventData(packet.d);
+  const preview =
+    getRawGatewayEventStringField(data, "content") ??
+    getRawGatewayEventStringField(data, "name") ??
+    getRawGatewayEventStringField(data, "topic");
+
+  logger.info(
+    {
+      eventType: typeof packet.t === "string" ? packet.t : "unknown",
+      opcode: packet.op,
+      sequence: packet.s,
+      id: getRawGatewayEventStringField(data, "id"),
+      channelId: getRawGatewayEventStringField(data, "channel_id"),
+      guildId: getRawGatewayEventStringField(data, "guild_id"),
+      preview: preview ? shortenMessageForLog(preview) : undefined,
+    },
+    "raw gateway event",
+  );
+}
+
+function maybeAttachRawGatewayEventLogger(client: Client): void {
+  if (!isRawGatewayEventLoggingEnabled()) {
+    return;
+  }
+
+  client.on(Events.Raw, (packet) => {
+    logRawGatewayEventSummary(packet as RawGatewayEventInput);
+  });
+}
+
 export async function startGatewayClient(
   config: ResolvedDiscordGatewayConfig,
   agentService: AgentService,
@@ -24,8 +128,11 @@ export async function startGatewayClient(
   taskScheduler?: TaskSchedulerService | null,
 ): Promise<Client> {
   const client = createDiscordClient(config, accessConfig);
+  maybeAttachRawGatewayEventLogger(client);
 
   client.on(Events.MessageCreate, async (message) => {
+    logGatewayMessageSummary("message create", message);
+
     try {
       await handleDiscordMessage(
         message,
@@ -45,6 +152,8 @@ export async function startGatewayClient(
   });
 
   client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
+    logGatewayMessageSummary("message update", newMessage);
+
     try {
       await handleForumPostEdit(
         oldMessage,

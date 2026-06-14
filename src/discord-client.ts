@@ -18,7 +18,7 @@ export function createDiscordClient(
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
     ],
-    partials: [Partials.Channel],
+    partials: [Partials.Channel, Partials.Message],
   });
 
   client.once(Events.ClientReady, async (readyClient) => {

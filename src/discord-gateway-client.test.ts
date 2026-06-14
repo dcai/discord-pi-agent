@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Events } from "discord.js";
+import { Events, Partials } from "discord.js";
 import { startGatewayClient } from "./discord-gateway-client";
 import type { AgentService } from "./agent-service";
 import type { SessionRegistry } from "./session-registry";
@@ -103,6 +103,7 @@ const accessConfig: GatewayAccessConfig = {
 beforeEach(() => {
   vi.clearAllMocks();
   clientState.instances.length = 0;
+  delete process.env.DISCORD_PI_AGENT_LOG_RAW_EVENTS;
   handleDiscordMessageMock.mockResolvedValue(undefined);
   handleForumPostEditMock.mockResolvedValue(undefined);
   sendReplyMock.mockResolvedValue(undefined);
@@ -125,6 +126,9 @@ describe("startGatewayClient", () => {
     };
 
     expect(client.login).toHaveBeenCalledWith("bot-token");
+    expect(clientState.instances[0]?.options).toMatchObject({
+      partials: expect.arrayContaining([Partials.Channel, Partials.Message]),
+    });
 
     const messageHandler = client.onHandlers.get(Events.MessageCreate);
     const messageUpdateHandler = client.onHandlers.get(Events.MessageUpdate);
@@ -157,6 +161,37 @@ describe("startGatewayClient", () => {
 
     await threadDeleteHandler?.({ id: "thread-1" });
     expect(sessionRegistry.remove).toHaveBeenCalledWith("thread:thread-1");
+  });
+
+  it("wires raw gateway handler when enabled by env", async () => {
+    process.env.DISCORD_PI_AGENT_LOG_RAW_EVENTS = "true";
+
+    const client = (await startGatewayClient(
+      createConfig(),
+      {} as AgentService,
+      {} as SessionRegistry,
+      accessConfig,
+    )) as unknown as {
+      onHandlers: Map<
+        string,
+        (value: any, value2?: any) => Promise<void> | void
+      >;
+    };
+
+    const rawHandler = client.onHandlers.get(Events.Raw);
+
+    expect(rawHandler).toBeDefined();
+    await rawHandler?.({
+      t: "MESSAGE_UPDATE",
+      s: 123,
+      op: 0,
+      d: {
+        id: "message-1",
+        channel_id: "channel-1",
+        guild_id: "guild-1",
+        content: "updated topic body",
+      },
+    });
   });
 
   it("sends startup dm when configured", async () => {
