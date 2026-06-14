@@ -70,10 +70,7 @@ async function sendChunkedText(
 ): Promise<void> {
   const chunks = chunkMessage(text);
   const sendableChannel = channel as TextBasedChannel & {
-    send: (value: {
-      content: string;
-      flags: MessageFlags;
-    }) => Promise<unknown>;
+    send: (value: { content: string; flags: MessageFlags }) => Promise<unknown>;
   };
 
   for (const chunk of chunks) {

@@ -264,7 +264,11 @@ describe("scheduled-job-loader", () => {
     `);
     const helperFile = path.join(path.dirname(jobsFile), "prompt-helper.ts");
 
-    await fs.writeFile(helperFile, 'export const promptSuffix = "today";\n', "utf8");
+    await fs.writeFile(
+      helperFile,
+      'export const promptSuffix = "today";\n',
+      "utf8",
+    );
 
     await expect(
       loadScheduledJobs(
@@ -280,7 +284,11 @@ describe("scheduled-job-loader", () => {
       }),
     ]);
 
-    await fs.writeFile(helperFile, 'export const promptSuffix = "tomorrow";\n', "utf8");
+    await fs.writeFile(
+      helperFile,
+      'export const promptSuffix = "tomorrow";\n',
+      "utf8",
+    );
 
     await expect(
       loadScheduledJobs(

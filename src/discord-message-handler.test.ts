@@ -308,8 +308,14 @@ describe("handleForumPostEdit", () => {
     );
 
     await handleForumPostEdit(
-      createForumStarterMessage({ id: "message-2", content: "old reply" }) as never,
-      createForumStarterMessage({ id: "message-2", content: "new reply" }) as never,
+      createForumStarterMessage({
+        id: "message-2",
+        content: "old reply",
+      }) as never,
+      createForumStarterMessage({
+        id: "message-2",
+        content: "new reply",
+      }) as never,
       config,
       createAgentService(),
       registry,
