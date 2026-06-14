@@ -8,17 +8,21 @@ import type {
   ResolvedDiscordGatewayConfig,
 } from "./types";
 
-const { clientState, handleDiscordMessageMock, sendReplyMock } = vi.hoisted(
-  () => {
-    return {
-      clientState: {
-        instances: [] as Array<Record<string, unknown>>,
-      },
-      handleDiscordMessageMock: vi.fn(),
-      sendReplyMock: vi.fn(),
-    };
-  },
-);
+const {
+  clientState,
+  handleDiscordMessageMock,
+  handleForumPostEditMock,
+  sendReplyMock,
+} = vi.hoisted(() => {
+  return {
+    clientState: {
+      instances: [] as Array<Record<string, unknown>>,
+    },
+    handleDiscordMessageMock: vi.fn(),
+    handleForumPostEditMock: vi.fn(),
+    sendReplyMock: vi.fn(),
+  };
+});
 
 vi.mock("discord.js", async () => {
   const actual =
@@ -56,6 +60,7 @@ vi.mock("discord.js", async () => {
 vi.mock("./discord-message-handler", () => {
   return {
     handleDiscordMessage: handleDiscordMessageMock,
+    handleForumPostEdit: handleForumPostEditMock,
   };
 });
 
@@ -99,11 +104,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   clientState.instances.length = 0;
   handleDiscordMessageMock.mockResolvedValue(undefined);
+  handleForumPostEditMock.mockResolvedValue(undefined);
   sendReplyMock.mockResolvedValue(undefined);
 });
 
 describe("startGatewayClient", () => {
-  it("logs in and wires message and thread handlers", async () => {
+  it("logs in and wires message, edit, and thread handlers", async () => {
     const sessionRegistry = {
       remove: vi.fn(async () => undefined),
     } as unknown as SessionRegistry;
@@ -121,6 +127,7 @@ describe("startGatewayClient", () => {
     expect(client.login).toHaveBeenCalledWith("bot-token");
 
     const messageHandler = client.onHandlers.get(Events.MessageCreate);
+    const messageUpdateHandler = client.onHandlers.get(Events.MessageUpdate);
     const threadDeleteHandler = client.onHandlers.get(Events.ThreadDelete);
 
     const message = { id: "message-1" };
@@ -133,6 +140,19 @@ describe("startGatewayClient", () => {
       sessionRegistry,
       accessConfig,
       undefined,
+    );
+
+    const oldMessage = { id: "message-1", content: "old" };
+    const newMessage = { id: "message-1", content: "new" };
+    await messageUpdateHandler?.(oldMessage, newMessage);
+
+    expect(handleForumPostEditMock).toHaveBeenCalledWith(
+      oldMessage,
+      newMessage,
+      expect.anything(),
+      expect.anything(),
+      sessionRegistry,
+      accessConfig,
     );
 
     await threadDeleteHandler?.({ id: "thread-1" });

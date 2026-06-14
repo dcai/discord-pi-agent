@@ -7,6 +7,11 @@ export type DiscordPromptTimeFormatOptions = {
   locale?: string;
 };
 
+export type DiscordMessageMetadataOptions = {
+  eventType?: string;
+  editedAt?: Date;
+};
+
 export function formatDiscordPromptTime(
   date: Date,
   options: DiscordPromptTimeFormatOptions = {},
@@ -30,13 +35,20 @@ export function formatDiscordPromptTime(
 export function buildDiscordMessageMetadata(
   message: Message,
   scope: SessionScope,
+  options: DiscordMessageMetadataOptions = {},
 ): string {
   const isThread = scope.startsWith("thread:") && message.channel.isThread();
 
   const contextEntries = [
     ["scope", scope === "dm" ? "dm" : "thread"],
+    ["event_type", options.eventType],
     ["sent_at", message.createdAt.toISOString()],
     ["sent_at_local", formatDiscordPromptTime(message.createdAt)],
+    ["edited_at", options.editedAt?.toISOString()],
+    [
+      "edited_at_local",
+      options.editedAt ? formatDiscordPromptTime(options.editedAt) : undefined,
+    ],
     ["message_id", message.id],
     [
       "author_name",

@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChannelType } from "discord.js";
-import { handleDiscordMessage } from "./discord-message-handler";
+import {
+  handleDiscordMessage,
+  handleForumPostEdit,
+} from "./discord-message-handler";
 import type { AgentService } from "./agent-service";
 import type { SessionRegistry } from "./session-registry";
 import type {
@@ -194,6 +197,26 @@ function createMessage(
   };
 }
 
+function createForumStarterMessage(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return createMessage({
+    id: "thread-1",
+    content: "original topic",
+    editedAt: new Date("2026-05-18T10:05:00.000Z"),
+    channel: {
+      id: "thread-1",
+      type: ChannelType.PublicThread,
+      name: "Bug report",
+      parentId: "forum-1",
+      isThread: () => true,
+      isSendable: () => true,
+      send: vi.fn(async () => undefined),
+    },
+    ...overrides,
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   executeSessionCommandMock.mockResolvedValue({ handled: false });
@@ -216,6 +239,87 @@ beforeEach(() => {
   startTypingForChannelMock.mockImplementation(() => undefined);
   stopTypingForChannelMock.mockImplementation(() => undefined);
   runAgentTurnMock.mockResolvedValue("agent reply");
+});
+
+describe("handleForumPostEdit", () => {
+  it("reuses the normal prompt pipeline for edited forum starter posts", async () => {
+    const config = createConfig();
+    const session = createSession();
+    const promptQueue = createPromptQueue();
+    const registry = createSessionRegistry({ session, promptQueue });
+    const oldMessage = createForumStarterMessage({ content: "old topic" });
+    const newMessage = createForumStarterMessage({ content: "new topic" });
+
+    await handleForumPostEdit(
+      oldMessage as never,
+      newMessage as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(executeSessionCommandMock).not.toHaveBeenCalled();
+    expect(startTypingForChannelMock).toHaveBeenCalledWith(
+      newMessage.channel,
+      "thread-1",
+    );
+    expect(addWorkingReactionMock).toHaveBeenCalledWith(newMessage, "⚙️");
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      session,
+      "transformed:new topic",
+      expect.objectContaining({
+        images: undefined,
+        onToolStart: expect.any(Function),
+        onToolEnd: expect.any(Function),
+      }),
+    );
+    expect(config.promptTransform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rawContent: "new topic",
+        discordMetadata: expect.stringContaining(
+          '"event_type": "thread_starter_edit"',
+        ),
+      }),
+    );
+    expect(config.promptTransform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        discordMetadata: expect.stringContaining(
+          '"edited_at": "2026-05-18T10:05:00.000Z"',
+        ),
+      }),
+    );
+    expect(sendReplyMock).toHaveBeenCalledWith(newMessage, "agent reply");
+    expect(stopTypingForChannelMock).toHaveBeenCalledWith("thread-1");
+    expect(removeWorkingReactionMock).toHaveBeenCalledWith(newMessage, "⚙️");
+  });
+
+  it("ignores unchanged edits and non-starter thread messages", async () => {
+    const config = createConfig();
+    const registry = createSessionRegistry();
+
+    await handleForumPostEdit(
+      createForumStarterMessage({ content: "same topic" }) as never,
+      createForumStarterMessage({ content: "same topic" }) as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    await handleForumPostEdit(
+      createForumStarterMessage({ id: "message-2", content: "old reply" }) as never,
+      createForumStarterMessage({ id: "message-2", content: "new reply" }) as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(runAgentTurnMock).not.toHaveBeenCalled();
+    expect(sendReplyMock).not.toHaveBeenCalled();
+    expect(startTypingForChannelMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("handleDiscordMessage", () => {

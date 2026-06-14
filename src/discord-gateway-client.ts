@@ -1,7 +1,10 @@
 import { Events, type Client } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { createDiscordClient, loginDiscordClient } from "./discord-client";
-import { handleDiscordMessage } from "./discord-message-handler";
+import {
+  handleDiscordMessage,
+  handleForumPostEdit,
+} from "./discord-message-handler";
 import { sendReply } from "./discord-replies";
 import { createModuleLogger } from "./logger";
 import type { SessionRegistry, SessionScope } from "./session-registry";
@@ -38,6 +41,21 @@ export async function startGatewayClient(
         message,
         "The bot hit an error while handling that message.",
       );
+    }
+  });
+
+  client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
+    try {
+      await handleForumPostEdit(
+        oldMessage,
+        newMessage,
+        config,
+        agentService,
+        sessionRegistry,
+        accessConfig,
+      );
+    } catch (error) {
+      logger.error({ error }, "message update handling failed");
     }
   });
 

@@ -66,6 +66,12 @@ Every Discord prompt is wrapped with lightweight Discord context before `promptT
 
 DM prompts omit thread-only fields. `sent_at_local` uses `promptTimeZone` and `promptLocale`.
 
+When a forum thread's starter post body is edited, the next prompt also includes:
+
+- `event_type: "thread_starter_edit"`
+- `edited_at`
+- `edited_at_local`
+
 ## Install
 
 ```bash

@@ -1,5 +1,5 @@
 import type { ImageContent } from "@earendil-works/pi-ai";
-import type { Message } from "discord.js";
+import type { Message, PartialMessage } from "discord.js";
 import type { AgentService } from "./agent-service";
 import {
   readMediaAttachments,
@@ -23,6 +23,7 @@ import {
   buildDiscordMessageMetadata,
   formatDiscordPromptTime,
   wrapXmlTag,
+  type DiscordMessageMetadataOptions,
 } from "./prompt-context";
 import { runAgentTurn } from "./agent-turn-runner";
 import type {
@@ -51,7 +52,67 @@ type PreparedDiscordMessage = {
   scope: SessionScope;
   content: string;
   mediaAttachments: MediaAttachmentContent[];
+  metadataOptions?: DiscordMessageMetadataOptions;
 };
+
+/**
+ * Handle edited messages. Currently only processes forum thread starter
+ * message edits (post body updates). The edited content is sent to the pi
+ * session so the agent stays aware of topic changes.
+ */
+export async function handleForumPostEdit(
+  oldMessage: Message | PartialMessage,
+  newMessage: Message | PartialMessage,
+  config: ResolvedDiscordGatewayConfig,
+  agentService: AgentService,
+  sessionRegistry: SessionRegistry,
+  accessConfig: GatewayAccessConfig,
+): Promise<void> {
+  const message = await resolveFullMessage(newMessage);
+  if (!message) {
+    return;
+  }
+
+  if (!isForumThreadStarterMessage(message)) {
+    return;
+  }
+
+  if (!didMessageContentChange(oldMessage, message)) {
+    return;
+  }
+
+  const preparedMessage = await prepareDiscordMessage(message, accessConfig);
+  if (!preparedMessage || preparedMessage.scope === "dm") {
+    return;
+  }
+
+  logger.info(
+    {
+      scope: preparedMessage.scope,
+      content: preparedMessage.content,
+    },
+    "forum post edited",
+  );
+
+  const channelKey = message.channel.id;
+  startTypingIfPossible(message, channelKey);
+
+  const { entry } = await sessionRegistry.getOrCreate(preparedMessage.scope);
+  await processAgentPrompt(
+    message,
+    config,
+    agentService,
+    entry,
+    {
+      ...preparedMessage,
+      metadataOptions: {
+        eventType: "thread_starter_edit",
+        editedAt: message.editedAt ?? new Date(),
+      },
+    },
+    channelKey,
+  );
+}
 
 export async function handleDiscordMessage(
   message: Message,
@@ -120,6 +181,39 @@ export async function handleDiscordMessage(
       : preparedMessage,
     channelKey,
   );
+}
+
+async function resolveFullMessage(
+  message: Message | PartialMessage,
+): Promise<Message | null> {
+  if (!message.partial) {
+    return message;
+  }
+
+  try {
+    return await message.fetch();
+  } catch {
+    return null;
+  }
+}
+
+function isForumThreadStarterMessage(message: Message): boolean {
+  if (!message.channel.isThread()) {
+    return false;
+  }
+
+  return message.id === message.channel.id;
+}
+
+function didMessageContentChange(
+  oldMessage: Message | PartialMessage,
+  newMessage: Message,
+): boolean {
+  if (oldMessage.partial) {
+    return true;
+  }
+
+  return (oldMessage.content ?? "") !== (newMessage.content ?? "");
 }
 
 async function prepareDiscordMessage(
@@ -405,6 +499,7 @@ async function buildPromptInput(
   const discordMetadata = buildDiscordMessageMetadata(
     message,
     preparedMessage.scope,
+    preparedMessage.metadataOptions,
   );
 
   const prompt = await config.promptTransform({
