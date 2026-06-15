@@ -71,12 +71,18 @@ const taskResultTargetSchema = z.discriminatedUnion("target", [
   }),
 ]);
 
+const taskModelTargetSchema = z.object({
+  provider: trimmedStringSchema,
+  id: trimmedStringSchema,
+});
+
 const scheduledJobDefinitionSchema = z.object({
   id: trimmedStringSchema,
   prompt: trimmedStringSchema,
   description: optionalTrimmedStringSchema,
   schedule: taskScheduleSchema,
   session: taskSessionTargetSchema.optional(),
+  model: taskModelTargetSchema.optional(),
   result: taskResultTargetSchema.optional(),
 });
 

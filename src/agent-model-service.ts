@@ -4,7 +4,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 import { createModuleLogger } from "./logger";
-import type { ResolvedDiscordGatewayConfig, ThinkingLevel } from "./types";
+import type {
+  ResolvedDiscordGatewayConfig,
+  TaskModelTarget,
+  ThinkingLevel,
+} from "./types";
 
 const logger = createModuleLogger("agent-model-service");
 
@@ -35,9 +39,30 @@ export class AgentModelService {
       return;
     }
 
-    const desiredModel = this.modelRegistry.find(
-      this.config.modelProvider,
-      this.config.modelId,
+    const desiredModel = await this.getRequiredModel(
+      {
+        provider: this.config.modelProvider,
+        id: this.config.modelId,
+      },
+      "Configured model not found",
+    );
+    logger.info(
+      {
+        to: `${desiredModel.provider}/${desiredModel.id}`,
+      },
+      "setting initial session model",
+    );
+    await session.setModel(desiredModel);
+    await this.applyConfiguredThinkingLevelForSession(session);
+  }
+
+  async ensureSessionUsesModel(
+    session: AgentSession,
+    target: TaskModelTarget,
+  ): Promise<void> {
+    const desiredModel = await this.getRequiredModel(
+      target,
+      "Scheduled job model not found",
     );
     const availableModels = await this.modelRegistry.getAvailable();
 
@@ -46,24 +71,22 @@ export class AgentModelService {
         count: availableModels.length,
         matches: availableModels
           .filter((model) => {
-            return model.provider === this.config.modelProvider;
+            return model.provider === desiredModel.provider;
           })
           .map((model) => `${model.provider}/${model.id}`),
       },
       "available models",
     );
 
-    if (!desiredModel) {
-      throw new Error(
-        `Configured model not found: ${this.config.modelProvider}/${this.config.modelId}. Check your pi agent config and installed extensions.`,
-      );
+    if (isSameModel(session.model, desiredModel)) {
+      return;
     }
 
     logger.info(
       {
         to: `${desiredModel.provider}/${desiredModel.id}`,
       },
-      "setting initial session model",
+      "setting session model",
     );
     await session.setModel(desiredModel);
     await this.applyConfiguredThinkingLevelForSession(session);
@@ -188,6 +211,21 @@ export class AgentModelService {
         );
       }
     }
+  }
+
+  private async getRequiredModel(
+    target: TaskModelTarget,
+    label: string,
+  ): Promise<Model<any>> {
+    const desiredModel = this.modelRegistry.find(target.provider, target.id);
+
+    if (!desiredModel) {
+      throw new Error(
+        `${label}: ${target.provider}/${target.id}. Check your pi agent config and installed extensions.`,
+      );
+    }
+
+    return desiredModel;
   }
 }
 

@@ -481,6 +481,7 @@ function formatJobsResponse(
         `  prompt: ${formatJobPromptPreview(job.prompt)}`,
         `  source: ${formatJobSource(job.source)}`,
         `  schedule: ${formatTaskSchedule(job.schedule)}`,
+        `  model: ${formatJobModel(job)}`,
         `  next-run-at: ${job.nextRunAt ?? "(unknown)"}`,
         `  target: ${formatResultTarget(job.result)}`,
         `  session: ${formatSessionTarget(job.session)}`,
@@ -646,6 +647,7 @@ async function handleJobInfoCommand(
       ...formatJobPromptLines(job.prompt),
       `source: ${formatJobSource(job.source)}`,
       `schedule: ${formatTaskSchedule(job.schedule)}`,
+      `model: ${formatJobModel(job)}`,
       `session: ${formatSessionTarget(job.session)}`,
       `session-mode: ${formatSessionStrategy(job.session)}`,
       `result: ${formatResultTarget(job.result)}`,
@@ -874,6 +876,16 @@ function formatJobSource(source: TaskJobRuntimeState["source"]): string {
   return source;
 }
 
+function formatJobModel(job: TaskJobRuntimeState): string {
+  const effectiveModel = `${job.effectiveModel.provider}/${job.effectiveModel.id}`;
+
+  if (!job.model) {
+    return `default (${effectiveModel})`;
+  }
+
+  return effectiveModel;
+}
+
 function buildJobUpdatePrompt(
   request: string,
   jobsFile: string,
@@ -887,6 +899,7 @@ function buildJobUpdatePrompt(
             `  prompt: ${formatJobPromptPreview(job.prompt)}`,
             `  source: ${formatJobSource(job.source)}`,
             `  schedule: ${formatTaskSchedule(job.schedule)}`,
+            `  model: ${formatJobModel(job)}`,
             `  session: ${formatSessionTarget(job.session)}`,
             `  session-mode: ${formatSessionStrategy(job.session)}`,
             `  result: ${formatResultTarget(job.result)}`,
@@ -929,11 +942,17 @@ function buildJobUpdatePrompt(
     '      strategy: "reuse",',
     '      scope: "job:morning-summary",',
     "    },",
+    "    model: {",
+    '      provider: "openrouter",',
+    '      id: "anthropic/claude-sonnet-4",',
+    "    },",
     "    result: {",
     '      target: "discord-channel",',
     '      channelId: "<channel-id>",',
     "    },",
     "  },",
+    "",
+    "  // Omit model to use the gateway default model from config",
     "",
     "  // Available session types:",
     "  //   { strategy: \"fresh\", scope: \"job:<id>\" }     — fresh session each run",
@@ -963,6 +982,8 @@ function buildJobUpdatePrompt(
     "- Preserve unrelated jobs and unrelated fields unless the user asked to change them.",
     "- Use the loaded runtime state for context, then read the jobs file if you need full source details.",
     "- If the target job is missing or ambiguous, inspect the jobs file and explain what you found.",
+    "- Jobs may optionally set model: { provider, id }. Omit it to use the gateway default model.",
+    "- Do not add a model override on shared dm/thread session scopes. Use a dedicated job:<id> scope instead.",
     "- After editing, remind the user to run `!jobs reload` to reload the scheduler.",
     "- Also remind the user to run `!jobs` to see the latest scheduled jobs.",
     "- Do not claim the live scheduler has changed until `!jobs reload` is run.",

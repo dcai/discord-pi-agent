@@ -100,6 +100,11 @@ export type TaskSessionTarget =
       scope?: undefined;
     };
 
+export type TaskModelTarget = {
+  provider: string;
+  id: string;
+};
+
 export type ScheduledTaskDefinition = {
   id: string;
   prompt: string;
@@ -112,6 +117,11 @@ export type ScheduledTaskDefinition = {
    * sessions/job-<id>/.
    */
   session?: TaskSessionTarget;
+  /**
+   * Optional model override for this job. Omit to use the gateway default
+   * model from the resolved config.
+   */
+  model?: TaskModelTarget;
   result?: TaskResultTarget;
 };
 
@@ -193,6 +203,8 @@ export type TaskJobRuntimeState = {
   source: TaskJobSource;
   schedule: TaskJobSchedule;
   session: TaskSessionTarget | undefined;
+  model: TaskModelTarget | undefined;
+  effectiveModel: TaskModelTarget;
   result: TaskResultTarget | undefined;
   nextRunAt: string | null;
   lastRunAt: string | null;

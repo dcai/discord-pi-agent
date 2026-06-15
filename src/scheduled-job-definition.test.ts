@@ -14,6 +14,10 @@ describe("scheduled-job-definition", () => {
               hour: 19,
               minute: 50,
             },
+            model: {
+              provider: "openrouter",
+              id: "anthropic/claude-sonnet-4",
+            },
           },
         ],
         "scheduled-jobs.ts",
@@ -28,6 +32,10 @@ describe("scheduled-job-definition", () => {
           hour: 19,
           minute: 50,
           timeZone: undefined,
+        },
+        model: {
+          provider: "openrouter",
+          id: "anthropic/claude-sonnet-4",
         },
         session: undefined,
         result: undefined,

@@ -182,6 +182,10 @@ export function loadScheduleJobs(context: ScheduledJobsContext) {
         strategy: "reuse",
         scope: "dm",
       },
+      model: {
+        provider: "openrouter",
+        id: "anthropic/claude-sonnet-4",
+      },
       result: {
         target: "discord-dm",
         userId: context.config.discordAllowedUserId,
@@ -226,6 +230,14 @@ Examples:
 - `{ strategy: "reuse", scope: "dm" }` — reuse the DM session
 - `{ strategy: "fresh", scope: "thread:123" }` — replace the thread session with a fresh persistent one
 - `{ strategy: "ephemeral" }` — one-shot in-memory session, never saved
+
+### Model override
+
+Jobs can optionally set `model: { provider, id }`.
+
+- omit `model` to use the gateway default model from `config.modelProvider` and `config.modelId`
+- use `model` when one job should run on a different LLM provider/model
+- avoid model overrides on shared `dm` or `thread:<id>` scopes; use a dedicated `job:<id>` scope instead
 
 ### Result targets
 

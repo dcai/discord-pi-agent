@@ -201,6 +201,39 @@ describe("AgentModelService", () => {
     expect(session.setThinkingLevel).toHaveBeenCalledWith("high");
   });
 
+  it("forces a session onto a requested model", async () => {
+    const newModel = createModel("openai", "gpt-5");
+    const registry = createModelRegistry([newModel]);
+    const service = new AgentModelService(
+      createConfig({ thinkingLevel: "high" }),
+      registry as never,
+    );
+    const session = createSession({
+      model: createModel("openrouter", "model-1"),
+    });
+
+    await service.ensureSessionUsesModel(session, {
+      provider: "openai",
+      id: "gpt-5",
+    });
+
+    expect(session.setModel).toHaveBeenCalledWith(newModel);
+    expect(session.setThinkingLevel).toHaveBeenCalledWith("high");
+  });
+
+  it("throws when a requested session model is missing", async () => {
+    const registry = createModelRegistry([createModel("openrouter", "model-1")]);
+    const service = new AgentModelService(createConfig(), registry as never);
+    const session = createSession();
+
+    await expect(
+      service.ensureSessionUsesModel(session, {
+        provider: "openai",
+        id: "gpt-5",
+      }),
+    ).rejects.toThrow("Scheduled job model not found: openai/gpt-5");
+  });
+
   it("reports current model and thinking support", () => {
     const service = new AgentModelService(
       createConfig(),

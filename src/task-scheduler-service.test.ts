@@ -103,7 +103,7 @@ function createDeliveryService(): {
 function createAgentService(): {
   agentService: AgentService;
   createTemporarySessionMock: ReturnType<typeof vi.fn>;
-  ensureSessionHasConfiguredModelMock: ReturnType<typeof vi.fn>;
+  ensureSessionUsesModelMock: ReturnType<typeof vi.fn>;
   tempSession: {
     sessionId: string;
     dispose: ReturnType<typeof vi.fn>;
@@ -114,17 +114,17 @@ function createAgentService(): {
     dispose: vi.fn(),
   };
   const createTemporarySessionMock = vi.fn(async () => tempSession);
-  const ensureSessionHasConfiguredModelMock = vi.fn(async () => undefined);
+  const ensureSessionUsesModelMock = vi.fn(async () => undefined);
 
   return {
     agentService: {
       createTemporarySession: createTemporarySessionMock,
       models: {
-        ensureSessionHasConfiguredModel: ensureSessionHasConfiguredModelMock,
+        ensureSessionUsesModel: ensureSessionUsesModelMock,
       },
     } as unknown as AgentService,
     createTemporarySessionMock,
-    ensureSessionHasConfiguredModelMock,
+    ensureSessionUsesModelMock,
     tempSession,
   };
 }
@@ -136,7 +136,7 @@ function createService(jobs: ScheduledTaskDefinition[]) {
   const {
     agentService,
     createTemporarySessionMock,
-    ensureSessionHasConfiguredModelMock,
+    ensureSessionUsesModelMock,
     tempSession,
   } = createAgentService();
   const service = new TaskSchedulerService({
@@ -155,7 +155,7 @@ function createService(jobs: ScheduledTaskDefinition[]) {
     deliverResultMock,
     deliverErrorMock,
     createTemporarySessionMock,
-    ensureSessionHasConfiguredModelMock,
+    ensureSessionUsesModelMock,
     tempSession,
   };
 }
@@ -235,7 +235,7 @@ describe("TaskSchedulerService", () => {
       getOrCreateMock,
       deliverResultMock,
       createTemporarySessionMock,
-      ensureSessionHasConfiguredModelMock,
+      ensureSessionUsesModelMock,
       tempSession,
     } = createService([
       {
@@ -255,9 +255,10 @@ describe("TaskSchedulerService", () => {
     expect(createTemporarySessionMock).toHaveBeenCalledWith({
       thinkingLevel: "medium",
     });
-    expect(ensureSessionHasConfiguredModelMock).toHaveBeenCalledWith(
-      tempSession,
-    );
+    expect(ensureSessionUsesModelMock).toHaveBeenCalledWith(tempSession, {
+      provider: "openrouter",
+      id: "model-1",
+    });
     expect(runAgentTurnMock).toHaveBeenCalledWith(
       tempSession,
       "Write a one-shot summary",
@@ -321,11 +322,17 @@ describe("TaskSchedulerService", () => {
           target: "discord-dm",
           userId: "user-1",
         },
+        model: undefined,
       }),
       "scheduled reply",
     );
     expect(service.getJob("daily-summary")).toEqual(
       expect.objectContaining({
+        model: undefined,
+        effectiveModel: {
+          provider: "openrouter",
+          id: "model-1",
+        },
         lastRunAt: "2026-01-01T00:04:30.000Z",
         lastSuccessAt: "2026-01-01T00:04:30.000Z",
         lastErrorAt: null,
@@ -459,6 +466,11 @@ describe("TaskSchedulerService", () => {
         timeZone: "UTC",
       },
       session: undefined,
+      model: undefined,
+      effectiveModel: {
+        provider: "openrouter",
+        id: "model-1",
+      },
       result: {
         target: "logs",
       },
@@ -501,6 +513,11 @@ describe("TaskSchedulerService", () => {
           interval: 15,
         },
         session: undefined,
+        model: undefined,
+        effectiveModel: {
+          provider: "openrouter",
+          id: "model-1",
+        },
         result: undefined,
         nextRunAt: "2026-01-01T00:15:00.000Z",
         lastRunAt: null,
@@ -536,6 +553,11 @@ describe("TaskSchedulerService", () => {
         runAt: "2026-01-01T00:05:00.000Z",
       },
       session: undefined,
+      model: undefined,
+      effectiveModel: {
+        provider: "openrouter",
+        id: "model-1",
+      },
       result: {
         target: "discord-channel",
         channelId: "channel-1",
@@ -572,5 +594,70 @@ describe("TaskSchedulerService", () => {
       nextTickAt: "2026-01-01T00:06:00.000Z",
       running: true,
     });
+  });
+
+  it("uses an explicit scheduled job model override", async () => {
+    const { service, ensureSessionUsesModelMock } = createService([
+      {
+        id: "custom-model",
+        prompt: "Use another model",
+        schedule: { type: "every-minutes", interval: 5 },
+        model: {
+          provider: "openai",
+          id: "gpt-5",
+        },
+      },
+    ]);
+
+    await expect(service.runJobNow("custom-model")).resolves.toEqual({
+      ok: true,
+      errorMessage: null,
+    });
+
+    expect(ensureSessionUsesModelMock).toHaveBeenCalledWith(expect.anything(), {
+      provider: "openai",
+      id: "gpt-5",
+    });
+    expect(service.getJob("custom-model")).toEqual(
+      expect.objectContaining({
+        model: {
+          provider: "openai",
+          id: "gpt-5",
+        },
+        effectiveModel: {
+          provider: "openai",
+          id: "gpt-5",
+        },
+      }),
+    );
+  });
+
+  it("rejects model overrides on shared dm or thread scopes", async () => {
+    const { service, deliverErrorMock } = createService([
+      {
+        id: "shared-model",
+        prompt: "Use another model",
+        schedule: { type: "every-minutes", interval: 5 },
+        session: {
+          strategy: "reuse",
+          scope: "dm",
+        },
+        model: {
+          provider: "openai",
+          id: "gpt-5",
+        },
+      },
+    ]);
+
+    await expect(service.runJobNow("shared-model")).resolves.toEqual({
+      ok: false,
+      errorMessage:
+        'Scheduled job model overrides are not supported with shared session scope "dm" for job "shared-model". Use a dedicated job:<id> scope or omit model to use the default gateway model.',
+    });
+
+    expect(deliverErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "shared-model" }),
+      expect.any(Error),
+    );
   });
 });

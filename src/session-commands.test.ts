@@ -116,6 +116,11 @@ function createTaskSchedulerMock(
           timeZone: "UTC",
         },
         session: undefined,
+        model: undefined,
+        effectiveModel: {
+          provider: "openrouter",
+          id: "model-1",
+        },
         result: {
           target: "discord-dm",
           userId: "user-1",
@@ -145,6 +150,11 @@ function createTaskSchedulerMock(
           timeZone: "UTC",
         },
         session: undefined,
+        model: undefined,
+        effectiveModel: {
+          provider: "openrouter",
+          id: "model-1",
+        },
         result: {
           target: "discord-dm",
           userId: "user-1",
@@ -178,6 +188,11 @@ function createTaskSchedulerMock(
           runAt: input.runAt,
         },
         session: undefined,
+        model: undefined,
+        effectiveModel: {
+          provider: "openrouter",
+          id: "model-1",
+        },
         result: input.result,
         nextRunAt: input.runAt,
         lastRunAt: null,
@@ -590,6 +605,7 @@ describe("executeSessionCommand", () => {
     expect(result.response).toContain("prompt: Write the summary");
     expect(result.response).toContain("source: file");
     expect(result.response).toContain("schedule: daily at 09:00 (UTC)");
+    expect(result.response).toContain("model: default (openrouter/model-1)");
     expect(result.response).toContain("target: discord-dm:user-1");
     expect(result.response).toContain("session-mode: fresh");
   });
@@ -610,6 +626,7 @@ describe("executeSessionCommand", () => {
     expect(result.response).toContain("description: Daily update");
     expect(result.response).toContain("prompt:\n  Write the summary");
     expect(result.response).toContain("source: file");
+    expect(result.response).toContain("model: default (openrouter/model-1)");
     expect(result.response).toContain("next-run-at: 2026-01-01T09:00:00.000Z");
     expect(result.response).toContain("session-mode: fresh");
   });
@@ -901,6 +918,11 @@ describe("executeSessionCommand", () => {
           timeZone: "UTC",
         },
         session: undefined,
+        model: undefined,
+        effectiveModel: {
+          provider: "openrouter",
+          id: "model-1",
+        },
         result: {
           target: "discord-dm",
           userId: "user-1",
@@ -934,6 +956,14 @@ describe("executeSessionCommand", () => {
             timeZone: "UTC",
           },
           session: undefined,
+          model: {
+            provider: "openai",
+            id: "gpt-5",
+          },
+          effectiveModel: {
+            provider: "openai",
+            id: "gpt-5",
+          },
           result: {
             target: "discord-dm",
             userId: "user-2",
@@ -977,9 +1007,11 @@ describe("executeSessionCommand", () => {
     expect(response).toContain("next-tick-at: 2026-01-01T00:05:00.000Z");
     expect(response).toContain("- daily-summary");
     expect(response).toContain("prompt: Write the summary");
+    expect(response).toContain("model: default (openrouter/model-1)");
     expect(response).toContain("- hello-dm");
     expect(response).toContain("prompt: Say hello in the DM");
     expect(response).toContain("schedule: daily at 19:50 (UTC)");
+    expect(response).toContain("model: openai/gpt-5");
   });
 
   it("builds a scheduler-aware agent prompt for !job update", async () => {
@@ -1005,6 +1037,12 @@ describe("executeSessionCommand", () => {
     );
     expect(result.forwardedInput).toContain("Loaded scheduler runtime state:");
     expect(result.forwardedInput).toContain("prompt: Write the summary");
+    expect(result.forwardedInput).toContain(
+      "model: default (openrouter/model-1)",
+    );
+    expect(result.forwardedInput).toContain(
+      "- Jobs may optionally set model: { provider, id }. Omit it to use the gateway default model.",
+    );
     expect(result.forwardedInput).toContain(
       "- After editing, remind the user to run `!jobs reload` to reload the scheduler.",
     );

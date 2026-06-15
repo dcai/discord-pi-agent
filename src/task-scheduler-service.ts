@@ -9,6 +9,7 @@ import type {
   ResolvedTaskSchedulerConfig,
   RunAtTaskSchedule,
   ScheduledTaskDefinition,
+  TaskModelTarget,
   TaskJobRuntimeState,
   TaskJobSource,
   TaskJobSchedule,
@@ -65,6 +66,7 @@ type RuntimeReminderJobDefinition = {
   description?: string;
   schedule: RunAtTaskSchedule;
   session?: TaskSessionTarget;
+  model?: undefined;
   result: TaskResultTarget;
   source: "runtime";
   deleteAfterRun: true;
@@ -315,9 +317,15 @@ export class TaskSchedulerService {
   ): Promise<JobRunResult> {
     const sessionStrategy = getTaskSessionStrategy(job.session);
     const scope = sessionStrategy === "ephemeral" ? null : resolveJobScope(job);
+    const effectiveModel = resolveJobModel(job, this.config);
     const jobState = this.jobStates.get(job.id);
     logger.info(
-      { jobId: job.id, scope, sessionStrategy },
+      {
+        jobId: job.id,
+        scope,
+        sessionStrategy,
+        model: `${effectiveModel.provider}/${effectiveModel.id}`,
+      },
       "running scheduled job",
     );
 
@@ -341,17 +349,19 @@ export class TaskSchedulerService {
     }
 
     try {
+      assertJobModelScopeIsSafe(job, scope);
       const prompt = await buildTaskPrompt(job, this.config, now);
       let response: string;
 
       if (sessionStrategy === "ephemeral") {
-        response = await this.runEphemeralJob(prompt);
+        response = await this.runEphemeralJob(prompt, effectiveModel);
       } else {
         const persistentScope = resolveJobScope(job);
         response = await this.runPersistentJob(
           persistentScope,
           sessionStrategy,
           prompt,
+          effectiveModel,
         );
       }
 
@@ -393,23 +403,28 @@ export class TaskSchedulerService {
     scope: SessionScope,
     sessionStrategy: "fresh" | "reuse",
     prompt: string,
+    model: TaskModelTarget,
   ): Promise<string> {
     const { entry } = await this.sessionRegistry.getOrCreate(scope, {
       reuseExisting: sessionStrategy === "reuse",
     });
 
     return entry.promptQueue.enqueue(async () => {
+      await this.agentService.models.ensureSessionUsesModel(entry.session, model);
       return runAgentTurn(entry.session, prompt);
     });
   }
 
-  private async runEphemeralJob(prompt: string): Promise<string> {
+  private async runEphemeralJob(
+    prompt: string,
+    model: TaskModelTarget,
+  ): Promise<string> {
     const session = await this.agentService.createTemporarySession({
       thinkingLevel: this.config.thinkingLevel,
     });
 
     try {
-      await this.agentService.models.ensureSessionHasConfiguredModel(session);
+      await this.agentService.models.ensureSessionUsesModel(session, model);
       return runAgentTurn(session, prompt);
     } finally {
       session.dispose();
@@ -430,6 +445,8 @@ export class TaskSchedulerService {
       source: jobState.definition.source,
       schedule: jobState.definition.schedule,
       session: jobState.definition.session,
+      model: jobState.definition.model,
+      effectiveModel: resolveJobModel(jobState.definition, this.config),
       result: jobState.definition.result,
       nextRunAt: formatDate(
         findNextRunAt(jobState.definition, now, this.config.promptTimeZone),
@@ -484,6 +501,31 @@ function getTaskSessionStrategy(
   }
 
   return session?.strategy ?? "fresh";
+}
+
+function resolveJobModel(
+  job: ManagedJobDefinition,
+  config: ResolvedDiscordGatewayConfig,
+): TaskModelTarget {
+  return job.model ?? {
+    provider: config.modelProvider,
+    id: config.modelId,
+  };
+}
+
+function assertJobModelScopeIsSafe(
+  job: ManagedJobDefinition,
+  scope: SessionScope | null,
+): void {
+  if (!job.model || !scope) {
+    return;
+  }
+
+  if (scope === "dm" || scope.startsWith("thread:")) {
+    throw new Error(
+      `Scheduled job model overrides are not supported with shared session scope "${scope}" for job "${job.id}". Use a dedicated job:<id> scope or omit model to use the default gateway model.`,
+    );
+  }
 }
 
 async function buildTaskPrompt(
