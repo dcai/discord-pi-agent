@@ -410,7 +410,10 @@ export class TaskSchedulerService {
     });
 
     return entry.promptQueue.enqueue(async () => {
-      await this.agentService.models.ensureSessionUsesModel(entry.session, model);
+      await this.agentService.models.ensureSessionUsesModel(
+        entry.session,
+        model,
+      );
       return runAgentTurn(entry.session, prompt);
     });
   }
@@ -507,10 +510,12 @@ function resolveJobModel(
   job: ManagedJobDefinition,
   config: ResolvedDiscordGatewayConfig,
 ): TaskModelTarget {
-  return job.model ?? {
-    provider: config.modelProvider,
-    id: config.modelId,
-  };
+  return (
+    job.model ?? {
+      provider: config.modelProvider,
+      id: config.modelId,
+    }
+  );
 }
 
 function assertJobModelScopeIsSafe(

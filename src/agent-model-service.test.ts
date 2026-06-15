@@ -222,7 +222,9 @@ describe("AgentModelService", () => {
   });
 
   it("throws when a requested session model is missing", async () => {
-    const registry = createModelRegistry([createModel("openrouter", "model-1")]);
+    const registry = createModelRegistry([
+      createModel("openrouter", "model-1"),
+    ]);
     const service = new AgentModelService(createConfig(), registry as never);
     const session = createSession();
 
