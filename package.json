@@ -29,7 +29,7 @@
     "test": "LOG_LEVEL=silent vitest run",
     "test:coverage": "LOG_LEVEL=silent vitest run --coverage",
     "smoke:task-scheduler": "LOG_LEVEL=silent vitest run --config vitest.smoke.config.ts --reporter=verbose",
-    "format": "prettier --write .",
+    "format": "prettier --write ./src",
     "build:clean": "rm -rf dist",
     "build:emit": "tsgo -p tsconfig.build.json --declaration --declarationMap false",
     "build": "npm run build:clean && npm run build:emit",
