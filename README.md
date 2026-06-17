@@ -46,7 +46,9 @@ Prefix commands default to `!`. You can add others, such as `;`, with `discordCo
 
 Slash command handling uses the existing Discord gateway connection (`InteractionCreate`). It does **not** require a separate inbound webhook server or an extra public port on your VPS.
 
-`!abort` cancels the active run for the current DM or thread scope and clears any queued prompts behind it. The `/status` slash command also includes an **Abort run** button for the same scope.
+`!abort` cancels the active run for the current DM or thread scope and clears any queued prompts behind it.
+
+`/prompt` and `/p` are slash-only prompt entry points. They send text into the same DM/thread session as normal chat, keep Discord's interaction loading UI while the run is starting, and show an **Abort run** button on the ephemeral control reply.
 
 ### Slash command sync
 

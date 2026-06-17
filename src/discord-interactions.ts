@@ -16,10 +16,14 @@ import {
   type Client,
   type Interaction,
   type ModalSubmitInteraction,
+  type TextBasedChannel,
 } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { formatCommandReplyChunks } from "./discord-replies";
+import { runAgentTurn } from "./agent-turn-runner";
 import { createModuleLogger } from "./logger";
+import { chunkMessage } from "./message-chunker";
+import { formatDiscordPromptTime, wrapXmlTag } from "./prompt-context";
 import type { SessionRegistry, SessionScope } from "./session-registry";
 import { PromptQueueCancelledError } from "./prompt-queue";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
@@ -34,7 +38,7 @@ const logger = createModuleLogger("discord-interactions");
 
 const JOBS_RELOAD_BUTTON_ID = "jobs:reload";
 const JOB_RUN_HERE_BUTTON_PREFIX = "job:run-here:";
-const SESSION_ABORT_BUTTON_ID = "session:abort";
+const PROMPT_ABORT_BUTTON_ID = "prompt:abort";
 const REMIND_MODAL_ID = "remind:create";
 const REMIND_MODAL_WHEN_FIELD = "when";
 const REMIND_MODAL_TASK_FIELD = "task";
@@ -86,6 +90,30 @@ export function buildDiscordApplicationCommands(): ReturnType<
       new SlashCommandBuilder()
         .setName("reload")
         .setDescription("Reload AGENTS.md, skills, extensions, and resources."),
+    ).toJSON(),
+    applyDefaultCommandContexts(
+      new SlashCommandBuilder()
+        .setName("prompt")
+        .setDescription(
+          "Send a prompt through the current DM or thread session.",
+        )
+        .addStringOption((option) => {
+          return option
+            .setName("text")
+            .setDescription("Prompt text to send to the agent.")
+            .setRequired(true);
+        }),
+    ).toJSON(),
+    applyDefaultCommandContexts(
+      new SlashCommandBuilder()
+        .setName("p")
+        .setDescription("Short alias for /prompt.")
+        .addStringOption((option) => {
+          return option
+            .setName("text")
+            .setDescription("Prompt text to send to the agent.")
+            .setRequired(true);
+        }),
     ).toJSON(),
     applyDefaultCommandContexts(
       new SlashCommandBuilder()
@@ -346,6 +374,18 @@ async function handleChatInputInteraction(
     }
   }
 
+  if (isPromptCommandName(interaction.commandName)) {
+    const promptText = interaction.options.getString("text", true).trim();
+    await executePromptInteraction(
+      interaction,
+      promptText,
+      config,
+      sessionRegistry,
+      scope,
+    );
+    return;
+  }
+
   const commandText = buildCommandTextFromInteraction(interaction, config);
   if (!commandText) {
     await replyUnsupportedInteraction(interaction);
@@ -387,7 +427,7 @@ async function handleButtonCommandInteraction(
 
   if (interaction.customId === JOBS_RELOAD_BUTTON_ID) {
     commandText = `${primaryPrefix}jobs reload`;
-  } else if (interaction.customId === SESSION_ABORT_BUTTON_ID) {
+  } else if (interaction.customId === PROMPT_ABORT_BUTTON_ID) {
     commandText = `${primaryPrefix}abort`;
   } else if (interaction.customId.startsWith(JOB_RUN_HERE_BUTTON_PREFIX)) {
     const jobId = interaction.customId.slice(JOB_RUN_HERE_BUTTON_PREFIX.length);
@@ -573,20 +613,6 @@ function buildInteractionComponents(
   }
 
   if (
-    interaction.isChatInputCommand() &&
-    interaction.commandName === "status"
-  ) {
-    return [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(SESSION_ABORT_BUTTON_ID)
-          .setLabel("Abort run")
-          .setStyle(ButtonStyle.Danger),
-      ),
-    ];
-  }
-
-  if (
     hasTaskScheduler &&
     interaction.isChatInputCommand() &&
     interaction.commandName === "jobs"
@@ -622,6 +648,74 @@ function buildInteractionComponents(
   return [];
 }
 
+async function executePromptInteraction(
+  interaction: ChatInputCommandInteraction,
+  promptText: string,
+  config: ResolvedDiscordGatewayConfig,
+  sessionRegistry: SessionRegistry,
+  scope: SessionScope,
+): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const { entry } = await sessionRegistry.getOrCreate(scope);
+  const pendingCount = entry.promptQueue.getSnapshot().pending;
+  await interaction.editReply({
+    content:
+      pendingCount > 0
+        ? `Queued. ${pendingCount} request(s) ahead of this one.`
+        : "Running prompt...",
+    components: [buildPromptAbortButtonRow()],
+  });
+
+  const cancellationCount = entry.promptQueue.getCancellationCount();
+
+  try {
+    const response = await entry.promptQueue.enqueue(async () => {
+      const transformedPrompt = await config.promptTransform({
+        rawContent: promptText,
+        discordMetadata: buildInteractionPromptMetadata(
+          interaction,
+          scope,
+          config,
+        ),
+        now: () => {
+          return wrapXmlTag(
+            "datetime",
+            formatDiscordPromptTime(new Date(), {
+              timeZone: config.promptTimeZone,
+              locale: config.promptLocale,
+            }),
+          );
+        },
+        userMessage: () => {
+          return wrapXmlTag("user_message", promptText);
+        },
+      });
+
+      return runAgentTurn(entry.session, transformedPrompt);
+    });
+
+    await sendPromptOutputToChannel(interaction.channel, response);
+    await interaction.editReply({
+      content: "Prompt completed.",
+      components: [],
+    });
+  } catch (error) {
+    if (
+      error instanceof PromptQueueCancelledError ||
+      entry.promptQueue.getCancellationCount() !== cancellationCount
+    ) {
+      await interaction.editReply({
+        content: "Cancelled.",
+        components: [],
+      });
+      return;
+    }
+
+    throw error;
+  }
+}
+
 async function sendInteractionCommandResult(
   interaction:
     | ChatInputCommandInteraction
@@ -645,6 +739,15 @@ async function sendInteractionCommandResult(
       flags: MessageFlags.Ephemeral,
     });
   }
+}
+
+function buildPromptAbortButtonRow(): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(PROMPT_ABORT_BUTTON_ID)
+      .setLabel("Abort run")
+      .setStyle(ButtonStyle.Danger),
+  );
 }
 
 function buildRemindModal(): ModalBuilder {
@@ -709,6 +812,7 @@ function buildCommandTextFromInteraction(
       const request = interaction.options.getString("request");
       return request ? `${primaryPrefix}remind ${request}` : null;
     }
+
     case "job": {
       const subcommand = interaction.options.getSubcommand();
       const id = interaction.options.getString("id", true);
@@ -716,6 +820,81 @@ function buildCommandTextFromInteraction(
     }
     default:
       return null;
+  }
+}
+
+function isPromptCommandName(commandName: string): boolean {
+  return commandName === "prompt" || commandName === "p";
+}
+
+function buildInteractionPromptMetadata(
+  interaction: ChatInputCommandInteraction,
+  scope: SessionScope,
+  config: ResolvedDiscordGatewayConfig,
+): string {
+  const isThread =
+    scope.startsWith("thread:") && interaction.channel?.isThread();
+  const rawAuthorName =
+    interaction.member && "displayName" in interaction.member
+      ? interaction.member.displayName
+      : interaction.user.globalName || interaction.user.username;
+  const authorName = (rawAuthorName ?? "").replace(/\s+/g, " ").trim();
+  const contextEntries = [
+    ["scope", scope === "dm" ? "dm" : "thread"],
+    ["event_type", "slash_prompt"],
+    ["sent_at", interaction.createdAt.toISOString()],
+    [
+      "sent_at_local",
+      formatDiscordPromptTime(interaction.createdAt, {
+        timeZone: config.promptTimeZone,
+        locale: config.promptLocale,
+      }),
+    ],
+    ["message_id", `interaction:${interaction.id}`],
+    ["author_name", authorName || undefined],
+    ["author_id", interaction.user.id],
+    [
+      "thread_title",
+      isThread
+        ? (interaction.channel?.name ?? "").replace(/\s+/g, " ").trim()
+        : undefined,
+    ],
+    [
+      "thread_id",
+      isThread ? (interaction.channel?.id ?? undefined) : undefined,
+    ],
+    [
+      "forum_channel_id",
+      isThread ? (interaction.channel?.parentId ?? undefined) : undefined,
+    ],
+  ].filter((entry): entry is [string, string] => {
+    return typeof entry[1] === "string" && entry[1].length > 0;
+  });
+
+  return wrapXmlTag(
+    "discord_message_context",
+    JSON.stringify(Object.fromEntries(contextEntries), null, 2),
+  );
+}
+
+async function sendPromptOutputToChannel(
+  channel: ChatInputCommandInteraction["channel"],
+  text: string,
+): Promise<void> {
+  if (!channel || !("isSendable" in channel) || !channel.isSendable()) {
+    throw new Error("Prompt output channel is not sendable.");
+  }
+
+  const sendableChannel = channel as TextBasedChannel & {
+    send: (value: { content: string; flags: MessageFlags }) => Promise<unknown>;
+  };
+  const chunks = chunkMessage(text);
+
+  for (const chunk of chunks) {
+    await sendableChannel.send({
+      content: chunk,
+      flags: MessageFlags.SuppressEmbeds,
+    });
   }
 }
 

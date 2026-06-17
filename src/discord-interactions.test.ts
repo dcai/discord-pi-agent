@@ -9,15 +9,22 @@ import type {
   ResolvedDiscordGatewayConfig,
 } from "./types";
 
-const { executeSessionCommandMock } = vi.hoisted(() => {
+const { executeSessionCommandMock, runAgentTurnMock } = vi.hoisted(() => {
   return {
     executeSessionCommandMock: vi.fn(),
+    runAgentTurnMock: vi.fn(),
   };
 });
 
 vi.mock("./session-commands", () => {
   return {
     executeSessionCommand: executeSessionCommandMock,
+  };
+});
+
+vi.mock("./agent-turn-runner", () => {
+  return {
+    runAgentTurn: runAgentTurnMock,
   };
 });
 
@@ -62,8 +69,8 @@ function createSessionRegistry() {
         entry: {
           session: { sessionId: "session-1" },
           promptQueue: {
-            enqueue: vi.fn(),
-            getSnapshot: vi.fn(),
+            enqueue: vi.fn(async (task: () => Promise<string>) => task()),
+            getSnapshot: vi.fn(() => ({ pending: 0, busy: false })),
             getCancellationCount: vi.fn(() => 0),
           },
           createdAt: new Date(),
@@ -103,9 +110,14 @@ function createChatInputInteraction(options: {
     channel: {
       type: ChannelType.DM,
       isThread: () => false,
+      isSendable: () => true,
+      send: vi.fn(async () => undefined),
     },
     channelId: "dm-channel-1",
-    user: { id: "user-1" },
+    id: "interaction-1",
+    createdAt: new Date("2026-06-17T07:01:00.000Z"),
+    user: { id: "user-1", username: "alice", globalName: "Alice" },
+    member: null,
     commandName: options.commandName,
     deferred: false,
     replied: false,
@@ -148,7 +160,7 @@ function createAutocompleteInteraction(options: {
       type: ChannelType.DM,
       isThread: () => false,
     },
-    user: { id: "user-1" },
+    user: { id: "user-1", username: "alice", globalName: "Alice" },
     commandName: options.commandName,
     options: {
       getFocused: () => ({
@@ -171,7 +183,7 @@ function createButtonInteraction(customId: string) {
       isThread: () => false,
     },
     channelId: "dm-channel-1",
-    user: { id: "user-1" },
+    user: { id: "user-1", username: "alice", globalName: "Alice" },
     customId,
     deferred: false,
     replied: false,
@@ -193,6 +205,7 @@ describe("discord interactions", () => {
       handled: true,
       response: "ok",
     });
+    runAgentTurnMock.mockResolvedValue("prompt reply");
   });
 
   it("routes slash commands through the existing command engine", async () => {
@@ -244,6 +257,60 @@ describe("discord interactions", () => {
     expect(executeSessionCommandMock).not.toHaveBeenCalled();
   });
 
+  it.each(["prompt", "p"])(
+    "runs %s through the shared slash prompt handler",
+    async (commandName) => {
+      const interaction = createChatInputInteraction({
+        commandName,
+        stringOptions: { text: "hello from slash" },
+      });
+
+      await handleDiscordInteraction(
+        interaction as never,
+        createConfig(),
+        createAgentService() as never,
+        createSessionRegistry() as never,
+        accessConfig,
+        null,
+      );
+
+      expect(interaction.deferReply).toHaveBeenCalledWith({
+        flags: MessageFlags.Ephemeral,
+      });
+      expect(runAgentTurnMock).toHaveBeenCalledWith(
+        { sessionId: "session-1" },
+        "hello from slash",
+      );
+      expect(interaction.channel.send).toHaveBeenCalledWith({
+        content: "prompt reply",
+        flags: MessageFlags.SuppressEmbeds,
+      });
+      expect(interaction.editReply).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          content: "Running prompt...",
+          components: [
+            expect.objectContaining({
+              components: [
+                expect.objectContaining({
+                  data: expect.objectContaining({
+                    custom_id: "prompt:abort",
+                    label: "Abort run",
+                  }),
+                }),
+              ],
+            }),
+          ],
+        }),
+      );
+      expect(interaction.editReply).toHaveBeenLastCalledWith({
+        content: "Prompt completed.",
+        components: [],
+      });
+      expect(executeSessionCommandMock).not.toHaveBeenCalled();
+    },
+  );
+
   it("responds to autocomplete from model choices", async () => {
     const interaction = createAutocompleteInteraction({
       commandName: "model",
@@ -288,8 +355,8 @@ describe("discord interactions", () => {
     );
   });
 
-  it("maps the abort button to the abort command", async () => {
-    const interaction = createButtonInteraction("session:abort");
+  it("routes prompt abort buttons through the abort command", async () => {
+    const interaction = createButtonInteraction("prompt:abort");
 
     await handleDiscordInteraction(
       interaction as never,
@@ -304,38 +371,6 @@ describe("discord interactions", () => {
       "!abort",
       expect.objectContaining({
         scope: "dm",
-      }),
-    );
-  });
-
-  it("adds an abort button to /status responses", async () => {
-    const interaction = createChatInputInteraction({
-      commandName: "status",
-    });
-
-    await handleDiscordInteraction(
-      interaction as never,
-      createConfig(),
-      createAgentService() as never,
-      createSessionRegistry() as never,
-      accessConfig,
-      null,
-    );
-
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        components: [
-          expect.objectContaining({
-            components: [
-              expect.objectContaining({
-                data: expect.objectContaining({
-                  custom_id: "session:abort",
-                  label: "Abort run",
-                }),
-              }),
-            ],
-          }),
-        ],
       }),
     );
   });
