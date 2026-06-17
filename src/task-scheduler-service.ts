@@ -8,6 +8,7 @@ import type {
   ResolvedDiscordGatewayConfig,
   ResolvedTaskSchedulerConfig,
   RunAtTaskSchedule,
+  DailyAtTaskSchedule,
   ScheduledTaskDefinition,
   TaskModelTarget,
   TaskJobRuntimeState,
@@ -22,6 +23,7 @@ import { ScheduledJobDeliveryService } from "./scheduled-job-delivery";
 import { loadScheduledJobs } from "./scheduled-job-loader";
 
 const logger = createModuleLogger("task-scheduler-service");
+const weekDayOrder = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 type TaskSchedulerServiceOptions = {
   config: ResolvedDiscordGatewayConfig;
@@ -301,8 +303,7 @@ export class TaskSchedulerService {
     const parts = getTimeParts(now, timeZone);
     const runKey = `${parts.year}-${parts.month}-${parts.day}`;
     const due =
-      parts.hour === job.schedule.hour &&
-      parts.minute === job.schedule.minute &&
+      matchesDailyAtSchedule(job.schedule, parts) &&
       this.lastRunKeys.get(job.id) !== runKey;
 
     return {
@@ -575,11 +576,13 @@ function getTimeParts(
   year: string;
   month: string;
   day: string;
+  dayOfWeek: (typeof weekDayOrder)[number];
   hour: number;
   minute: number;
 } {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone,
+    weekday: "short",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -593,9 +596,20 @@ function getTimeParts(
     year: requirePart(parts, "year"),
     month: requirePart(parts, "month"),
     day: requirePart(parts, "day"),
+    dayOfWeek: normalizeWeekDay(requirePart(parts, "weekday")),
     hour: Number(requirePart(parts, "hour")),
     minute: Number(requirePart(parts, "minute")),
   };
+}
+
+function normalizeWeekDay(value: string): (typeof weekDayOrder)[number] {
+  const normalizedValue = value.toLowerCase().slice(0, 3);
+
+  if (weekDayOrder.includes(normalizedValue as (typeof weekDayOrder)[number])) {
+    return normalizedValue as (typeof weekDayOrder)[number];
+  }
+
+  throw new Error(`Unsupported weekday value: ${value}.`);
 }
 
 function requirePart(
@@ -646,7 +660,7 @@ function findNextRunAt(
   const candidate = toMinuteBoundary(new Date(now));
   candidate.setMinutes(candidate.getMinutes() + 1);
 
-  for (let offset = 0; offset < 60 * 48; offset += 1) {
+  for (let offset = 0; offset < 60 * 24 * 8; offset += 1) {
     const attempt = new Date(candidate);
     attempt.setMinutes(candidate.getMinutes() + offset);
 
@@ -660,10 +674,7 @@ function findNextRunAt(
 
     const timeZone = job.schedule.timeZone ?? defaultTimeZone;
     const parts = getTimeParts(attempt, timeZone);
-    if (
-      parts.hour === job.schedule.hour &&
-      parts.minute === job.schedule.minute
-    ) {
+    if (matchesDailyAtSchedule(job.schedule, parts)) {
       return attempt;
     }
   }
@@ -696,4 +707,19 @@ function stringifyError(error: unknown): string {
   }
 
   return String(error);
+}
+
+function matchesDailyAtSchedule(
+  schedule: DailyAtTaskSchedule,
+  parts: ReturnType<typeof getTimeParts>,
+): boolean {
+  if (parts.hour !== schedule.hour || parts.minute !== schedule.minute) {
+    return false;
+  }
+
+  if (!schedule.daysOfWeek?.length) {
+    return true;
+  }
+
+  return schedule.daysOfWeek.includes(parts.dayOfWeek);
 }

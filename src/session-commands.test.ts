@@ -634,6 +634,53 @@ describe("executeSessionCommand", () => {
     expect(result.response).toContain("session-mode: fresh");
   });
 
+  it("shows daysOfWeek in scheduled job formatting", async () => {
+    const taskScheduler = createTaskSchedulerMock({
+      listJobs: () => [
+        {
+          id: "weekday-summary",
+          prompt: "Write the summary",
+          description: "Weekday update",
+          source: "file",
+          schedule: {
+            type: "daily-at",
+            hour: 9,
+            minute: 0,
+            timeZone: "UTC",
+            daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
+          },
+          session: undefined,
+          model: undefined,
+          effectiveModel: {
+            provider: "openrouter",
+            id: "model-1",
+          },
+          result: {
+            target: "logs",
+          },
+          nextRunAt: "2026-01-02T09:00:00.000Z",
+          lastRunAt: null,
+          lastSuccessAt: null,
+          lastErrorAt: null,
+          lastErrorMessage: null,
+          running: false,
+        },
+      ],
+    });
+
+    const result = await executeSessionCommand("!jobs", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler,
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(result.response).toContain(
+      "schedule: daily at 09:00 (UTC) on Mon, Tue, Wed, Thu, Fri",
+    );
+  });
+
   it("shows one scheduled job from runtime state via !job info", async () => {
     const result = await executeSessionCommand("!job info daily-summary", {
       agentService: createAgentServiceMock(createSessionMock()),

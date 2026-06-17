@@ -47,6 +47,7 @@ export type {
   StartDiscordGatewayOptions,
   TaskResultTarget,
   TaskSchedule,
+  TaskScheduleDayOfWeek,
   TaskScheduler,
   TaskSchedulerConfig,
   TaskSchedulerStatus,

@@ -207,6 +207,7 @@ export function loadScheduleJobs(context: ScheduledJobsContext) {
         hour: 9,
         minute: 0,
         timeZone: "Australia/Sydney",
+        daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
       },
       prompt: "Review recent work and draft a standup update.",
       session: {
@@ -244,6 +245,13 @@ export function loadScheduleJobs(context: ScheduledJobsContext) {
 
 - `every-minutes`
 - `daily-at`
+
+`daily-at` supports:
+
+- `hour`
+- `minute`
+- `timeZone?`
+- `daysOfWeek?` — optional subset of `["sun", "mon", "tue", "wed", "thu", "fri", "sat"]`
 
 ### Session strategy
 

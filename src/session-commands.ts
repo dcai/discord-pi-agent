@@ -49,6 +49,15 @@ type CommandHandler = (
 const INTERNAL_COMMAND_PREFIX = "!";
 
 const JOB_PROMPT_PREVIEW_LENGTH = 80;
+const weekDayLabels: Record<string, string> = {
+  sun: "Sun",
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+};
 
 function getSessionStatusText(
   session: AgentSession,
@@ -857,9 +866,16 @@ function formatTaskSchedule(schedule: TaskJobSchedule): string {
     return `once at ${schedule.runAt}`;
   }
 
+  const daysOfWeek = schedule.daysOfWeek?.length
+    ? ` on ${schedule.daysOfWeek.map((day) => weekDayLabels[day]).join(", ")}`
+    : "";
+
   return `daily at ${String(schedule.hour).padStart(2, "0")}:${String(
     schedule.minute,
-  ).padStart(2, "0")} (${schedule.timeZone ?? "default timezone"})`;
+  ).padStart(
+    2,
+    "0",
+  )} (${schedule.timeZone ?? "default timezone"})${daysOfWeek}`;
 }
 
 function formatResultTarget(result: TaskResultTarget | undefined): string {
@@ -982,7 +998,7 @@ function buildJobUpdatePrompt(
     "    },",
     "  },",
     "",
-    "  // Run daily at 9:00 AM AEST, reuse the same session, deliver to a Discord channel",
+    "  // Run on weekdays at 9:00 AM AEST, reuse the same session, deliver to a Discord channel",
     "  {",
     '    id: "morning-summary",',
     '    prompt: "Summarize overnight activity across all channels.",',
@@ -991,6 +1007,7 @@ function buildJobUpdatePrompt(
     "      hour: 9,",
     "      minute: 0,",
     '      timeZone: "Australia/Sydney",',
+    '      daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],',
     "    },",
     "    session: {",
     '      strategy: "reuse",',

@@ -73,7 +73,13 @@ describe("scheduled-job-loader", () => {
           {
             id: "daily-standup",
             prompt: "Review " + context.config.cwd,
-            schedule: { type: "daily-at", hour: 9, minute: 0, timeZone: "UTC" },
+            schedule: {
+              type: "daily-at",
+              hour: 9,
+              minute: 0,
+              timeZone: "UTC",
+              daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
+            },
             session: { strategy: "reuse", scope: "dm" },
             result: { target: "discord-dm", userId: "123" },
           },
@@ -98,6 +104,7 @@ describe("scheduled-job-loader", () => {
           hour: 9,
           minute: 0,
           timeZone: "UTC",
+          daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
         },
         session: {
           strategy: "reuse",

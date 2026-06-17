@@ -2,6 +2,15 @@ import { z } from "zod";
 import type { TaskSessionScope, TaskSessionTarget } from "./types";
 
 const trimmedStringSchema = z.string().trim().min(1);
+const dayOfWeekSchema = z.enum([
+  "sun",
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+  "sat",
+]);
 
 const optionalTrimmedStringSchema = z
   .string()
@@ -44,6 +53,13 @@ const taskScheduleSchema = z.discriminatedUnion("type", [
     hour: z.number().int().min(0).max(23),
     minute: z.number().int().min(0).max(59),
     timeZone: timeZoneSchema.optional(),
+    daysOfWeek: z
+      .array(dayOfWeekSchema)
+      .min(1)
+      .optional()
+      .transform((value) => {
+        return value ? Array.from(new Set(value)) : undefined;
+      }),
   }),
 ]);
 

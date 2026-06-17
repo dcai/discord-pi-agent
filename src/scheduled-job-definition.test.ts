@@ -13,6 +13,7 @@ describe("scheduled-job-definition", () => {
               type: "daily-at",
               hour: 19,
               minute: 50,
+              daysOfWeek: ["mon", "wed", "fri", "fri"],
             },
             model: {
               provider: "openrouter",
@@ -32,6 +33,7 @@ describe("scheduled-job-definition", () => {
           hour: 19,
           minute: 50,
           timeZone: undefined,
+          daysOfWeek: ["mon", "wed", "fri"],
         },
         model: {
           provider: "openrouter",
@@ -115,6 +117,26 @@ describe("scheduled-job-definition", () => {
               type: "daily-at",
               hour: 30,
               minute: 0,
+            },
+          },
+        ],
+        "scheduled-jobs.ts",
+      );
+    }).toThrow();
+  });
+
+  it("rejects unknown daysOfWeek values", () => {
+    expect(() => {
+      normalizeScheduledJobs(
+        [
+          {
+            id: "weekday-summary",
+            prompt: "Summarize the workday",
+            schedule: {
+              type: "daily-at",
+              hour: 9,
+              minute: 0,
+              daysOfWeek: ["weekday"],
             },
           },
         ],

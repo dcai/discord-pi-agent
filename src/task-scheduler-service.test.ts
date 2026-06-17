@@ -232,6 +232,31 @@ describe("TaskSchedulerService", () => {
     expect(deliverResultMock).toHaveBeenCalledOnce();
   });
 
+  it("runs daily-at jobs only on configured daysOfWeek", async () => {
+    vi.setSystemTime(new Date("2026-01-03T08:59:30.000Z"));
+
+    const { service, getOrCreateMock, deliverResultMock } = createService([
+      {
+        id: "weekday-summary",
+        prompt: "Write the weekday summary",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+          daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
+        },
+      },
+    ]);
+
+    service.start();
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    expect(getOrCreateMock).not.toHaveBeenCalled();
+    expect(deliverResultMock).not.toHaveBeenCalled();
+  });
+
   it("runs ephemeral jobs in a temporary in-memory session", async () => {
     const {
       service,
@@ -529,6 +554,30 @@ describe("TaskSchedulerService", () => {
         running: false,
       },
     ]);
+  });
+
+  it("computes the next run beyond 48 hours for sparse daysOfWeek schedules", () => {
+    vi.setSystemTime(new Date("2026-01-06T10:00:00.000Z"));
+
+    const { service } = createService([
+      {
+        id: "weekly-review",
+        prompt: "Review the week",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+          daysOfWeek: ["mon"],
+        },
+      },
+    ]);
+
+    expect(service.getJob("weekly-review")).toEqual(
+      expect.objectContaining({
+        nextRunAt: "2026-01-12T09:00:00.000Z",
+      }),
+    );
   });
 
   it("adds a runtime reminder, lists it, and forgets it after the run", async () => {

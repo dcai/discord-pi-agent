@@ -75,7 +75,17 @@ export type DailyAtTaskSchedule = {
   hour: number;
   minute: number;
   timeZone?: string;
+  daysOfWeek?: TaskScheduleDayOfWeek[];
 };
+
+export type TaskScheduleDayOfWeek =
+  | "sun"
+  | "mon"
+  | "tue"
+  | "wed"
+  | "thu"
+  | "fri"
+  | "sat";
 
 export type TaskSchedule = EveryMinutesTaskSchedule | DailyAtTaskSchedule;
 
