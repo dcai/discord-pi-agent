@@ -1,6 +1,7 @@
 import path from "node:path";
 import dotenv from "dotenv";
 import type {
+  CommandRegistrationScope,
   DiscordGatewayConfig,
   ResolvedDiscordGatewayConfig,
   ThinkingLevel,
@@ -14,6 +15,20 @@ export function resolveConfig(
     config.discordAllowedUserId,
   );
   const cwd = requireNonEmptyConfigValue("cwd", config.cwd);
+  const discordCommandRegistrationScope =
+    parseCommandRegistrationScope(config.discordCommandRegistrationScope) ??
+    "none";
+  const discordCommandRegistrationGuildIds =
+    config.discordCommandRegistrationGuildIds ?? [];
+
+  if (
+    discordCommandRegistrationScope === "guild" &&
+    discordCommandRegistrationGuildIds.length === 0
+  ) {
+    throw new Error(
+      'discordCommandRegistrationGuildIds is required when discordCommandRegistrationScope is "guild".',
+    );
+  }
 
   return {
     discordBotToken: requireNonEmptyConfigValue(
@@ -39,6 +54,11 @@ export function resolveConfig(
     discordAllowedUserIds: config.discordAllowedUserIds ?? [
       discordAllowedUserId,
     ],
+    discordCommandPrefixes: normalizeCommandPrefixes(
+      config.discordCommandPrefixes,
+    ),
+    discordCommandRegistrationScope,
+    discordCommandRegistrationGuildIds,
   };
 }
 
@@ -74,6 +94,17 @@ export function loadDiscordGatewayConfigFromEnv(
     discordAllowedUserIds:
       overrides.discordAllowedUserIds ??
       parseStringArrayFromEnv("DISCORD_ALLOWED_USER_IDS"),
+    discordCommandPrefixes:
+      overrides.discordCommandPrefixes ??
+      parseStringArrayFromEnv("DISCORD_COMMAND_PREFIXES"),
+    discordCommandRegistrationScope:
+      parseCommandRegistrationScope(
+        overrides.discordCommandRegistrationScope ??
+          process.env.DISCORD_COMMAND_REGISTRATION_SCOPE,
+      ) ?? undefined,
+    discordCommandRegistrationGuildIds:
+      overrides.discordCommandRegistrationGuildIds ??
+      parseStringArrayFromEnv("DISCORD_COMMAND_REGISTRATION_GUILD_IDS"),
   });
 }
 
@@ -126,6 +157,23 @@ function parseThinkingLevel(
   return undefined;
 }
 
+function parseCommandRegistrationScope(
+  value: string | undefined,
+): CommandRegistrationScope | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const trimmed = value.trim().toLowerCase();
+  const validScopes: CommandRegistrationScope[] = ["none", "global", "guild"];
+
+  if (validScopes.includes(trimmed as CommandRegistrationScope)) {
+    return trimmed as CommandRegistrationScope;
+  }
+
+  return undefined;
+}
+
 function defaultPromptTransform(ctx: {
   rawContent: string;
   discordMetadata: string;
@@ -147,4 +195,18 @@ function parseStringArrayFromEnv(key: string): string[] | undefined {
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
+}
+
+function normalizeCommandPrefixes(prefixes: string[] | undefined): string[] {
+  const normalized = (prefixes ?? ["!"])
+    .map((prefix) => {
+      return prefix.trim();
+    })
+    .filter(Boolean);
+
+  if (normalized.length === 0) {
+    return ["!"];
+  }
+
+  return Array.from(new Set(normalized));
 }

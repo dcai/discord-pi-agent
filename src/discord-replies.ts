@@ -45,6 +45,12 @@ function splitPlainTextIntoChunks(text: string, maxSize: number): string[] {
 
 export const DEFAULT_WORKING_EMOJI = "⚙️";
 
+export function formatCommandReplyChunks(text: string): string[] {
+  return splitPlainTextIntoChunks(text, MAX_CODE_FENCE_CONTENT).map((chunk) => {
+    return `\`\`\`\n${chunk}\n\`\`\``;
+  });
+}
+
 function normalizeEmoji(value: string): string {
   return value.normalize("NFKC").replace(/\uFE0F/g, "");
 }
@@ -184,9 +190,7 @@ export async function sendCommandReply(
     return;
   }
 
-  const chunks = splitPlainTextIntoChunks(text, MAX_CODE_FENCE_CONTENT).map(
-    (c) => `\`\`\`\n${c}\n\`\`\``,
-  );
+  const chunks = formatCommandReplyChunks(text);
   const [firstChunk, ...remainingChunks] = chunks;
 
   if (!firstChunk) {

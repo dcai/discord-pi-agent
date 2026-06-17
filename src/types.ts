@@ -26,6 +26,8 @@ export type ThinkingLevel =
   | "high"
   | "xhigh";
 
+export type CommandRegistrationScope = "none" | "global" | "guild";
+
 export type DiscordGatewayConfig = {
   discordBotToken: string;
   discordAllowedUserId: string;
@@ -50,6 +52,17 @@ export type DiscordGatewayConfig = {
   discordAllowedForumChannelIds?: string[];
   /** Which users can interact in forum threads (defaults to [discordAllowedUserId]). */
   discordAllowedUserIds?: string[];
+  /** Accepted message command prefixes (defaults to ["!"]). */
+  discordCommandPrefixes?: string[];
+  /**
+   * Optional slash command sync mode.
+   * - "none": do not auto-register commands
+   * - "global": sync commands globally
+   * - "guild": sync commands to the guild IDs below
+   */
+  discordCommandRegistrationScope?: CommandRegistrationScope;
+  /** Guild IDs used when discordCommandRegistrationScope is "guild". */
+  discordCommandRegistrationGuildIds?: string[];
 };
 
 export type EveryMinutesTaskSchedule = {
@@ -154,6 +167,9 @@ export type ResolvedDiscordGatewayConfig = {
   visionModelId: string | null;
   discordAllowedForumChannelIds: string[];
   discordAllowedUserIds: string[];
+  discordCommandPrefixes: string[];
+  discordCommandRegistrationScope: CommandRegistrationScope;
+  discordCommandRegistrationGuildIds: string[];
 };
 
 export type ScheduledJobsContext = {

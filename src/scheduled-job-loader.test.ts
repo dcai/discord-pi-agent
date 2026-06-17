@@ -36,6 +36,9 @@ function createScheduledJobsContext(jobsFile: string): ScheduledJobsContext {
       visionModelId: null,
       discordAllowedForumChannelIds: [],
       discordAllowedUserIds: ["user-1"],
+      discordCommandPrefixes: ["!"],
+      discordCommandRegistrationScope: "none",
+      discordCommandRegistrationGuildIds: [],
     },
     schedulerConfig: {
       jobsFile,

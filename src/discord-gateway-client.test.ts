@@ -11,16 +11,20 @@ import type {
 const {
   clientState,
   handleDiscordMessageMock,
+  handleDiscordInteractionMock,
   handleForumPostEditMock,
   sendReplyMock,
+  syncDiscordApplicationCommandsMock,
 } = vi.hoisted(() => {
   return {
     clientState: {
       instances: [] as Array<Record<string, unknown>>,
     },
     handleDiscordMessageMock: vi.fn(),
+    handleDiscordInteractionMock: vi.fn(),
     handleForumPostEditMock: vi.fn(),
     sendReplyMock: vi.fn(),
+    syncDiscordApplicationCommandsMock: vi.fn(),
   };
 });
 
@@ -41,7 +45,16 @@ vi.mock("discord.js", async () => {
     }
 
     once(event: string, handler: (value: any) => Promise<void> | void) {
-      this.onceHandlers.set(event, handler);
+      const previousHandler = this.onceHandlers.get(event);
+      if (!previousHandler) {
+        this.onceHandlers.set(event, handler);
+        return this;
+      }
+
+      this.onceHandlers.set(event, async (value: any) => {
+        await previousHandler(value);
+        await handler(value);
+      });
       return this;
     }
 
@@ -61,6 +74,13 @@ vi.mock("./discord-message-handler", () => {
   return {
     handleDiscordMessage: handleDiscordMessageMock,
     handleForumPostEdit: handleForumPostEditMock,
+  };
+});
+
+vi.mock("./discord-interactions", () => {
+  return {
+    handleDiscordInteraction: handleDiscordInteractionMock,
+    syncDiscordApplicationCommands: syncDiscordApplicationCommandsMock,
   };
 });
 
@@ -89,6 +109,9 @@ function createConfig(
     visionModelId: null,
     discordAllowedForumChannelIds: ["forum-1"],
     discordAllowedUserIds: ["user-1"],
+    discordCommandPrefixes: ["!"],
+    discordCommandRegistrationScope: "none",
+    discordCommandRegistrationGuildIds: [],
     ...overrides,
   };
 }
@@ -105,12 +128,14 @@ beforeEach(() => {
   clientState.instances.length = 0;
   delete process.env.DISCORD_PI_AGENT_LOG_RAW_EVENTS;
   handleDiscordMessageMock.mockResolvedValue(undefined);
+  handleDiscordInteractionMock.mockResolvedValue(undefined);
   handleForumPostEditMock.mockResolvedValue(undefined);
   sendReplyMock.mockResolvedValue(undefined);
+  syncDiscordApplicationCommandsMock.mockResolvedValue(undefined);
 });
 
 describe("startGatewayClient", () => {
-  it("logs in and wires message, edit, and thread handlers", async () => {
+  it("logs in and wires message, interaction, edit, and thread handlers", async () => {
     const sessionRegistry = {
       remove: vi.fn(async () => undefined),
     } as unknown as SessionRegistry;
@@ -123,6 +148,7 @@ describe("startGatewayClient", () => {
     )) as unknown as {
       login: ReturnType<typeof vi.fn>;
       onHandlers: Map<string, (value: any) => Promise<void> | void>;
+      onceHandlers: Map<string, (value: any) => Promise<void> | void>;
     };
 
     expect(client.login).toHaveBeenCalledWith("bot-token");
@@ -131,6 +157,7 @@ describe("startGatewayClient", () => {
     });
 
     const messageHandler = client.onHandlers.get(Events.MessageCreate);
+    const interactionHandler = client.onHandlers.get(Events.InteractionCreate);
     const messageUpdateHandler = client.onHandlers.get(Events.MessageUpdate);
     const threadDeleteHandler = client.onHandlers.get(Events.ThreadDelete);
 
@@ -139,6 +166,18 @@ describe("startGatewayClient", () => {
 
     expect(handleDiscordMessageMock).toHaveBeenCalledWith(
       message,
+      expect.anything(),
+      expect.anything(),
+      sessionRegistry,
+      accessConfig,
+      undefined,
+    );
+
+    const interaction = { id: "interaction-1" };
+    await interactionHandler?.(interaction);
+
+    expect(handleDiscordInteractionMock).toHaveBeenCalledWith(
+      interaction,
       expect.anything(),
       expect.anything(),
       sessionRegistry,
@@ -161,6 +200,20 @@ describe("startGatewayClient", () => {
 
     await threadDeleteHandler?.({ id: "thread-1" });
     expect(sessionRegistry.remove).toHaveBeenCalledWith("thread:thread-1");
+
+    await client.onceHandlers.get(Events.ClientReady)?.({
+      application: {
+        commands: {
+          set: vi.fn(),
+        },
+      },
+      guilds: {
+        fetch: vi.fn(),
+      },
+      user: { tag: "bot#1234" },
+      users: client.users,
+    });
+    expect(syncDiscordApplicationCommandsMock).toHaveBeenCalled();
   });
 
   it("wires raw gateway handler when enabled by env", async () => {

@@ -32,6 +32,7 @@ export {
 } from "./scheduled-job-loader";
 export type {
   AgentStatus,
+  CommandRegistrationScope,
   DiscordGateway,
   DiscordGatewayConfig,
   DailyAtTaskSchedule,

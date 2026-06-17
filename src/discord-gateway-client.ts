@@ -2,6 +2,10 @@ import { Events, type Client } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { createDiscordClient, loginDiscordClient } from "./discord-client";
 import {
+  handleDiscordInteraction,
+  syncDiscordApplicationCommands,
+} from "./discord-interactions";
+import {
   handleDiscordMessage,
   handleForumPostEdit,
 } from "./discord-message-handler";
@@ -130,6 +134,14 @@ export async function startGatewayClient(
   const client = createDiscordClient(config, accessConfig);
   maybeAttachRawGatewayEventLogger(client);
 
+  client.once(Events.ClientReady, async (readyClient) => {
+    try {
+      await syncDiscordApplicationCommands(readyClient, config);
+    } catch (error) {
+      logger.error({ error }, "application command sync failed");
+    }
+  });
+
   client.on(Events.MessageCreate, async (message) => {
     logGatewayMessageSummary("message create", message);
 
@@ -172,6 +184,21 @@ export async function startGatewayClient(
     const scope: SessionScope = `thread:${thread.id}`;
     logger.info({ threadId: thread.id, scope }, "thread deleted");
     await sessionRegistry.remove(scope);
+  });
+
+  client.on(Events.InteractionCreate, async (interaction) => {
+    try {
+      await handleDiscordInteraction(
+        interaction,
+        config,
+        agentService,
+        sessionRegistry,
+        accessConfig,
+        taskScheduler,
+      );
+    } catch (error) {
+      logger.error({ error }, "interaction handling failed");
+    }
   });
 
   await loginDiscordClient(client, config);

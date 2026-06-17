@@ -37,6 +37,9 @@ function createConfig(
     visionModelId: null,
     discordAllowedForumChannelIds: [],
     discordAllowedUserIds: ["user-1"],
+    discordCommandPrefixes: ["!"],
+    discordCommandRegistrationScope: "none",
+    discordCommandRegistrationGuildIds: [],
     ...overrides,
   };
 }

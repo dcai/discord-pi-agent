@@ -38,12 +38,16 @@ export type CommandContext = {
   scope: SessionScope;
   /** Current working reaction emoji for this session. */
   workingEmoji: string;
+  /** Accepted command prefixes in display preference order. */
+  commandPrefixes?: string[];
 };
 
 type CommandHandler = (
   trimmedInput: string,
   context: CommandContext,
 ) => Promise<CommandResult | null>;
+
+const INTERNAL_COMMAND_PREFIX = "!";
 
 const JOB_PROMPT_PREVIEW_LENGTH = 80;
 
@@ -101,6 +105,35 @@ function getEffectiveSession(context: CommandContext): AgentSession | null {
   return context.session ?? context.agentService.getSession();
 }
 
+function getPrimaryCommandPrefix(context: CommandContext): string {
+  return context.commandPrefixes?.[0] ?? INTERNAL_COMMAND_PREFIX;
+}
+
+function formatCommandUsage(context: CommandContext, body: string): string {
+  return `${getPrimaryCommandPrefix(context)}${body}`;
+}
+
+function normalizeCommandInput(
+  input: string,
+  commandPrefixes: string[],
+): string | null {
+  for (const prefix of commandPrefixes) {
+    if (!prefix) {
+      continue;
+    }
+
+    if (input === prefix) {
+      return INTERNAL_COMMAND_PREFIX;
+    }
+
+    if (input.startsWith(prefix)) {
+      return `${INTERNAL_COMMAND_PREFIX}${input.slice(prefix.length)}`;
+    }
+  }
+
+  return null;
+}
+
 function requireEffectiveSession(
   context: CommandContext,
 ): CommandResult | { session: AgentSession } {
@@ -119,34 +152,34 @@ async function handleHelpCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!help") {
+  if (trimmedInput !== `${INTERNAL_COMMAND_PREFIX}help`) {
     return null;
   }
 
   const extraCommands = context.session
-    ? "\n!archive - archive this thread and end the session"
+    ? `\n${formatCommandUsage(context, "archive")} - archive this thread and end the session`
     : "";
 
   return {
     handled: true,
     response: [
       "Commands:",
-      "!help - show this message",
-      "!status - show current session status",
-      "!thinking - show or set thinking/reasoning level",
-      "!model - list available models or switch to one",
-      "!compact - compact the persistent session",
-      "!reset-session - start a fresh persistent session",
-      "!reload - reload resources (AGENTS.md, extensions, skills, etc.)",
-      "!remind <when>, <task> - create a one-off runtime reminder",
-      "!jobs - list loaded scheduled jobs",
-      "!job <id> - run one scheduled job in this conversation",
-      "!job info <id> - show one scheduled job",
-      "!job run <id> - run one scheduled job now (configured target)",
-      "!job run-here <id> - run one scheduled job now in this conversation",
-      "!job update <what you want changed> - edit the jobs file via the agent",
-      "!jobs reload - reload scheduled jobs from the jobs file",
-      "!reaction - show or set the working reaction emoji",
+      `${formatCommandUsage(context, "help")} - show this message`,
+      `${formatCommandUsage(context, "status")} - show current session status`,
+      `${formatCommandUsage(context, "thinking")} - show or set thinking/reasoning level`,
+      `${formatCommandUsage(context, "model")} - list available models or switch to one`,
+      `${formatCommandUsage(context, "compact")} - compact the persistent session`,
+      `${formatCommandUsage(context, "reset-session")} - start a fresh persistent session`,
+      `${formatCommandUsage(context, "reload")} - reload resources (AGENTS.md, extensions, skills, etc.)`,
+      `${formatCommandUsage(context, "remind <when>, <task>")} - create a one-off runtime reminder`,
+      `${formatCommandUsage(context, "jobs")} - list loaded scheduled jobs`,
+      `${formatCommandUsage(context, "job <id>")} - run one scheduled job in this conversation`,
+      `${formatCommandUsage(context, "job info <id>")} - show one scheduled job`,
+      `${formatCommandUsage(context, "job run <id>")} - run one scheduled job now (configured target)`,
+      `${formatCommandUsage(context, "job run-here <id>")} - run one scheduled job now in this conversation`,
+      `${formatCommandUsage(context, "job update <what you want changed>")} - edit the jobs file via the agent`,
+      `${formatCommandUsage(context, "jobs reload")} - reload scheduled jobs from the jobs file`,
+      `${formatCommandUsage(context, "reaction")} - show or set the working reaction emoji`,
       extraCommands,
       "Any other text goes to the agent session.",
     ]
@@ -159,14 +192,14 @@ async function handleArchiveCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!archive") {
+  if (trimmedInput !== `${INTERNAL_COMMAND_PREFIX}archive`) {
     return null;
   }
 
   if (!context.session) {
     return {
       handled: true,
-      response: "!archive is only available in forum threads.",
+      response: `${formatCommandUsage(context, "archive")} is only available in forum threads.`,
     };
   }
 
@@ -181,7 +214,7 @@ async function handleStatusCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!status") {
+  if (trimmedInput !== `${INTERNAL_COMMAND_PREFIX}status`) {
     return null;
   }
 
@@ -213,7 +246,10 @@ async function handleThinkingCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!thinking" && !trimmedInput.startsWith("!thinking ")) {
+  if (
+    trimmedInput !== `${INTERNAL_COMMAND_PREFIX}thinking` &&
+    !trimmedInput.startsWith(`${INTERNAL_COMMAND_PREFIX}thinking `)
+  ) {
     return null;
   }
 
@@ -239,7 +275,7 @@ async function handleThinkingCommand(
       response: [
         `Current: ${info.current}`,
         `Available: ${info.available.join(", ")}`,
-        `Usage: !thinking <level>`,
+        `Usage: ${formatCommandUsage(context, "thinking <level>")}`,
       ].join("\n"),
     };
   }
@@ -258,7 +294,10 @@ async function handleModelCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!model" && !trimmedInput.startsWith("!model ")) {
+  if (
+    trimmedInput !== `${INTERNAL_COMMAND_PREFIX}model` &&
+    !trimmedInput.startsWith(`${INTERNAL_COMMAND_PREFIX}model `)
+  ) {
     return null;
   }
 
@@ -274,6 +313,7 @@ async function handleModelCommand(
     );
     const modelList = await context.agentService.models.listModels(
       effectiveSession.session,
+      getPrimaryCommandPrefix(context),
     );
 
     return {
@@ -288,9 +328,9 @@ async function handleModelCommand(
     return {
       handled: true,
       response:
-        "Usage: !model <provider/modelId>\n" +
-        "Example: !model openrouter/anthropic/claude-sonnet-4\n" +
-        "Use !model without args to see available models.",
+        `Usage: ${formatCommandUsage(context, "model <provider/modelId>")}\n` +
+        `Example: ${formatCommandUsage(context, "model openrouter/anthropic/claude-sonnet-4")}\n` +
+        `Use ${formatCommandUsage(context, "model")} without args to see available models.`,
     };
   }
 
@@ -311,7 +351,7 @@ async function handleCompactCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!compact") {
+  if (trimmedInput !== `${INTERNAL_COMMAND_PREFIX}compact`) {
     return null;
   }
 
@@ -333,7 +373,7 @@ async function handleReloadCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!reload") {
+  if (trimmedInput !== `${INTERNAL_COMMAND_PREFIX}reload`) {
     return null;
   }
 
@@ -349,7 +389,7 @@ async function handleResetSessionCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!reset-session") {
+  if (trimmedInput !== `${INTERNAL_COMMAND_PREFIX}reset-session`) {
     return null;
   }
 
@@ -383,9 +423,12 @@ async function handleResetSessionCommand(
 
 async function handleReactionCommand(
   trimmedInput: string,
-  _context: CommandContext,
+  context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!reaction" && !trimmedInput.startsWith("!reaction ")) {
+  if (
+    trimmedInput !== `${INTERNAL_COMMAND_PREFIX}reaction` &&
+    !trimmedInput.startsWith(`${INTERNAL_COMMAND_PREFIX}reaction `)
+  ) {
     return null;
   }
 
@@ -394,9 +437,9 @@ async function handleReactionCommand(
     return {
       handled: true,
       response:
-        `Current working reaction: ${_context.workingEmoji}\n` +
-        `Usage: !reaction <emoji> to change it.\n` +
-        `Examples: !reaction 🔄 or !reaction ⏳`,
+        `Current working reaction: ${context.workingEmoji}\n` +
+        `Usage: ${formatCommandUsage(context, "reaction <emoji>")} to change it.\n` +
+        `Examples: ${formatCommandUsage(context, "reaction 🔄")} or ${formatCommandUsage(context, "reaction ⏳")}`,
     };
   }
 
@@ -405,7 +448,7 @@ async function handleReactionCommand(
   if (!emoji) {
     return {
       handled: true,
-      response: "Please provide an emoji. Example: !reaction 🔄",
+      response: `Please provide an emoji. Example: ${formatCommandUsage(context, "reaction 🔄")}`,
     };
   }
 
@@ -420,7 +463,10 @@ async function handleJobsCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== "!jobs" && trimmedInput !== "!jobs reload") {
+  if (
+    trimmedInput !== `${INTERNAL_COMMAND_PREFIX}jobs` &&
+    trimmedInput !== `${INTERNAL_COMMAND_PREFIX}jobs reload`
+  ) {
     return null;
   }
 
@@ -431,7 +477,7 @@ async function handleJobsCommand(
     };
   }
 
-  if (trimmedInput === "!jobs reload") {
+  if (trimmedInput === `${INTERNAL_COMMAND_PREFIX}jobs reload`) {
     const reloadedStatus = await context.taskScheduler.reload();
     const jobs = context.taskScheduler.listJobs();
 
@@ -584,7 +630,7 @@ async function handleJobRunCommand(
   context: CommandContext,
 ): Promise<CommandResult | null> {
   const parts = trimmedInput.split(/\s+/);
-  if (parts[0] !== "!job") {
+  if (parts[0] !== `${INTERNAL_COMMAND_PREFIX}job`) {
     return null;
   }
 
@@ -598,8 +644,8 @@ async function handleJobRunCommand(
       handled: true,
       response:
         subcommand === "run-here"
-          ? "Usage: !job run-here <id>"
-          : "Usage: !job run <id>",
+          ? `Usage: ${formatCommandUsage(context, "job run-here <id>")}`
+          : `Usage: ${formatCommandUsage(context, "job run <id>")}`,
     };
   }
 
@@ -613,7 +659,7 @@ async function handleJobInfoCommand(
   context: CommandContext,
 ): Promise<CommandResult | null> {
   const parts = trimmedInput.split(/\s+/);
-  if (parts[0] !== "!job" || parts[1] !== "info") {
+  if (parts[0] !== `${INTERNAL_COMMAND_PREFIX}job` || parts[1] !== "info") {
     return null;
   }
 
@@ -627,7 +673,7 @@ async function handleJobInfoCommand(
   if (parts.length !== 3) {
     return {
       handled: true,
-      response: "Usage: !job info <id>",
+      response: `Usage: ${formatCommandUsage(context, "job info <id>")}`,
     };
   }
 
@@ -666,7 +712,7 @@ async function handleJobImplicitRunHereCommand(
   context: CommandContext,
 ): Promise<CommandResult | null> {
   const parts = trimmedInput.split(/\s+/);
-  if (parts[0] !== "!job") {
+  if (parts[0] !== `${INTERNAL_COMMAND_PREFIX}job`) {
     return null;
   }
 
@@ -687,7 +733,7 @@ async function handleRemindCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (!trimmedInput.startsWith("!remind")) {
+  if (!trimmedInput.startsWith(`${INTERNAL_COMMAND_PREFIX}remind`)) {
     return null;
   }
 
@@ -698,11 +744,16 @@ async function handleRemindCommand(
     };
   }
 
-  const request = trimmedInput.slice("!remind".length).trim();
+  const request = trimmedInput
+    .slice(`${INTERNAL_COMMAND_PREFIX}remind`.length)
+    .trim();
   if (!request) {
     return {
       handled: true,
-      response: "Usage: !remind <when>, <what you want to be reminded about>",
+      response: `Usage: ${formatCommandUsage(
+        context,
+        "remind <when>, <what you want to be reminded about>",
+      )}`,
     };
   }
 
@@ -763,7 +814,7 @@ async function handleJobUpdateCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (!trimmedInput.startsWith("!job update")) {
+  if (!trimmedInput.startsWith(`${INTERNAL_COMMAND_PREFIX}job update`)) {
     return null;
   }
 
@@ -774,11 +825,16 @@ async function handleJobUpdateCommand(
     };
   }
 
-  const request = trimmedInput.slice("!job update".length).trim();
+  const request = trimmedInput
+    .slice(`${INTERNAL_COMMAND_PREFIX}job update`.length)
+    .trim();
   if (!request) {
     return {
       handled: true,
-      response: "Usage: !job update <what you want changed>",
+      response: `Usage: ${formatCommandUsage(
+        context,
+        "job update <what you want changed>",
+      )}`,
     };
   }
 
@@ -789,6 +845,7 @@ async function handleJobUpdateCommand(
     handled: false,
     forwardedInput: buildJobUpdatePrompt(
       request,
+      getPrimaryCommandPrefix(context),
       schedulerStatus.jobsFile,
       jobs,
     ),
@@ -888,6 +945,7 @@ function formatJobModel(job: TaskJobRuntimeState): string {
 
 function buildJobUpdatePrompt(
   request: string,
+  commandPrefix: string,
   jobsFile: string,
   jobs: ReturnType<TaskSchedulerService["listJobs"]>,
 ): string {
@@ -984,9 +1042,9 @@ function buildJobUpdatePrompt(
     "- If the target job is missing or ambiguous, inspect the jobs file and explain what you found.",
     "- Jobs may optionally set model: { provider, id }. Omit it to use the gateway default model.",
     "- Do not add a model override on shared dm/thread session scopes. Use a dedicated job:<id> scope instead.",
-    "- After editing, remind the user to run `!jobs reload` to reload the scheduler.",
-    "- Also remind the user to run `!jobs` to see the latest scheduled jobs.",
-    "- Do not claim the live scheduler has changed until `!jobs reload` is run.",
+    `- After editing, remind the user to run \`${commandPrefix}jobs reload\` to reload the scheduler.`,
+    `- Also remind the user to run \`${commandPrefix}jobs\` to see the latest scheduled jobs.`,
+    `- Do not claim the live scheduler has changed until \`${commandPrefix}jobs reload\` is run.`,
     "",
     "Job definition examples:",
     examples,
@@ -1016,13 +1074,16 @@ export async function executeSessionCommand(
   context: CommandContext,
 ): Promise<CommandResult> {
   const trimmedInput = input.trim();
-
-  if (!trimmedInput.startsWith("!")) {
+  const normalizedCommandInput = normalizeCommandInput(
+    trimmedInput,
+    context.commandPrefixes ?? [INTERNAL_COMMAND_PREFIX],
+  );
+  if (!normalizedCommandInput) {
     return { handled: false };
   }
 
   for (const handler of commandHandlers) {
-    const result = await handler(trimmedInput, context);
+    const result = await handler(normalizedCommandInput, context);
     if (result) {
       return result;
     }
@@ -1030,7 +1091,9 @@ export async function executeSessionCommand(
 
   return {
     handled: true,
-    response: `Unknown command: ${trimmedInput}. Try !help.`,
+    response:
+      `Unknown command: ${trimmedInput}. ` +
+      `Try ${formatCommandUsage(context, "help")}.`,
   };
 }
 

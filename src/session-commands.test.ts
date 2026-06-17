@@ -241,6 +241,28 @@ describe("executeSessionCommand", () => {
     });
   });
 
+  it("accepts configurable prefixes and uses the primary prefix in responses", async () => {
+    const helpResult = await executeSessionCommand(";help", {
+      agentService: createAgentServiceMock(null),
+      promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      commandPrefixes: [";", "!"],
+    });
+
+    expect(helpResult.response).toContain(";help - show this message");
+
+    const unknownResult = await executeSessionCommand(";wat", {
+      agentService: createAgentServiceMock(null),
+      promptQueue: createPromptQueueMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+      commandPrefixes: [";", "!"],
+    });
+
+    expect(unknownResult.response).toBe("Unknown command: ;wat. Try ;help.");
+  });
+
   it("shows help and includes archive only for thread sessions", async () => {
     const dmResult = await executeSessionCommand("!help", {
       agentService: createAgentServiceMock(null),

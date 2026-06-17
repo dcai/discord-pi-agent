@@ -40,6 +40,9 @@ function createConfig(
     visionModelId: null,
     discordAllowedForumChannelIds: [],
     discordAllowedUserIds: ["user-1"],
+    discordCommandPrefixes: ["!"],
+    discordCommandRegistrationScope: "none",
+    discordCommandRegistrationGuildIds: [],
     ...overrides,
   };
 }
@@ -322,7 +325,6 @@ describe("TaskSchedulerService", () => {
           target: "discord-dm",
           userId: "user-1",
         },
-        model: undefined,
       }),
       "scheduled reply",
     );

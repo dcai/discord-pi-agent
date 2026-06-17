@@ -39,6 +39,11 @@ function withEnv(
     PI_VISION_MODEL_ID: process.env.PI_VISION_MODEL_ID,
     DISCORD_FORUM_CHANNEL_IDS: process.env.DISCORD_FORUM_CHANNEL_IDS,
     DISCORD_ALLOWED_USER_IDS: process.env.DISCORD_ALLOWED_USER_IDS,
+    DISCORD_COMMAND_PREFIXES: process.env.DISCORD_COMMAND_PREFIXES,
+    DISCORD_COMMAND_REGISTRATION_SCOPE:
+      process.env.DISCORD_COMMAND_REGISTRATION_SCOPE,
+    DISCORD_COMMAND_REGISTRATION_GUILD_IDS:
+      process.env.DISCORD_COMMAND_REGISTRATION_GUILD_IDS,
   };
 
   Object.entries(env).forEach(([key, value]) => {
@@ -87,6 +92,9 @@ describe("config", () => {
       expect(config.visionModelId).toBeNull();
       expect(config.discordAllowedForumChannelIds).toEqual([]);
       expect(config.discordAllowedUserIds).toEqual(["user-1"]);
+      expect(config.discordCommandPrefixes).toEqual(["!"]);
+      expect(config.discordCommandRegistrationScope).toBe("none");
+      expect(config.discordCommandRegistrationGuildIds).toEqual([]);
       expect(
         config.promptTransform({
           rawContent: "hello",
@@ -123,6 +131,9 @@ describe("config", () => {
           visionModelId: " openrouter/google/gemini-3.1-flash ",
           discordAllowedForumChannelIds: ["forum-1"],
           discordAllowedUserIds: ["user-1", "user-2"],
+          discordCommandPrefixes: [";", "!"],
+          discordCommandRegistrationScope: "guild",
+          discordCommandRegistrationGuildIds: ["guild-1", "guild-2"],
         }),
       );
 
@@ -138,6 +149,12 @@ describe("config", () => {
       expect(config.visionModelId).toBe("openrouter/google/gemini-3.1-flash");
       expect(config.discordAllowedForumChannelIds).toEqual(["forum-1"]);
       expect(config.discordAllowedUserIds).toEqual(["user-1", "user-2"]);
+      expect(config.discordCommandPrefixes).toEqual([";", "!"]);
+      expect(config.discordCommandRegistrationScope).toBe("guild");
+      expect(config.discordCommandRegistrationGuildIds).toEqual([
+        "guild-1",
+        "guild-2",
+      ]);
     });
 
     it("falls back to medium when thinking level is invalid", () => {
@@ -163,6 +180,18 @@ describe("config", () => {
         resolveConfig(createBaseConfig({ cwd: "   " }));
       }).toThrow("Missing required config value: cwd");
     });
+
+    it("requires guild IDs when guild command registration is enabled", () => {
+      expect(() => {
+        resolveConfig(
+          createBaseConfig({
+            discordCommandRegistrationScope: "guild",
+          }),
+        );
+      }).toThrow(
+        'discordCommandRegistrationGuildIds is required when discordCommandRegistrationScope is "guild".',
+      );
+    });
   });
 
   describe("loadDiscordGatewayConfigFromEnv", () => {
@@ -182,6 +211,9 @@ describe("config", () => {
           PI_VISION_MODEL_ID: "openrouter/google/gemini-3.1-flash-lite",
           DISCORD_FORUM_CHANNEL_IDS: "forum-1, forum-2",
           DISCORD_ALLOWED_USER_IDS: "user-1, user-2",
+          DISCORD_COMMAND_PREFIXES: "!, ;",
+          DISCORD_COMMAND_REGISTRATION_SCOPE: "guild",
+          DISCORD_COMMAND_REGISTRATION_GUILD_IDS: "guild-1, guild-2",
         },
         () => {
           const config = loadDiscordGatewayConfigFromEnv();
@@ -204,6 +236,12 @@ describe("config", () => {
             "forum-2",
           ]);
           expect(config.discordAllowedUserIds).toEqual(["user-1", "user-2"]);
+          expect(config.discordCommandPrefixes).toEqual(["!", ";"]);
+          expect(config.discordCommandRegistrationScope).toBe("guild");
+          expect(config.discordCommandRegistrationGuildIds).toEqual([
+            "guild-1",
+            "guild-2",
+          ]);
         },
       );
     });
@@ -222,6 +260,8 @@ describe("config", () => {
             cwd: "/override-repo",
             startupMessage: false,
             discordAllowedUserIds: ["override-user", "friend"],
+            discordCommandPrefixes: [";", "!"],
+            discordCommandRegistrationScope: "global",
           });
 
           expect(config.discordBotToken).toBe("override-token");
@@ -232,6 +272,8 @@ describe("config", () => {
             "override-user",
             "friend",
           ]);
+          expect(config.discordCommandPrefixes).toEqual([";", "!"]);
+          expect(config.discordCommandRegistrationScope).toBe("global");
         },
       );
     });

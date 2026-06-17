@@ -153,6 +153,7 @@ export async function handleDiscordMessage(
     promptLocale: config.promptLocale,
     scope: preparedMessage.scope,
     workingEmoji: entry.workingEmoji,
+    commandPrefixes: config.discordCommandPrefixes,
   });
 
   if (commandResult.handled) {

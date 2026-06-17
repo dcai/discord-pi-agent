@@ -92,7 +92,10 @@ export class AgentModelService {
     await this.applyConfiguredThinkingLevelForSession(session);
   }
 
-  async listModels(session?: AgentSession | null): Promise<string> {
+  async listModels(
+    session?: AgentSession | null,
+    commandPrefix = "!",
+  ): Promise<string> {
     const availableModels = await this.modelRegistry.getAvailable();
     const currentDisplay = session?.model
       ? `${session.model.provider}/${session.model.id}`
@@ -107,8 +110,19 @@ export class AgentModelService {
     return [
       `Available models (${availableModels.length}):`,
       ...lines,
-      `\nUsage: !model <provider/modelId> to switch.`,
+      `\nUsage: ${commandPrefix}model <provider/modelId> to switch.`,
     ].join("\n");
+  }
+
+  async listModelChoices(): Promise<Array<{ name: string; value: string }>> {
+    const availableModels = await this.modelRegistry.getAvailable();
+
+    return availableModels.map((model) => {
+      return {
+        name: `${model.provider}/${model.id}`,
+        value: `${model.provider}/${model.id}`,
+      };
+    });
   }
 
   async switchModel(

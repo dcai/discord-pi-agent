@@ -174,6 +174,9 @@ function createResolvedConfig(
     visionModelId: null,
     discordAllowedForumChannelIds: ["forum-1"],
     discordAllowedUserIds: ["user-1", "user-2"],
+    discordCommandPrefixes: ["!"],
+    discordCommandRegistrationScope: "none",
+    discordCommandRegistrationGuildIds: [],
     ...overrides,
   };
 }

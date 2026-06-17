@@ -10,6 +10,7 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - accepts DM messages and forum thread messages from allowed users
 - serializes prompts per-scope through FIFO queues
 - exposes built-in session commands (per-scope, including `!archive`)
+- can expose slash commands, autocomplete, buttons, and reminder modals through Discord interactions
 - can run scheduled prompt jobs from a JS/TS jobs file
 - can run in Discord-only, scheduler-only, or combined mode
 
@@ -33,6 +34,27 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - `!archive` (forum threads only — archives the thread and shuts down the session)
 
 Any other text is sent to the active session (DM or thread).
+
+## Command UX
+
+The gateway supports two command entry points:
+
+- **prefix commands** in regular Discord messages
+- **slash commands** through Discord interactions
+
+Prefix commands default to `!`. You can add others, such as `;`, with `discordCommandPrefixes`.
+
+Slash command handling uses the existing Discord gateway connection (`InteractionCreate`). It does **not** require a separate inbound webhook server or an extra public port on your VPS.
+
+### Slash command sync
+
+Interaction handling is always wired in, but automatic slash-command registration is opt-in.
+
+- `discordCommandRegistrationScope: "none"` (default) — do not auto-sync commands
+- `discordCommandRegistrationScope: "global"` — sync global application commands
+- `discordCommandRegistrationScope: "guild"` — sync guild-scoped commands using `discordCommandRegistrationGuildIds`
+
+Guild-scoped sync is usually the best choice during development because Discord applies it faster than global command updates.
 
 When the scheduler is enabled, `!jobs` shows the loaded runtime state with a prompt preview for each job, `!job <id>` runs a loaded job immediately in the current DM or thread, `!job info <id>` shows one job with its full prompt, `!job run <id>` runs a loaded job immediately with its configured result target, `!job run-here <id>` runs a loaded job immediately but overrides delivery to the current DM or thread, `!jobs reload` reloads the jobs file without restarting the process, and `!job update <freeform request>` turns your request into a scheduler-aware agent prompt that edits the jobs file in the normal agentic way.
 
@@ -92,6 +114,11 @@ const config = loadDiscordGatewayConfigFromEnv({
   promptLocale: "en-AU",
   // Enable forum channel support (omit for DM-only)
   discordAllowedForumChannelIds: ["1498563501780897832"],
+  // Optional extra prefix support
+  discordCommandPrefixes: ["!", ";"],
+  // Optional slash-command sync during startup
+  discordCommandRegistrationScope: "guild",
+  discordCommandRegistrationGuildIds: ["123456789012345678"],
 });
 
 await startDiscordGateway(config);
@@ -266,6 +293,9 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
 - `promptTransform` default: identity
 - `startupMessage` default: `Bot is online and ready.`
 - `shutdownOnSignals` default: `true`
+- `discordCommandPrefixes` default: `["!"]`
+- `discordCommandRegistrationScope` default: `"none"`
+- `discordCommandRegistrationGuildIds` default: `[]`
 - scheduler via `startDiscordGateway(config, { scheduler: { jobsFile } })`
 
 ### Scheduler config
@@ -328,6 +358,9 @@ Pretty console logs use:
 - `DISCORD_STARTUP_MESSAGE`
 - `DISCORD_FORUM_CHANNEL_IDS` — comma-separated forum channel IDs
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated allowed user IDs
+- `DISCORD_COMMAND_PREFIXES` — comma-separated command prefixes (example: `!, ;`)
+- `DISCORD_COMMAND_REGISTRATION_SCOPE` — `none`, `global`, or `guild`
+- `DISCORD_COMMAND_REGISTRATION_GUILD_IDS` — comma-separated guild IDs for guild-scoped slash-command sync
 
 If `PI_AGENT_CWD` is missing it falls back to `process.cwd()`.
 Set `DISCORD_STARTUP_MESSAGE=false` to disable the startup DM.
