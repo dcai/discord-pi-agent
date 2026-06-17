@@ -1,4 +1,75 @@
-## [unreleased]
+## [0.27.6] - 2026-06-17
+
+### 🚀 Features
+
+- *(discord)* Add Discord interactions (slash commands, autocomplete, buttons, modals) and configurable command prefixes/registration
+
+### ⚙️ Miscellaneous Tasks
+
+- *(scripts)* Limit prettier format to ./src
+## [0.27.5] - 2026-06-15
+
+### 🚀 Features
+
+- *(task-scheduler)* Support per-job model overrides and ensure sessions use requested model
+
+### 🎨 Styling
+
+- *(format)* Normalize formatting and quoting across files
+## [0.27.4] - 2026-06-14
+
+### 📚 Documentation
+
+- *(session-commands)* Add job definition examples to buildJobUpdatePrompt
+## [0.27.3] - 2026-06-14
+
+### 🚀 Features
+
+- *(gateway)* Add raw gateway event logging and message partials
+## [0.27.2] - 2026-06-14
+
+### 🚀 Features
+
+- *(forum)* Handle forum thread starter edits and enrich metadata with edit event
+
+### 🎨 Styling
+
+- Format code with consistent line breaks and object formatting
+## [0.27.1] - 2026-06-12
+
+### 🚀 Features
+
+- *(deps)* Add jiti dependency
+- *(loader)* Use Jiti for TypeScript module loading with hot reload
+## [0.27.0] - 2026-06-12
+
+### 🚀 Features
+
+- *(scheduler)* [**breaking**] Require jobs file to export loadScheduleJobs(context) with config context
+## [0.26.3] - 2026-06-11
+
+### 🚀 Features
+
+- *(commands)* [**breaking**] Change !job <id> to run in current conversation, add !job info for job details
+## [0.26.2] - 2026-06-10
+
+### 🚀 Features
+
+- *(scheduler)* Add manual job run commands (`!job run` and `!job run-here`)
+## [0.26.1] - 2026-06-10
+
+### 🚀 Features
+
+- *(discord)* Suppress embeds in scheduled job deliveries
+## [0.26.0] - 2026-06-10
+
+### 🚀 Features
+
+- *(scheduler)* [**breaking**] Replace reuseSession with session strategies and add ephemeral support
+
+### 📚 Documentation
+
+- Update CHANGELOG.md with detailed release notes for all versions
 
 ### ⚙️ Miscellaneous Tasks
 
