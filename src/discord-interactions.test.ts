@@ -62,23 +62,30 @@ const accessConfig: GatewayAccessConfig = {
 };
 
 function createSessionRegistry() {
+  const entry = {
+    session: {
+      sessionId: "session-1",
+      abort: vi.fn(async () => undefined),
+    },
+    promptQueue: {
+      enqueue: vi.fn(async (task: () => Promise<string>) => task()),
+      getSnapshot: vi.fn(() => ({ pending: 0, busy: false })),
+      getCancellationCount: vi.fn(() => 0),
+      markAbort: vi.fn(),
+      cancelPending: vi.fn(() => 0),
+    },
+    createdAt: new Date(),
+    workingEmoji: "⚙️",
+  };
+
   return {
     getOrCreate: vi.fn(async () => {
       return {
         created: true,
-        entry: {
-          session: { sessionId: "session-1" },
-          promptQueue: {
-            enqueue: vi.fn(async (task: () => Promise<string>) => task()),
-            getSnapshot: vi.fn(() => ({ pending: 0, busy: false })),
-            getCancellationCount: vi.fn(() => 0),
-          },
-          createdAt: new Date(),
-          workingEmoji: "⚙️",
-        },
+        entry,
       };
     }),
-    get: vi.fn(() => undefined),
+    get: vi.fn(() => entry),
     remove: vi.fn(async () => undefined),
   };
 }
@@ -278,7 +285,7 @@ describe("discord interactions", () => {
         flags: MessageFlags.Ephemeral,
       });
       expect(runAgentTurnMock).toHaveBeenCalledWith(
-        { sessionId: "session-1" },
+        expect.objectContaining({ sessionId: "session-1" }),
         "hello from slash",
       );
       expect(interaction.channel.send).toHaveBeenCalledWith({
@@ -294,7 +301,7 @@ describe("discord interactions", () => {
               components: [
                 expect.objectContaining({
                   data: expect.objectContaining({
-                    custom_id: "prompt:abort",
+                    custom_id: "abort:dm",
                     label: "Abort run",
                   }),
                 }),
@@ -356,19 +363,77 @@ describe("discord interactions", () => {
   });
 
   it("routes prompt abort buttons through the abort command", async () => {
-    const interaction = createButtonInteraction("prompt:abort");
+    const interaction = createButtonInteraction("abort:dm");
+    const sessionRegistry = createSessionRegistry();
+    sessionRegistry.get().promptQueue.getSnapshot.mockReturnValue({
+      pending: 0,
+      busy: true,
+    });
 
     await handleDiscordInteraction(
       interaction as never,
       createConfig(),
       createAgentService() as never,
-      createSessionRegistry() as never,
+      sessionRegistry as never,
       accessConfig,
       null,
     );
 
+    expect(sessionRegistry.get().promptQueue.markAbort).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(sessionRegistry.get().session.abort).toHaveBeenCalledTimes(1);
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: "```\nAborted the active run.\n```",
+      }),
+    );
+    expect(executeSessionCommandMock).not.toHaveBeenCalled();
+  });
+
+  it("shows the shared abort button while running slash job commands", async () => {
+    const interaction = createChatInputInteraction({
+      commandName: "job",
+      subcommand: "run",
+      stringOptions: { id: "daily-summary" },
+    });
+    const sessionRegistry = createSessionRegistry();
+    const taskScheduler = {
+      getJob: vi.fn(() => ({
+        id: "daily-summary",
+        session: undefined,
+      })),
+    };
+
+    await handleDiscordInteraction(
+      interaction as never,
+      createConfig(),
+      createAgentService() as never,
+      sessionRegistry as never,
+      accessConfig,
+      taskScheduler as never,
+    );
+
+    expect(interaction.editReply).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        content: "Running job...",
+        components: [
+          expect.objectContaining({
+            components: [
+              expect.objectContaining({
+                data: expect.objectContaining({
+                  custom_id: "abort:job:daily-summary",
+                  label: "Abort run",
+                }),
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
     expect(executeSessionCommandMock).toHaveBeenCalledWith(
-      "!abort",
+      "!job run daily-summary",
       expect.objectContaining({
         scope: "dm",
       }),

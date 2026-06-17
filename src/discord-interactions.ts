@@ -25,7 +25,7 @@ import { createModuleLogger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import { formatDiscordPromptTime, wrapXmlTag } from "./prompt-context";
 import type { SessionRegistry, SessionScope } from "./session-registry";
-import { PromptQueueCancelledError } from "./prompt-queue";
+import { PromptQueueCancelledError, type PromptQueue } from "./prompt-queue";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
@@ -38,10 +38,17 @@ const logger = createModuleLogger("discord-interactions");
 
 const JOBS_RELOAD_BUTTON_ID = "jobs:reload";
 const JOB_RUN_HERE_BUTTON_PREFIX = "job:run-here:";
-const PROMPT_ABORT_BUTTON_ID = "prompt:abort";
+const ABORT_BUTTON_PREFIX = "abort:";
 const REMIND_MODAL_ID = "remind:create";
 const REMIND_MODAL_WHEN_FIELD = "when";
 const REMIND_MODAL_TASK_FIELD = "task";
+
+type AbortControl = {
+  scope: SessionScope;
+  queue: PromptQueue;
+  queuedMessage?: string;
+  runningMessage?: string;
+};
 
 export function buildDiscordApplicationCommands(): ReturnType<
   SlashCommandBuilder["toJSON"]
@@ -392,6 +399,12 @@ async function handleChatInputInteraction(
     return;
   }
 
+  const abortControl = await resolveInteractionAbortControl(
+    interaction,
+    sessionRegistry,
+    taskScheduler,
+  );
+
   await executeInteractionCommand(
     interaction,
     commandText,
@@ -400,6 +413,7 @@ async function handleChatInputInteraction(
     sessionRegistry,
     taskScheduler,
     scope,
+    abortControl,
   );
 }
 
@@ -422,13 +436,24 @@ async function handleButtonCommandInteraction(
     return;
   }
 
+  if (interaction.customId.startsWith(ABORT_BUTTON_PREFIX)) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await sendInteractionCommandResult(
+      interaction,
+      await abortInteractionScope(
+        parseAbortButtonScope(interaction.customId),
+        sessionRegistry,
+      ),
+      [],
+    );
+    return;
+  }
+
   const primaryPrefix = getPrimaryPrefix(config);
   let commandText: string | null = null;
 
   if (interaction.customId === JOBS_RELOAD_BUTTON_ID) {
     commandText = `${primaryPrefix}jobs reload`;
-  } else if (interaction.customId === PROMPT_ABORT_BUTTON_ID) {
-    commandText = `${primaryPrefix}abort`;
   } else if (interaction.customId.startsWith(JOB_RUN_HERE_BUTTON_PREFIX)) {
     const jobId = interaction.customId.slice(JOB_RUN_HERE_BUTTON_PREFIX.length);
     commandText = `${primaryPrefix}job run-here ${jobId}`;
@@ -509,11 +534,24 @@ async function executeInteractionCommand(
   sessionRegistry: SessionRegistry,
   taskScheduler: TaskSchedulerService | null | undefined,
   scope: SessionScope,
+  abortControl?: AbortControl | null,
 ): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const { entry } = await sessionRegistry.getOrCreate(scope);
-  const cancellationCount = entry.promptQueue.getCancellationCount();
+  const cancellationTracker = abortControl
+    ? resolveAbortControlQueue(abortControl, sessionRegistry)
+    : entry.promptQueue;
+  const cancellationCount = cancellationTracker.getCancellationCount();
+
+  if (abortControl) {
+    await showAbortControlReply(
+      interaction,
+      abortControl,
+      resolveAbortControlQueue(abortControl, sessionRegistry),
+    );
+  }
+
   let result: CommandResult;
 
   try {
@@ -532,7 +570,7 @@ async function executeInteractionCommand(
   } catch (error) {
     if (
       error instanceof PromptQueueCancelledError ||
-      entry.promptQueue.getCancellationCount() !== cancellationCount
+      cancellationTracker.getCancellationCount() !== cancellationCount
     ) {
       await sendInteractionCommandResult(
         interaction,
@@ -546,6 +584,18 @@ async function executeInteractionCommand(
     }
 
     throw error;
+  }
+
+  if (cancellationTracker.getCancellationCount() !== cancellationCount) {
+    await sendInteractionCommandResult(
+      interaction,
+      {
+        handled: true,
+        response: "Cancelled.",
+      },
+      [],
+    );
+    return;
   }
 
   await applyInteractionCommandSideEffects(
@@ -658,19 +708,16 @@ async function executePromptInteraction(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const { entry } = await sessionRegistry.getOrCreate(scope);
-  const pendingCount = entry.promptQueue.getSnapshot().pending;
-  await interaction.editReply({
-    content:
-      pendingCount > 0
-        ? `Queued. ${pendingCount} request(s) ahead of this one.`
-        : "Running prompt...",
-    components: [buildPromptAbortButtonRow()],
-  });
-
-  const cancellationCount = entry.promptQueue.getCancellationCount();
+  const abortControl: AbortControl = {
+    scope,
+    queue: entry.promptQueue,
+    runningMessage: "Running prompt...",
+  };
+  const cancellationCount = abortControl.queue.getCancellationCount();
+  await showAbortControlReply(interaction, abortControl, abortControl.queue);
 
   try {
-    const response = await entry.promptQueue.enqueue(async () => {
+    const response = await abortControl.queue.enqueue(async () => {
       const transformedPrompt = await config.promptTransform({
         rawContent: promptText,
         discordMetadata: buildInteractionPromptMetadata(
@@ -703,7 +750,7 @@ async function executePromptInteraction(
   } catch (error) {
     if (
       error instanceof PromptQueueCancelledError ||
-      entry.promptQueue.getCancellationCount() !== cancellationCount
+      abortControl.queue.getCancellationCount() !== cancellationCount
     ) {
       await interaction.editReply({
         content: "Cancelled.",
@@ -739,15 +786,6 @@ async function sendInteractionCommandResult(
       flags: MessageFlags.Ephemeral,
     });
   }
-}
-
-function buildPromptAbortButtonRow(): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(PROMPT_ABORT_BUTTON_ID)
-      .setLabel("Abort run")
-      .setStyle(ButtonStyle.Danger),
-  );
 }
 
 function buildRemindModal(): ModalBuilder {
@@ -825,6 +863,149 @@ function buildCommandTextFromInteraction(
 
 function isPromptCommandName(commandName: string): boolean {
   return commandName === "prompt" || commandName === "p";
+}
+
+function buildAbortButtonCustomId(scope: SessionScope): string {
+  return `${ABORT_BUTTON_PREFIX}${scope}`;
+}
+
+function parseAbortButtonScope(customId: string): SessionScope | null {
+  if (!customId.startsWith(ABORT_BUTTON_PREFIX)) {
+    return null;
+  }
+
+  const scope = customId.slice(ABORT_BUTTON_PREFIX.length);
+  if (
+    scope === "dm" ||
+    scope.startsWith("thread:") ||
+    scope.startsWith("job:")
+  ) {
+    return scope as SessionScope;
+  }
+
+  return null;
+}
+
+function buildAbortButtonRow(
+  scope: SessionScope,
+): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(buildAbortButtonCustomId(scope))
+      .setLabel("Abort run")
+      .setStyle(ButtonStyle.Danger),
+  );
+}
+
+async function showAbortControlReply(
+  interaction:
+    | ChatInputCommandInteraction
+    | ButtonInteraction
+    | ModalSubmitInteraction,
+  abortControl: AbortControl,
+  queue: PromptQueue,
+): Promise<void> {
+  const pendingCount = queue.getSnapshot().pending;
+  await interaction.editReply({
+    content:
+      pendingCount > 0
+        ? (abortControl.queuedMessage ??
+          `Queued. ${pendingCount} request(s) ahead of this one.`)
+        : (abortControl.runningMessage ?? "Running..."),
+    components: [buildAbortButtonRow(abortControl.scope)],
+  });
+}
+
+function resolveAbortControlQueue(
+  abortControl: AbortControl,
+  sessionRegistry: SessionRegistry,
+): PromptQueue {
+  return (
+    sessionRegistry.get(abortControl.scope)?.promptQueue ?? abortControl.queue
+  );
+}
+
+async function abortInteractionScope(
+  scope: SessionScope | null,
+  sessionRegistry: SessionRegistry,
+): Promise<CommandResult> {
+  if (!scope) {
+    return {
+      handled: true,
+      response: "Nothing was running or queued.",
+    };
+  }
+
+  const entry = sessionRegistry.get(scope);
+  if (!entry) {
+    return {
+      handled: true,
+      response: "Nothing was running or queued.",
+    };
+  }
+
+  const queueStatus = entry.promptQueue.getSnapshot();
+  entry.promptQueue.markAbort();
+  const clearedCount = entry.promptQueue.cancelPending();
+  await entry.session.abort();
+
+  let response = "Aborted the active run.";
+  if (!queueStatus.busy && clearedCount === 0) {
+    response = "Nothing was running or queued.";
+  } else if (!queueStatus.busy && clearedCount > 0) {
+    response = `Cleared ${clearedCount} queued request(s).`;
+  } else if (clearedCount > 0) {
+    response = `Aborted the active run and cleared ${clearedCount} queued request(s).`;
+  }
+
+  return {
+    handled: true,
+    response,
+  };
+}
+
+async function resolveInteractionAbortControl(
+  interaction: ChatInputCommandInteraction,
+  sessionRegistry: SessionRegistry,
+  taskScheduler?: TaskSchedulerService | null,
+): Promise<AbortControl | null> {
+  if (interaction.commandName !== "job") {
+    return null;
+  }
+
+  const subcommand = interaction.options.getSubcommand();
+  if (subcommand !== "run" && subcommand !== "run-here") {
+    return null;
+  }
+
+  if (!taskScheduler) {
+    return null;
+  }
+
+  const jobId = interaction.options.getString("id", true);
+  const scope = resolveAbortScopeForJob(taskScheduler.getJob(jobId), jobId);
+  if (!scope) {
+    return null;
+  }
+
+  const { entry } = await sessionRegistry.getOrCreate(scope);
+  return {
+    scope,
+    queue: entry.promptQueue,
+    runningMessage:
+      subcommand === "run-here" ? "Running job here..." : "Running job...",
+  };
+}
+
+function resolveAbortScopeForJob(
+  job: ReturnType<TaskSchedulerService["getJob"]>,
+  jobId: string,
+): SessionScope | null {
+  if (!job || job.session?.strategy === "ephemeral") {
+    return null;
+  }
+
+  return job.session?.scope ?? `job:${jobId}`;
 }
 
 function buildInteractionPromptMetadata(
