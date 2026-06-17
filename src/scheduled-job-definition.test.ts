@@ -45,6 +45,44 @@ describe("scheduled-job-definition", () => {
     ]);
   });
 
+  it("normalizes constrained every-minutes schedules", () => {
+    expect(
+      normalizeScheduledJobs(
+        [
+          {
+            id: "weekday-heartbeat",
+            prompt: "Check the queue",
+            schedule: {
+              type: "every-minutes",
+              interval: 60,
+              timeZone: "Australia/Sydney",
+              daysOfWeek: ["mon", "tue", "wed", "thu", "fri", "fri"],
+              startTime: "09:00",
+              endTime: "22:00",
+            },
+          },
+        ],
+        "scheduled-jobs.ts",
+      ),
+    ).toEqual([
+      {
+        id: "weekday-heartbeat",
+        prompt: "Check the queue",
+        description: undefined,
+        schedule: {
+          type: "every-minutes",
+          interval: 60,
+          timeZone: "Australia/Sydney",
+          daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
+          startTime: "09:00",
+          endTime: "22:00",
+        },
+        session: undefined,
+        result: undefined,
+      },
+    ]);
+  });
+
   it("accepts explicit session strategies for a job", () => {
     expect(
       normalizeScheduledJobs(
@@ -143,5 +181,46 @@ describe("scheduled-job-definition", () => {
         "scheduled-jobs.ts",
       );
     }).toThrow();
+  });
+
+  it("rejects every-minutes schedules with partial or inverted time windows", () => {
+    expect(() => {
+      normalizeScheduledJobs(
+        [
+          {
+            id: "windowed-heartbeat",
+            prompt: "Check the queue",
+            schedule: {
+              type: "every-minutes",
+              interval: 60,
+              startTime: "09:00",
+            },
+          },
+        ],
+        "scheduled-jobs.ts",
+      );
+    }).toThrow(
+      "every-minutes schedules must set both startTime and endTime together.",
+    );
+
+    expect(() => {
+      normalizeScheduledJobs(
+        [
+          {
+            id: "windowed-heartbeat",
+            prompt: "Check the queue",
+            schedule: {
+              type: "every-minutes",
+              interval: 60,
+              startTime: "22:00",
+              endTime: "09:00",
+            },
+          },
+        ],
+        "scheduled-jobs.ts",
+      );
+    }).toThrow(
+      "every-minutes schedules require endTime to be greater than or equal to startTime.",
+    );
   });
 });

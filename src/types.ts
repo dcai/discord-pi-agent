@@ -68,6 +68,10 @@ export type DiscordGatewayConfig = {
 export type EveryMinutesTaskSchedule = {
   type: "every-minutes";
   interval: number;
+  timeZone?: string;
+  daysOfWeek?: TaskScheduleDayOfWeek[];
+  startTime?: string;
+  endTime?: string;
 };
 
 export type DailyAtTaskSchedule = {

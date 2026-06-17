@@ -125,7 +125,14 @@ describe("scheduled-job-loader", () => {
           {
             id: "heartbeat",
             prompt: "Ping " + context.schedulerConfig.jobsFile,
-            schedule: { type: "every-minutes", interval: 15 },
+            schedule: {
+              type: "every-minutes",
+              interval: 60,
+              timeZone: "UTC",
+              daysOfWeek: ["mon", "wed", "fri"],
+              startTime: "09:00",
+              endTime: "22:00",
+            },
           },
         ];
       }
@@ -143,7 +150,14 @@ describe("scheduled-job-loader", () => {
         id: "heartbeat",
         prompt: `Ping ${jobsFile}`,
         description: undefined,
-        schedule: { type: "every-minutes", interval: 15 },
+        schedule: {
+          type: "every-minutes",
+          interval: 60,
+          timeZone: "UTC",
+          daysOfWeek: ["mon", "wed", "fri"],
+          startTime: "09:00",
+          endTime: "22:00",
+        },
         session: undefined,
         result: undefined,
       },

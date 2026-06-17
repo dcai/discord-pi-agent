@@ -702,6 +702,54 @@ describe("executeSessionCommand", () => {
     expect(result.response).toContain("session-mode: fresh");
   });
 
+  it("shows constrained every-minutes schedules in runtime formatting", async () => {
+    const taskScheduler = createTaskSchedulerMock({
+      listJobs: () => [
+        {
+          id: "weekday-heartbeat",
+          prompt: "Check the queue",
+          description: "Workday heartbeat",
+          source: "file",
+          schedule: {
+            type: "every-minutes",
+            interval: 60,
+            timeZone: "Australia/Sydney",
+            daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
+            startTime: "09:00",
+            endTime: "22:00",
+          },
+          session: undefined,
+          model: undefined,
+          effectiveModel: {
+            provider: "openrouter",
+            id: "model-1",
+          },
+          result: {
+            target: "logs",
+          },
+          nextRunAt: "2026-01-02T09:00:00.000Z",
+          lastRunAt: null,
+          lastSuccessAt: null,
+          lastErrorAt: null,
+          lastErrorMessage: null,
+          running: false,
+        },
+      ],
+    });
+
+    const result = await executeSessionCommand("!jobs", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      taskScheduler,
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(result.response).toContain(
+      "schedule: every 60 minute(s) (Australia/Sydney) on Mon, Tue, Wed, Thu, Fri between 09:00 and 22:00",
+    );
+  });
+
   it("runs a scheduled job immediately with its configured target", async () => {
     const taskScheduler = createTaskSchedulerMock();
 
@@ -1120,6 +1168,11 @@ describe("executeSessionCommand", () => {
     expect(result.forwardedInput).toContain(
       "- Also remind the user to run `!jobs` to see the latest scheduled jobs.",
     );
+    expect(result.forwardedInput).toContain(
+      '      daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],',
+    );
+    expect(result.forwardedInput).toContain('      startTime: "09:00",');
+    expect(result.forwardedInput).toContain('      endTime: "22:00",');
   });
 
   it("shows usage when !job update has no freeform request", async () => {

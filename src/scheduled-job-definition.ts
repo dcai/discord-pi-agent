@@ -11,6 +11,15 @@ const dayOfWeekSchema = z.enum([
   "fri",
   "sat",
 ]);
+const timeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/);
+
+const optionalDaysOfWeekSchema = z
+  .array(dayOfWeekSchema)
+  .min(1)
+  .optional()
+  .transform((value) => {
+    return value ? Array.from(new Set(value)) : undefined;
+  });
 
 const optionalTrimmedStringSchema = z
   .string()
@@ -44,22 +53,52 @@ const timeZoneSchema = z
   });
 
 const taskScheduleSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("every-minutes"),
-    interval: z.number().int().positive(),
-  }),
+  z
+    .object({
+      type: z.literal("every-minutes"),
+      interval: z.number().int().positive(),
+      timeZone: timeZoneSchema.optional(),
+      daysOfWeek: optionalDaysOfWeekSchema,
+      startTime: timeOfDaySchema.optional(),
+      endTime: timeOfDaySchema.optional(),
+    })
+    .superRefine((value, ctx) => {
+      const hasStartTime = value.startTime !== undefined;
+      const hasEndTime = value.endTime !== undefined;
+
+      if (hasStartTime !== hasEndTime) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "every-minutes schedules must set both startTime and endTime together.",
+          path: hasStartTime ? ["endTime"] : ["startTime"],
+        });
+      }
+
+      if (!hasStartTime || !hasEndTime) {
+        return;
+      }
+
+      const { startTime, endTime } = value;
+      if (!startTime || !endTime) {
+        return;
+      }
+
+      if (toMinutes(endTime) < toMinutes(startTime)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "every-minutes schedules require endTime to be greater than or equal to startTime.",
+          path: ["endTime"],
+        });
+      }
+    }),
   z.object({
     type: z.literal("daily-at"),
     hour: z.number().int().min(0).max(23),
     minute: z.number().int().min(0).max(59),
     timeZone: timeZoneSchema.optional(),
-    daysOfWeek: z
-      .array(dayOfWeekSchema)
-      .min(1)
-      .optional()
-      .transform((value) => {
-        return value ? Array.from(new Set(value)) : undefined;
-      }),
+    daysOfWeek: optionalDaysOfWeekSchema,
   }),
 ]);
 
@@ -128,4 +167,9 @@ function normalizeTaskSessionTarget(
     strategy: session.strategy ?? "fresh",
     ...(session.scope ? { scope: session.scope } : {}),
   };
+}
+
+function toMinutes(value: string): number {
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
 }

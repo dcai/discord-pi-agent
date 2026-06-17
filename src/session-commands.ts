@@ -859,7 +859,16 @@ async function handleJobUpdateCommand(
 
 function formatTaskSchedule(schedule: TaskJobSchedule): string {
   if (schedule.type === "every-minutes") {
-    return `every ${schedule.interval} minute(s)`;
+    const daysOfWeek = schedule.daysOfWeek?.length
+      ? ` on ${schedule.daysOfWeek.map((day) => weekDayLabels[day]).join(", ")}`
+      : "";
+    const timeWindow =
+      schedule.startTime && schedule.endTime
+        ? ` between ${schedule.startTime} and ${schedule.endTime}`
+        : "";
+    const timeZone = schedule.timeZone ? ` (${schedule.timeZone})` : "";
+
+    return `every ${schedule.interval} minute(s)${timeZone}${daysOfWeek}${timeWindow}`;
   }
 
   if (schedule.type === "run-at") {
@@ -981,13 +990,17 @@ function buildJobUpdatePrompt(
     : "(no jobs loaded)";
 
   const examples = [
-    "  // Run every 15 minutes, fresh session each run, output to logs only",
+    "  // Run every 60 minutes on weekdays between 09:00 and 22:00 in Sydney",
     "  {",
     '    id: "heartbeat",',
     '    prompt: "Check system health and report any issues.",',
     "    schedule: {",
     '      type: "every-minutes",',
-    "      interval: 15,",
+    "      interval: 60,",
+    '      timeZone: "Australia/Sydney",',
+    '      daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],',
+    '      startTime: "09:00",',
+    '      endTime: "22:00",',
     "    },",
     "    session: {",
     '      strategy: "fresh",',

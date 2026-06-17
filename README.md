@@ -193,7 +193,11 @@ export function loadScheduleJobs(context: ScheduledJobsContext) {
       id: "repo-heartbeat",
       schedule: {
         type: "every-minutes",
-        interval: 30,
+        interval: 60,
+        timeZone: "Australia/Sydney",
+        daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
+        startTime: "09:00",
+        endTime: "22:00",
       },
       prompt: `Check ${context.config.cwd} and summarize anything important.`,
       result: {
@@ -252,6 +256,16 @@ export function loadScheduleJobs(context: ScheduledJobsContext) {
 - `minute`
 - `timeZone?`
 - `daysOfWeek?` — optional subset of `["sun", "mon", "tue", "wed", "thu", "fri", "sat"]`
+
+`every-minutes` supports:
+
+- `interval`
+- `timeZone?`
+- `daysOfWeek?` — optional subset of `["sun", "mon", "tue", "wed", "thu", "fri", "sat"]`
+- `startTime?`
+- `endTime?`
+
+When `startTime` or `endTime` is set, both are required. The run window is inclusive, so `startTime: "09:00"` with `interval: 60` starts at 09:00, then 10:00, 11:00, and so on until the last run at or before `endTime`.
 
 ### Session strategy
 

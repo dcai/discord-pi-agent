@@ -5,10 +5,11 @@ import type { AgentService } from "./agent-service";
 import type { SessionScope, SessionRegistry } from "./session-registry";
 import type {
   CreateRuntimeReminderInput,
+  DailyAtTaskSchedule,
   ResolvedDiscordGatewayConfig,
   ResolvedTaskSchedulerConfig,
   RunAtTaskSchedule,
-  DailyAtTaskSchedule,
+  EveryMinutesTaskSchedule,
   ScheduledTaskDefinition,
   TaskModelTarget,
   TaskJobRuntimeState,
@@ -282,7 +283,12 @@ export class TaskSchedulerService {
   private getRunDecision(job: ManagedJobDefinition, now: Date): RunDecision {
     if (job.schedule.type === "every-minutes") {
       const minuteKey = String(Math.floor(now.getTime() / 60_000));
-      const due = Number(minuteKey) % job.schedule.interval === 0;
+      const due = matchesEveryMinutesSchedule(
+        job.schedule,
+        minuteKey,
+        now,
+        this.config.promptTimeZone,
+      );
 
       return {
         due: due && this.lastRunKeys.get(job.id) !== minuteKey,
@@ -541,7 +547,7 @@ async function buildTaskPrompt(
 ): Promise<string> {
   const prompt = job.prompt;
   const timeZone =
-    job.schedule.type === "daily-at"
+    job.schedule.type === "daily-at" || job.schedule.type === "every-minutes"
       ? (job.schedule.timeZone ?? config.promptTimeZone)
       : config.promptTimeZone;
 
@@ -666,7 +672,14 @@ function findNextRunAt(
 
     if (job.schedule.type === "every-minutes") {
       const minuteKey = Math.floor(attempt.getTime() / 60_000);
-      if (minuteKey % job.schedule.interval === 0) {
+      if (
+        matchesEveryMinutesSchedule(
+          job.schedule,
+          String(minuteKey),
+          attempt,
+          defaultTimeZone,
+        )
+      ) {
         return attempt;
       }
       continue;
@@ -722,4 +735,55 @@ function matchesDailyAtSchedule(
   }
 
   return schedule.daysOfWeek.includes(parts.dayOfWeek);
+}
+
+function matchesEveryMinutesSchedule(
+  schedule: EveryMinutesTaskSchedule,
+  minuteKey: string,
+  now: Date,
+  defaultTimeZone: string,
+): boolean {
+  if (!usesLocalEveryMinutesRules(schedule)) {
+    return Number(minuteKey) % schedule.interval === 0;
+  }
+
+  const timeZone = schedule.timeZone ?? defaultTimeZone;
+  const parts = getTimeParts(now, timeZone);
+
+  if (
+    schedule.daysOfWeek?.length &&
+    !schedule.daysOfWeek.includes(parts.dayOfWeek)
+  ) {
+    return false;
+  }
+
+  const currentMinute = parts.hour * 60 + parts.minute;
+  const startMinute = schedule.startTime
+    ? parseTimeOfDayToMinutes(schedule.startTime)
+    : 0;
+  const endMinute = schedule.endTime
+    ? parseTimeOfDayToMinutes(schedule.endTime)
+    : 23 * 60 + 59;
+
+  if (currentMinute < startMinute || currentMinute > endMinute) {
+    return false;
+  }
+
+  return (currentMinute - startMinute) % schedule.interval === 0;
+}
+
+function usesLocalEveryMinutesRules(
+  schedule: EveryMinutesTaskSchedule,
+): boolean {
+  return Boolean(
+    schedule.timeZone ||
+    schedule.daysOfWeek?.length ||
+    schedule.startTime ||
+    schedule.endTime,
+  );
+}
+
+function parseTimeOfDayToMinutes(value: string): number {
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
 }

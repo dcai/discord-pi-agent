@@ -203,6 +203,71 @@ describe("TaskSchedulerService", () => {
     expect(runAgentTurnMock).toHaveBeenCalledTimes(1);
   });
 
+  it("runs constrained every-minutes jobs from startTime and repeats by interval", async () => {
+    vi.setSystemTime(new Date("2026-01-02T08:59:30.000Z"));
+
+    const { service, getOrCreateMock, deliverResultMock } = createService([
+      {
+        id: "weekday-heartbeat",
+        prompt: "Ping the workday",
+        schedule: {
+          type: "every-minutes",
+          interval: 60,
+          timeZone: "UTC",
+          daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
+          startTime: "09:00",
+          endTime: "22:00",
+        },
+      },
+    ]);
+
+    service.start();
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+
+    expect(getOrCreateMock).toHaveBeenNthCalledWith(
+      1,
+      "job:weekday-heartbeat",
+      {
+        reuseExisting: false,
+      },
+    );
+    expect(getOrCreateMock).toHaveBeenNthCalledWith(
+      2,
+      "job:weekday-heartbeat",
+      {
+        reuseExisting: false,
+      },
+    );
+    expect(deliverResultMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips constrained every-minutes jobs outside the window or weekday set", async () => {
+    vi.setSystemTime(new Date("2026-01-03T08:59:30.000Z"));
+
+    const { service, getOrCreateMock, deliverResultMock } = createService([
+      {
+        id: "weekday-heartbeat",
+        prompt: "Ping the workday",
+        schedule: {
+          type: "every-minutes",
+          interval: 60,
+          timeZone: "UTC",
+          daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
+          startTime: "09:00",
+          endTime: "22:00",
+        },
+      },
+    ]);
+
+    service.start();
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+
+    expect(getOrCreateMock).not.toHaveBeenCalled();
+    expect(deliverResultMock).not.toHaveBeenCalled();
+  });
+
   it("runs daily-at jobs with scope reuse", async () => {
     vi.setSystemTime(new Date("2026-01-01T08:59:30.000Z"));
 
@@ -576,6 +641,31 @@ describe("TaskSchedulerService", () => {
     expect(service.getJob("weekly-review")).toEqual(
       expect.objectContaining({
         nextRunAt: "2026-01-12T09:00:00.000Z",
+      }),
+    );
+  });
+
+  it("computes the next run for constrained every-minutes schedules", () => {
+    vi.setSystemTime(new Date("2026-01-02T22:30:00.000Z"));
+
+    const { service } = createService([
+      {
+        id: "weekday-heartbeat",
+        prompt: "Ping the workday",
+        schedule: {
+          type: "every-minutes",
+          interval: 60,
+          timeZone: "UTC",
+          daysOfWeek: ["mon", "tue", "wed", "thu", "fri"],
+          startTime: "09:00",
+          endTime: "22:00",
+        },
+      },
+    ]);
+
+    expect(service.getJob("weekday-heartbeat")).toEqual(
+      expect.objectContaining({
+        nextRunAt: "2026-01-05T09:00:00.000Z",
       }),
     );
   });
