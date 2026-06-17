@@ -26,9 +26,12 @@ function createPromptQueueMock(
 ): PromptQueue {
   return {
     getSnapshot: () => ({ pending: 0, busy: false }),
+    getCancellationCount: () => 0,
     enqueue: vi.fn(async (task: () => Promise<string>) => {
       return task();
     }),
+    cancelPending: vi.fn(() => 0),
+    markAbort: vi.fn(),
     ...overrides,
   } as unknown as PromptQueue;
 }
@@ -82,7 +85,6 @@ function createAgentServiceMock(
         return `Thinking level set to "${level}".`;
       },
     },
-    resetSession: vi.fn().mockResolvedValue("Started a fresh session."),
     createSession: vi
       .fn()
       .mockResolvedValue(createSessionMock({ sessionId: "new-session" })),
@@ -546,53 +548,53 @@ describe("executeSessionCommand", () => {
     });
   });
 
-  it("resets sessions by aborting, disposing, and creating a fresh one", async () => {
-    const threadSession = createSessionMock();
-    const threadQueue = createPromptQueueMock();
-    const threadAgentService = createAgentServiceMock(threadSession);
+  it("aborts active work and clears queued prompts", async () => {
+    const session = createSessionMock();
+    const promptQueue = createPromptQueueMock({
+      getSnapshot: () => ({ pending: 2, busy: true }),
+      cancelPending: vi.fn(() => 2),
+      markAbort: vi.fn(),
+    });
 
-    const threadResult = await executeSessionCommand("!reset-session", {
-      agentService: threadAgentService,
-      promptQueue: threadQueue,
-      session: threadSession,
+    const result = await executeSessionCommand("!abort", {
+      agentService: createAgentServiceMock(session),
+      promptQueue,
+      session,
       taskScheduler: createTaskSchedulerMock(),
       scope: "thread:123" as SessionScope,
       workingEmoji: "⚙️",
     });
 
-    expect(threadSession.abort).toHaveBeenCalled();
-    expect(threadSession.dispose).toHaveBeenCalled();
-    expect(threadAgentService.createSession).toHaveBeenCalledWith(
-      "/tmp/.pi-agent/sessions/thread-123",
-    );
-    expect(threadResult).toEqual({
+    expect(promptQueue.markAbort).toHaveBeenCalledTimes(1);
+    expect(promptQueue.cancelPending).toHaveBeenCalledTimes(1);
+    expect(session.abort).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
       handled: true,
-      response:
-        "Started a fresh session. Old session kept at /tmp/session-1.jsonl.",
-      newSession: expect.objectContaining({ sessionId: "new-session" }),
+      response: "Aborted the active run and cleared 2 queued request(s).",
+    });
+  });
+
+  it("reports when nothing is running or queued to abort", async () => {
+    const session = createSessionMock();
+    const promptQueue = createPromptQueueMock({
+      getSnapshot: () => ({ pending: 0, busy: false }),
+      cancelPending: vi.fn(() => 0),
+      markAbort: vi.fn(),
     });
 
-    const dmSession = createSessionMock();
-    const dmAgentService = createAgentServiceMock(dmSession);
-    const dmResult = await executeSessionCommand("!reset-session", {
-      agentService: dmAgentService,
-      promptQueue: createPromptQueueMock(),
-      session: dmSession,
+    const result = await executeSessionCommand("!abort", {
+      agentService: createAgentServiceMock(session),
+      promptQueue,
+      session,
       taskScheduler: createTaskSchedulerMock(),
       scope: DM_SCOPE,
       workingEmoji: "⚙️",
     });
 
-    expect(dmSession.abort).toHaveBeenCalled();
-    expect(dmSession.dispose).toHaveBeenCalled();
-    expect(dmAgentService.createSession).toHaveBeenCalledWith(
-      "/tmp/.pi-agent/sessions",
-    );
-    expect(dmResult).toEqual({
+    expect(session.abort).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
       handled: true,
-      response:
-        "Started a fresh session. Old session kept at /tmp/session-1.jsonl.",
-      newSession: expect.objectContaining({ sessionId: "new-session" }),
+      response: "Nothing was running or queued.",
     });
   });
 

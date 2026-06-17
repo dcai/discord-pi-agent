@@ -135,6 +135,7 @@ function createSession() {
 function createPromptQueue(overrides: Record<string, unknown> = {}) {
   return {
     getSnapshot: vi.fn(() => ({ pending: 0, busy: false })),
+    getCancellationCount: vi.fn(() => 0),
     enqueue: vi.fn(async (task: () => Promise<string>) => {
       return task();
     }),
@@ -641,6 +642,32 @@ describe("handleDiscordMessage", () => {
         onToolEnd: expect.any(Function),
       }),
     );
+    expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
+    expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
+  });
+
+  it("treats aborted prompt work as a cancellation", async () => {
+    const config = createConfig();
+    const message = createMessage();
+    let cancellationCount = 0;
+    const promptQueue = createPromptQueue({
+      getCancellationCount: vi.fn(() => cancellationCount),
+      enqueue: vi.fn(async () => {
+        cancellationCount = 1;
+        throw new Error("aborted");
+      }),
+    });
+    const registry = createSessionRegistry({ promptQueue });
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(sendReplyMock).toHaveBeenCalledWith(message, "Cancelled.");
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
     expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
   });

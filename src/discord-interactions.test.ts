@@ -61,7 +61,11 @@ function createSessionRegistry() {
         created: true,
         entry: {
           session: { sessionId: "session-1" },
-          promptQueue: { enqueue: vi.fn(), getSnapshot: vi.fn() },
+          promptQueue: {
+            enqueue: vi.fn(),
+            getSnapshot: vi.fn(),
+            getCancellationCount: vi.fn(() => 0),
+          },
           createdAt: new Date(),
           workingEmoji: "⚙️",
         },
@@ -280,6 +284,58 @@ describe("discord interactions", () => {
       "!jobs reload",
       expect.objectContaining({
         scope: "dm",
+      }),
+    );
+  });
+
+  it("maps the abort button to the abort command", async () => {
+    const interaction = createButtonInteraction("session:abort");
+
+    await handleDiscordInteraction(
+      interaction as never,
+      createConfig(),
+      createAgentService() as never,
+      createSessionRegistry() as never,
+      accessConfig,
+      null,
+    );
+
+    expect(executeSessionCommandMock).toHaveBeenCalledWith(
+      "!abort",
+      expect.objectContaining({
+        scope: "dm",
+      }),
+    );
+  });
+
+  it("adds an abort button to /status responses", async () => {
+    const interaction = createChatInputInteraction({
+      commandName: "status",
+    });
+
+    await handleDiscordInteraction(
+      interaction as never,
+      createConfig(),
+      createAgentService() as never,
+      createSessionRegistry() as never,
+      accessConfig,
+      null,
+    );
+
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        components: [
+          expect.objectContaining({
+            components: [
+              expect.objectContaining({
+                data: expect.objectContaining({
+                  custom_id: "session:abort",
+                  label: "Abort run",
+                }),
+              }),
+            ],
+          }),
+        ],
       }),
     );
   });

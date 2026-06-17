@@ -277,17 +277,10 @@ describe("AgentService", () => {
     expect(runAgentTurnMock).toHaveBeenCalledWith(session, "wrapped:hello");
   });
 
-  it("compacts, reports status, resets, and shuts down", async () => {
+  it("compacts, reports status, and shuts down", async () => {
     const service = new AgentService(createConfig());
     const firstSession = createSession({ sessionId: "session-1" });
-    const secondSession = createSession({
-      sessionId: "session-2",
-      sessionFile: "/repo/.pi-agent/sessions/session-2.jsonl",
-    });
-
-    createAgentSessionMock
-      .mockResolvedValueOnce({ session: firstSession })
-      .mockResolvedValueOnce({ session: secondSession });
+    createAgentSessionMock.mockResolvedValueOnce({ session: firstSession });
 
     vi.spyOn(
       service.models,
@@ -312,24 +305,14 @@ describe("AgentService", () => {
       thinkingInfo: "thinking: medium (available: low, medium, high)",
     });
 
-    await expect(service.resetSession()).resolves.toBe(
-      "Started a fresh session. Old session kept at /repo/.pi-agent/sessions/session-1.jsonl.",
-    );
-    expect(firstSession.abort).toHaveBeenCalled();
-    expect(firstSession.dispose).toHaveBeenCalled();
-    expect(sessionManagerCreateMock).toHaveBeenCalledWith(
-      "/repo",
-      "/repo/.pi-agent/sessions",
-    );
-
     const settingsManager = settingsManagerCreateMock.mock.results[0]
       ?.value as {
       flush: ReturnType<typeof vi.fn>;
     };
 
     await service.shutdown();
-    expect(secondSession.abort).toHaveBeenCalled();
-    expect(secondSession.dispose).toHaveBeenCalled();
+    expect(firstSession.abort).toHaveBeenCalled();
+    expect(firstSession.dispose).toHaveBeenCalled();
     expect(settingsManager.flush).toHaveBeenCalled();
   });
 
@@ -345,8 +328,5 @@ describe("AgentService", () => {
     expect(() => {
       service.getStatus();
     }).toThrow("Agent session has not been initialized.");
-    await expect(service.resetSession()).rejects.toThrow(
-      "Agent session has not been initialized.",
-    );
   });
 });

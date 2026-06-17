@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PromptQueue } from "./prompt-queue";
+import { PromptQueue, PromptQueueCancelledError } from "./prompt-queue";
 
 describe("PromptQueue", () => {
   it("runs the first task immediately and reports busy state", async () => {
@@ -73,5 +73,32 @@ describe("PromptQueue", () => {
     await expect(secondTask).resolves.toBe("ok");
     expect(order).toEqual(["first", "second"]);
     expect(queue.getSnapshot()).toEqual({ pending: 0, busy: false });
+  });
+
+  it("rejects pending tasks when they are cancelled", async () => {
+    const queue = new PromptQueue();
+    let releaseFirstTask: (() => void) | undefined;
+
+    const firstTask = queue.enqueue(async () => {
+      await new Promise<void>((resolve) => {
+        releaseFirstTask = resolve;
+      });
+      return "first";
+    });
+
+    const secondTask = queue.enqueue(async () => "second");
+
+    await Promise.resolve();
+
+    queue.markAbort();
+    expect(queue.cancelPending("Cancelled.")).toBe(1);
+    expect(queue.getCancellationCount()).toBe(1);
+
+    releaseFirstTask?.();
+
+    await expect(firstTask).resolves.toBe("first");
+    await expect(secondTask).rejects.toEqual(
+      new PromptQueueCancelledError("Cancelled."),
+    );
   });
 });

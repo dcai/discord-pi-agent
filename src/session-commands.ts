@@ -2,7 +2,6 @@ import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
 import type { SessionScope } from "./session-registry";
-import { sessionDirForScope } from "./session-registry";
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   TaskJobRuntimeState,
@@ -169,7 +168,7 @@ async function handleHelpCommand(
       `${formatCommandUsage(context, "thinking")} - show or set thinking/reasoning level`,
       `${formatCommandUsage(context, "model")} - list available models or switch to one`,
       `${formatCommandUsage(context, "compact")} - compact the persistent session`,
-      `${formatCommandUsage(context, "reset-session")} - start a fresh persistent session`,
+      `${formatCommandUsage(context, "abort")} - abort the active run and clear queued prompts`,
       `${formatCommandUsage(context, "reload")} - reload resources (AGENTS.md, extensions, skills, etc.)`,
       `${formatCommandUsage(context, "remind <when>, <task>")} - create a one-off runtime reminder`,
       `${formatCommandUsage(context, "jobs")} - list loaded scheduled jobs`,
@@ -385,11 +384,11 @@ async function handleReloadCommand(
   };
 }
 
-async function handleResetSessionCommand(
+async function handleAbortCommand(
   trimmedInput: string,
   context: CommandContext,
 ): Promise<CommandResult | null> {
-  if (trimmedInput !== `${INTERNAL_COMMAND_PREFIX}reset-session`) {
+  if (trimmedInput !== `${INTERNAL_COMMAND_PREFIX}abort`) {
     return null;
   }
 
@@ -398,26 +397,23 @@ async function handleResetSessionCommand(
     return effectiveSession;
   }
 
-  let newSession: AgentSession | undefined;
+  const queueStatus = context.promptQueue.getSnapshot();
+  context.promptQueue.markAbort();
+  const clearedCount = context.promptQueue.cancelPending();
+  await effectiveSession.session.abort();
 
-  const response = await context.promptQueue.enqueue(async () => {
-    const previousSessionFile = effectiveSession.session.sessionFile;
-    await effectiveSession.session.abort();
-    effectiveSession.session.dispose();
-
-    const sessionDir = sessionDirForScope(
-      context.agentService.getAgentDir(),
-      context.scope,
-    );
-    newSession = await context.agentService.createSession(sessionDir);
-
-    return `Started a fresh session. Old session kept at ${previousSessionFile ?? "(unknown path)"}.`;
-  });
+  let response = "Aborted the active run.";
+  if (!queueStatus.busy && clearedCount === 0) {
+    response = "Nothing was running or queued.";
+  } else if (!queueStatus.busy && clearedCount > 0) {
+    response = `Cleared ${clearedCount} queued request(s).`;
+  } else if (clearedCount > 0) {
+    response = `Aborted the active run and cleared ${clearedCount} queued request(s).`;
+  }
 
   return {
     handled: true,
     response,
-    newSession,
   };
 }
 
@@ -1058,6 +1054,7 @@ const commandHandlers: CommandHandler[] = [
   handleThinkingCommand,
   handleModelCommand,
   handleCompactCommand,
+  handleAbortCommand,
   handleReloadCommand,
   handleRemindCommand,
   handleJobsCommand,
@@ -1065,7 +1062,6 @@ const commandHandlers: CommandHandler[] = [
   handleJobRunCommand,
   handleJobImplicitRunHereCommand,
   handleJobInfoCommand,
-  handleResetSessionCommand,
   handleReactionCommand,
 ];
 

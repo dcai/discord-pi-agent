@@ -16,6 +16,7 @@ import {
   sendCommandReply,
   sendReply,
 } from "./discord-replies";
+import { PromptQueueCancelledError } from "./prompt-queue";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
 import { startTypingForChannel, stopTypingForChannel } from "./discord-typing";
 import { createModuleLogger } from "./logger";
@@ -407,6 +408,7 @@ async function processAgentPrompt(
   const toolEmojiByCallId = new Map<string, string>();
   const activeToolCountByEmoji = new Map<string, number>();
   let reactionOperationChain = Promise.resolve();
+  const cancellationCount = entry.promptQueue.getCancellationCount();
 
   try {
     const response = await entry.promptQueue.enqueue(async () => {
@@ -459,6 +461,16 @@ async function processAgentPrompt(
     });
 
     await sendReply(message, response);
+  } catch (error) {
+    if (
+      error instanceof PromptQueueCancelledError ||
+      entry.promptQueue.getCancellationCount() !== cancellationCount
+    ) {
+      await sendReply(message, "Cancelled.");
+      return;
+    }
+
+    throw error;
   } finally {
     stopTypingForChannel(channelKey);
 

@@ -21,6 +21,7 @@ import type { AgentService } from "./agent-service";
 import { formatCommandReplyChunks } from "./discord-replies";
 import { createModuleLogger } from "./logger";
 import type { SessionRegistry, SessionScope } from "./session-registry";
+import { PromptQueueCancelledError } from "./prompt-queue";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
@@ -33,6 +34,7 @@ const logger = createModuleLogger("discord-interactions");
 
 const JOBS_RELOAD_BUTTON_ID = "jobs:reload";
 const JOB_RUN_HERE_BUTTON_PREFIX = "job:run-here:";
+const SESSION_ABORT_BUTTON_ID = "session:abort";
 const REMIND_MODAL_ID = "remind:create";
 const REMIND_MODAL_WHEN_FIELD = "when";
 const REMIND_MODAL_TASK_FIELD = "task";
@@ -151,8 +153,8 @@ export function buildDiscordApplicationCommands(): ReturnType<
     ).toJSON(),
     applyDefaultCommandContexts(
       new SlashCommandBuilder()
-        .setName("reset-session")
-        .setDescription("Start a fresh persistent session."),
+        .setName("abort")
+        .setDescription("Abort the active run and clear queued prompts."),
     ).toJSON(),
     applyDefaultCommandContexts(
       new SlashCommandBuilder()
@@ -385,6 +387,8 @@ async function handleButtonCommandInteraction(
 
   if (interaction.customId === JOBS_RELOAD_BUTTON_ID) {
     commandText = `${primaryPrefix}jobs reload`;
+  } else if (interaction.customId === SESSION_ABORT_BUTTON_ID) {
+    commandText = `${primaryPrefix}abort`;
   } else if (interaction.customId.startsWith(JOB_RUN_HERE_BUTTON_PREFIX)) {
     const jobId = interaction.customId.slice(JOB_RUN_HERE_BUTTON_PREFIX.length);
     commandText = `${primaryPrefix}job run-here ${jobId}`;
@@ -469,18 +473,40 @@ async function executeInteractionCommand(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const { entry } = await sessionRegistry.getOrCreate(scope);
-  const result = await executeSessionCommand(commandText, {
-    agentService,
-    promptQueue: entry.promptQueue,
-    session: entry.session,
-    taskScheduler,
-    channelId: interaction.channelId ?? undefined,
-    promptTimeZone: config.promptTimeZone,
-    promptLocale: config.promptLocale,
-    scope,
-    workingEmoji: entry.workingEmoji,
-    commandPrefixes: config.discordCommandPrefixes,
-  });
+  const cancellationCount = entry.promptQueue.getCancellationCount();
+  let result: CommandResult;
+
+  try {
+    result = await executeSessionCommand(commandText, {
+      agentService,
+      promptQueue: entry.promptQueue,
+      session: entry.session,
+      taskScheduler,
+      channelId: interaction.channelId ?? undefined,
+      promptTimeZone: config.promptTimeZone,
+      promptLocale: config.promptLocale,
+      scope,
+      workingEmoji: entry.workingEmoji,
+      commandPrefixes: config.discordCommandPrefixes,
+    });
+  } catch (error) {
+    if (
+      error instanceof PromptQueueCancelledError ||
+      entry.promptQueue.getCancellationCount() !== cancellationCount
+    ) {
+      await sendInteractionCommandResult(
+        interaction,
+        {
+          handled: true,
+          response: "Cancelled.",
+        },
+        [],
+      );
+      return;
+    }
+
+    throw error;
+  }
 
   await applyInteractionCommandSideEffects(
     interaction,
@@ -544,6 +570,20 @@ function buildInteractionComponents(
 ) {
   if (!commandResult.handled) {
     return [];
+  }
+
+  if (
+    interaction.isChatInputCommand() &&
+    interaction.commandName === "status"
+  ) {
+    return [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(SESSION_ABORT_BUTTON_ID)
+          .setLabel("Abort run")
+          .setStyle(ButtonStyle.Danger),
+      ),
+    ];
   }
 
   if (
@@ -641,10 +681,10 @@ function buildCommandTextFromInteraction(
     case "help":
     case "status":
     case "compact":
+    case "abort":
     case "reload":
     case "jobs":
     case "jobs-reload":
-    case "reset-session":
     case "archive":
       return `${primaryPrefix}${interaction.commandName.replace("jobs-reload", "jobs reload")}`;
     case "thinking": {

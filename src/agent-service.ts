@@ -164,31 +164,6 @@ export class AgentService {
     return `Compaction finished for session ${session.sessionId}.`;
   }
 
-  async resetSession(): Promise<string> {
-    const previousSession = this.requireSession();
-    await previousSession.abort();
-    previousSession.dispose();
-    this.session = null;
-
-    const { session } = await createAgentSession({
-      cwd: this.config.cwd,
-      agentDir: this.config.agentDir,
-      authStorage: this.authStorage,
-      modelRegistry: this.modelRegistry,
-      resourceLoader: this.resourceLoader,
-      settingsManager: this.settingsManager,
-      sessionManager: SessionManager.create(
-        this.config.cwd,
-        this.getSessionDir(),
-      ),
-      thinkingLevel: this.config.thinkingLevel,
-    });
-    this.session = session;
-    await this.ensureConfiguredModel();
-
-    return `Started a fresh session. Old session kept at ${previousSession.sessionFile ?? "(unknown path)"}.`;
-  }
-
   getStatus(): AgentStatus {
     const session = this.requireSession();
     const model = this.models.getCurrentModelDisplay(session);

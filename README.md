@@ -30,7 +30,7 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - `!job run-here <id>`
 - `!job update <freeform request>`
 - `!jobs reload`
-- `!reset-session`
+- `!abort`
 - `!archive` (forum threads only — archives the thread and shuts down the session)
 
 Any other text is sent to the active session (DM or thread).
@@ -45,6 +45,8 @@ The gateway supports two command entry points:
 Prefix commands default to `!`. You can add others, such as `;`, with `discordCommandPrefixes`.
 
 Slash command handling uses the existing Discord gateway connection (`InteractionCreate`). It does **not** require a separate inbound webhook server or an extra public port on your VPS.
+
+`!abort` cancels the active run for the current DM or thread scope and clears any queued prompts behind it. The `/status` slash command also includes an **Abort run** button for the same scope.
 
 ### Slash command sync
 
