@@ -1,3 +1,58 @@
+## [0.27.16] - 2026-06-18
+
+### 🚀 Features
+
+- *(prompt)* Use env-backed defaults for prompt timezone/locale
+## [0.27.15] - 2026-06-18
+
+### 🚀 Features
+
+- *(reminder)* [**breaking**] Parse reminders via AgentService session and remove chrono-node
+## [0.27.14] - 2026-06-18
+
+### 🚀 Features
+
+- *(commands)* [**breaking**] Reorganize session/discord command code, add timezone-aware reminders and delivery provider
+## [0.27.13] - 2026-06-18
+
+### 🚀 Features
+
+- *(config)* Include package name in startup message and wrap message in code block
+## [0.27.12] - 2026-06-18
+
+### 🚀 Features
+
+- *(config)* Enrich default startupMessage with host, start time and version
+## [0.27.11] - 2026-06-18
+
+### 🚀 Features
+
+- *(session)* Add session reset command and slash support
+## [0.27.10] - 2026-06-17
+
+### 🚀 Features
+
+- *(scheduler)* Add optional daysOfWeek to daily-at schedules
+- *(scheduler)* Add constrained every-minutes schedules (timezone, weekdays, time window)
+
+### 📚 Documentation
+
+- Add release notes for versions 0.26.0 through 0.27.6
+## [0.27.9] - 2026-06-17
+
+### 🚀 Features
+
+- *(discord)* Add shared abort-button flow for prompt and job runs
+## [0.27.8] - 2026-06-17
+
+### 🚀 Features
+
+- *(discord-interactions)* Add slash-only /prompt and /p prompt commands with abort UI
+## [0.27.7] - 2026-06-17
+
+### 🚀 Features
+
+- *(session)* [**breaking**] Add `abort` command to cancel active runs and clear queued prompts
 ## [0.27.6] - 2026-06-17
 
 ### 🚀 Features
@@ -781,7 +836,6 @@
 ### 🚀 Features
 
 - *(discord-client)* Add periodic typing indicator while processing messages
-## [0.1.3] - 2026-04-22
 
 ### 🐛 Bug Fixes
 
