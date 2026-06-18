@@ -44,7 +44,7 @@ import { formatCommandReplyChunks } from "./discord-replies";
 import { createModuleLogger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import { formatDiscordPromptTime, wrapXmlTag } from "./prompt-context";
-import { PromptQueueCancelledError } from "./prompt-queue";
+import { PromptQueueCancelledError, type PromptQueue } from "./prompt-queue";
 import type { SessionRegistry, SessionScope } from "./session-registry";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
 import type { TaskSchedulerService } from "./task-scheduler-service";
@@ -393,10 +393,11 @@ async function executeInteractionCommand(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const { entry } = await sessionRegistry.getOrCreate(scope);
-  const cancellationTracker = abortControl
-    ? resolveAbortControlQueue(abortControl, sessionRegistry)
-    : entry.promptQueue;
-  const cancellationCount = cancellationTracker.getCancellationCount();
+  const cancellationCount = getInteractionCancellationCount(
+    abortControl,
+    sessionRegistry,
+    entry.promptQueue,
+  );
 
   if (abortControl) {
     await showAbortControlReply(
@@ -425,7 +426,11 @@ async function executeInteractionCommand(
   } catch (error) {
     if (
       error instanceof PromptQueueCancelledError ||
-      cancellationTracker.getCancellationCount() !== cancellationCount
+      getInteractionCancellationCount(
+        abortControl,
+        sessionRegistry,
+        entry.promptQueue,
+      ) !== cancellationCount
     ) {
       await sendInteractionCommandResult(
         interaction,
@@ -438,7 +443,13 @@ async function executeInteractionCommand(
     throw error;
   }
 
-  if (cancellationTracker.getCancellationCount() !== cancellationCount) {
+  if (
+    getInteractionCancellationCount(
+      abortControl,
+      sessionRegistry,
+      entry.promptQueue,
+    ) !== cancellationCount
+  ) {
     await sendInteractionCommandResult(
       interaction,
       { handled: true, response: "Cancelled." },
@@ -460,6 +471,18 @@ async function executeInteractionCommand(
     result,
     buildInteractionComponents(interaction, result, Boolean(taskScheduler)),
   );
+}
+
+function getInteractionCancellationCount(
+  abortControl: AbortControl | null | undefined,
+  sessionRegistry: SessionRegistry,
+  fallbackQueue: PromptQueue,
+): number {
+  if (!abortControl) {
+    return fallbackQueue.getCancellationCount();
+  }
+
+  return resolveAbortControlQueue(abortControl, sessionRegistry)?.getCancellationCount() ?? 0;
 }
 
 async function applyInteractionCommandSideEffects(
@@ -513,11 +536,11 @@ async function executePromptInteraction(
     queue: entry.promptQueue,
     runningMessage: "Running prompt...",
   };
-  const cancellationCount = abortControl.queue.getCancellationCount();
-  await showAbortControlReply(interaction, abortControl, abortControl.queue);
+  const cancellationCount = entry.promptQueue.getCancellationCount();
+  await showAbortControlReply(interaction, abortControl, entry.promptQueue);
 
   try {
-    const response = await abortControl.queue.enqueue(async () => {
+    const response = await entry.promptQueue.enqueue(async () => {
       const transformedPrompt = await config.promptTransform({
         rawContent: promptText,
         discordMetadata: buildInteractionPromptMetadata(
@@ -550,7 +573,7 @@ async function executePromptInteraction(
   } catch (error) {
     if (
       error instanceof PromptQueueCancelledError ||
-      abortControl.queue.getCancellationCount() !== cancellationCount
+      entry.promptQueue.getCancellationCount() !== cancellationCount
     ) {
       await interaction.editReply({
         content: "Cancelled.",

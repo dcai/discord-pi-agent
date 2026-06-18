@@ -1,4 +1,4 @@
-import { DEFAULT_PROMPT_TIME_ZONE } from "../prompt-context";
+import { getDefaultPromptLocale, getDefaultPromptTimeZone } from "../prompt-context";
 import { parseReminderCommand } from "../reminder-command-parser";
 import type { SessionScope } from "../session-registry";
 import type { TaskSchedulerService } from "../task-scheduler-service";
@@ -293,8 +293,8 @@ async function handleRemindCommand(
       agentService: context.agentService,
       input: request,
       now: new Date(),
-      timeZone: context.promptTimeZone ?? DEFAULT_PROMPT_TIME_ZONE,
-      locale: context.promptLocale ?? "en-US",
+      timeZone: context.promptTimeZone ?? getDefaultPromptTimeZone(),
+      locale: context.promptLocale ?? getDefaultPromptLocale(),
     });
     const reminderId = buildReminderId(
       parsedReminder.runAt,

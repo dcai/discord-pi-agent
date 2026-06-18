@@ -16,7 +16,7 @@ const ABORT_BUTTON_PREFIX = "abort:";
 
 export type AbortControl = {
   scope: SessionScope;
-  queue: PromptQueue;
+  queue?: PromptQueue;
   queuedMessage?: string;
   runningMessage?: string;
 };
@@ -44,12 +44,12 @@ export async function showAbortControlReply(
     | ButtonInteraction
     | ModalSubmitInteraction,
   abortControl: AbortControl,
-  queue: PromptQueue,
+  queue?: PromptQueue | null,
 ): Promise<void> {
-  const pendingCount = queue.getSnapshot().pending;
+  const pendingCount = queue?.getSnapshot().pending ?? 0;
   await interaction.editReply({
     content:
-      pendingCount > 0
+      queue && pendingCount > 0
         ? (abortControl.queuedMessage ??
           `Queued. ${pendingCount} request(s) ahead of this one.`)
         : (abortControl.runningMessage ?? "Running..."),
@@ -60,10 +60,8 @@ export async function showAbortControlReply(
 export function resolveAbortControlQueue(
   abortControl: AbortControl,
   sessionRegistry: SessionRegistry,
-): PromptQueue {
-  return (
-    sessionRegistry.get(abortControl.scope)?.promptQueue ?? abortControl.queue
-  );
+): PromptQueue | null {
+  return sessionRegistry.get(abortControl.scope)?.promptQueue ?? abortControl.queue ?? null;
 }
 
 export async function abortInteractionScope(
@@ -115,9 +113,22 @@ export async function resolveInteractionAbortControl(
   }
 
   const jobId = interaction.options.getString("id", true);
-  const scope = resolveAbortScopeForJob(taskScheduler.getJob(jobId), jobId);
+  const job = taskScheduler.getJob(jobId);
+  if (!job) {
+    return null;
+  }
+
+  const scope = resolveAbortScopeForJob(job, jobId);
   if (!scope) {
     return null;
+  }
+
+  if ((job.session?.strategy ?? "fresh") === "fresh") {
+    return {
+      scope,
+      runningMessage:
+        subcommand === "run-here" ? "Running job here..." : "Running job...",
+    };
   }
 
   const { entry } = await sessionRegistry.getOrCreate(scope);

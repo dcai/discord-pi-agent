@@ -493,6 +493,97 @@ describe("discord interactions", () => {
       }),
     );
   });
+
+  it("reports cancelled for fresh slash job runs using the replacement queue", async () => {
+    const interaction = createChatInputInteraction({
+      commandName: "job",
+      subcommand: "run",
+      stringOptions: { id: "daily-summary" },
+    });
+    const dmEntry = {
+      session: {
+        sessionId: "session-1",
+        abort: vi.fn(async () => undefined),
+      },
+      promptQueue: {
+        enqueue: vi.fn(async (task: () => Promise<string>) => task()),
+        getSnapshot: vi.fn(() => ({ pending: 0, busy: false })),
+        getCancellationCount: vi.fn(() => 0),
+        markAbort: vi.fn(),
+        cancelPending: vi.fn(() => 0),
+      },
+      createdAt: new Date(),
+      workingEmoji: "⚙️",
+    };
+    const freshJobEntry = {
+      session: {
+        sessionId: "job-session-1",
+        abort: vi.fn(async () => undefined),
+      },
+      promptQueue: {
+        enqueue: vi.fn(async (task: () => Promise<string>) => task()),
+        getSnapshot: vi.fn(() => ({ pending: 0, busy: false })),
+        getCancellationCount: vi.fn(() => 1),
+        markAbort: vi.fn(),
+        cancelPending: vi.fn(() => 0),
+      },
+      createdAt: new Date(),
+      workingEmoji: "⚙️",
+    };
+    let activeJobEntry: typeof freshJobEntry | null = null;
+    const sessionRegistry = {
+      getOrCreate: vi.fn(async (scope: string) => {
+        if (scope === "dm") {
+          return {
+            created: true,
+            entry: dmEntry,
+          };
+        }
+
+        throw new Error(`Unexpected scope: ${scope}`);
+      }),
+      get: vi.fn((scope: string) => {
+        if (scope === "job:daily-summary") {
+          return activeJobEntry;
+        }
+
+        return scope === "dm" ? dmEntry : undefined;
+      }),
+      getScopes: vi.fn(() => ["dm"]),
+      remove: vi.fn(async () => undefined),
+    };
+    const taskScheduler = {
+      getJob: vi.fn(() => ({
+        id: "daily-summary",
+        session: undefined,
+      })),
+    };
+    executeSessionCommandMock.mockImplementationOnce(async () => {
+      activeJobEntry = freshJobEntry;
+      return {
+        handled: true,
+        response: "ok",
+      };
+    });
+
+    await handleDiscordInteraction(
+      interaction as never,
+      createConfig(),
+      createAgentService() as never,
+      sessionRegistry as never,
+      accessConfig,
+      taskScheduler as never,
+    );
+
+    expect(sessionRegistry.getOrCreate).toHaveBeenCalledTimes(1);
+    expect(sessionRegistry.getOrCreate).toHaveBeenCalledWith("dm");
+    expect(interaction.editReply).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        content: "```\nCancelled.\n```",
+        components: [],
+      }),
+    );
+  });
 });
 
 describe("syncDiscordApplicationCommands", () => {

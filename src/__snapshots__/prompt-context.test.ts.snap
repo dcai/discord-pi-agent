@@ -2,4 +2,6 @@
 
 exports[`formatDiscordPromptTime > formats time with custom timezone and locale 1`] = `"24年12月26日(木) 03:45 JST"`;
 
-exports[`formatDiscordPromptTime > formats time with default options (UTC, en-US) 1`] = `"Sat, Jun 15, 24, 10:30 UTC"`;
+exports[`formatDiscordPromptTime > formats time with default options (UTC, en-AU) 1`] = `"Sat, 15 June 24, 10:30 UTC"`;
+
+exports[`formatDiscordPromptTime > uses env-backed defaults when options are omitted 1`] = `"เสาร์ 15 มิ.ย. 67 17:30 GMT+7"`;

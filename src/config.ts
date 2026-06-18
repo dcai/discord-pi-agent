@@ -2,9 +2,9 @@ import os from "node:os";
 import path from "node:path";
 import dotenv from "dotenv";
 import {
-  DEFAULT_PROMPT_LOCALE,
-  DEFAULT_PROMPT_TIME_ZONE,
   formatDiscordPromptTime,
+  getDefaultPromptLocale,
+  getDefaultPromptTimeZone,
 } from "./prompt-context";
 import type {
   CommandRegistrationScope,
@@ -27,8 +27,8 @@ export function resolveConfig(
   const discordCommandRegistrationGuildIds =
     config.discordCommandRegistrationGuildIds ?? [];
   const promptTimeZone =
-    config.promptTimeZone?.trim() || DEFAULT_PROMPT_TIME_ZONE;
-  const promptLocale = config.promptLocale?.trim() || DEFAULT_PROMPT_LOCALE;
+    config.promptTimeZone?.trim() || getDefaultPromptTimeZone();
+  const promptLocale = config.promptLocale?.trim() || getDefaultPromptLocale();
 
   if (
     discordCommandRegistrationScope === "guild" &&

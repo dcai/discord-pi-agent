@@ -2,8 +2,8 @@ import type { Message } from "discord.js";
 import { getAuthorDisplayName } from "./discord-auth";
 import type { SessionScope } from "./session-registry";
 
-export const DEFAULT_PROMPT_TIME_ZONE = "UTC";
-export const DEFAULT_PROMPT_LOCALE = "en-US";
+const FALLBACK_PROMPT_TIME_ZONE = "UTC";
+const FALLBACK_PROMPT_LOCALE = "en-AU";
 
 export type DiscordPromptTimeFormatOptions = {
   timeZone?: string;
@@ -15,12 +15,20 @@ export type DiscordMessageMetadataOptions = {
   editedAt?: Date;
 };
 
+export function getDefaultPromptTimeZone(): string {
+  return process.env.PI_PROMPT_TIME_ZONE?.trim() || FALLBACK_PROMPT_TIME_ZONE;
+}
+
+export function getDefaultPromptLocale(): string {
+  return process.env.PI_PROMPT_LOCALE?.trim() || FALLBACK_PROMPT_LOCALE;
+}
+
 export function formatDiscordPromptTime(
   date: Date,
   options: DiscordPromptTimeFormatOptions = {},
 ): string {
-  const timeZone = options.timeZone || DEFAULT_PROMPT_TIME_ZONE;
-  const locale = options.locale || DEFAULT_PROMPT_LOCALE;
+  const timeZone = options.timeZone || getDefaultPromptTimeZone();
+  const locale = options.locale || getDefaultPromptLocale();
 
   return new Intl.DateTimeFormat(locale, {
     timeZone,

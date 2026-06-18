@@ -98,7 +98,7 @@ describe("config", () => {
       expect(config.modelId).toBe("anthropic/claude-3.5-haiku");
       expect(config.thinkingLevel).toBe("medium");
       expect(config.promptTimeZone).toBe("UTC");
-      expect(config.promptLocale).toBe("en-US");
+      expect(config.promptLocale).toBe("en-AU");
       expect(config.startupMessage).toBe(
         [
           "Bot is online and ready.",
@@ -108,7 +108,7 @@ describe("config", () => {
             new Date("2026-06-18T01:51:03.618Z"),
             {
               timeZone: "UTC",
-              locale: "en-US",
+              locale: "en-AU",
             },
           )}`,
           "```",
@@ -181,6 +181,21 @@ describe("config", () => {
         "guild-1",
         "guild-2",
       ]);
+    });
+
+    it("uses prompt defaults from env when prompt settings are omitted", () => {
+      withEnv(
+        {
+          PI_PROMPT_TIME_ZONE: "Asia/Bangkok",
+          PI_PROMPT_LOCALE: "th-TH",
+        },
+        () => {
+          const config = resolveConfig(createBaseConfig());
+
+          expect(config.promptTimeZone).toBe("Asia/Bangkok");
+          expect(config.promptLocale).toBe("th-TH");
+        },
+      );
     });
 
     it("falls back to medium when thinking level is invalid", () => {
