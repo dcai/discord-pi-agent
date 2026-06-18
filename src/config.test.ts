@@ -1,6 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadDiscordGatewayConfigFromEnv, resolveConfig } from "./config";
+import { formatDiscordPromptTime } from "./prompt-context";
 import type { DiscordGatewayConfig } from "./types";
+import packageJson from "../package.json";
+
+vi.mock("node:os", () => {
+  return {
+    default: {
+      hostname: vi.fn(() => "test-host"),
+    },
+  };
+});
 
 vi.mock("dotenv", () => {
   return {
@@ -70,12 +80,15 @@ function withEnv(
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
 describe("config", () => {
   describe("resolveConfig", () => {
     it("trims required values and fills defaults", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-06-18T01:51:03.618Z"));
       const config = resolveConfig(createBaseConfig());
 
       expect(config.discordBotToken).toBe("bot-token");
@@ -87,7 +100,20 @@ describe("config", () => {
       expect(config.thinkingLevel).toBe("medium");
       expect(config.promptTimeZone).toBe("UTC");
       expect(config.promptLocale).toBe("en-AU");
-      expect(config.startupMessage).toBe("Bot is online and ready.");
+      expect(config.startupMessage).toBe(
+        [
+          "Bot is online and ready.",
+          "Host: test-host",
+          `Started: ${formatDiscordPromptTime(
+            new Date("2026-06-18T01:51:03.618Z"),
+            {
+              timeZone: "UTC",
+              locale: "en-AU",
+            },
+          )}`,
+          `Version: ${packageJson.version}`,
+        ].join("\n"),
+      );
       expect(config.shutdownOnSignals).toBe(true);
       expect(config.visionModelId).toBeNull();
       expect(config.discordAllowedForumChannelIds).toEqual([]);

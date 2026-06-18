@@ -1,5 +1,8 @@
+import os from "node:os";
 import path from "node:path";
 import dotenv from "dotenv";
+import packageJson from "../package.json";
+import { formatDiscordPromptTime } from "./prompt-context";
 import type {
   CommandRegistrationScope,
   DiscordGatewayConfig,
@@ -20,6 +23,8 @@ export function resolveConfig(
     "none";
   const discordCommandRegistrationGuildIds =
     config.discordCommandRegistrationGuildIds ?? [];
+  const promptTimeZone = config.promptTimeZone?.trim() || "UTC";
+  const promptLocale = config.promptLocale?.trim() || "en-AU";
 
   if (
     discordCommandRegistrationScope === "guild" &&
@@ -41,12 +46,20 @@ export function resolveConfig(
     modelProvider: config.modelProvider?.trim() || "openrouter",
     modelId: config.modelId?.trim() || "anthropic/claude-3.5-haiku",
     thinkingLevel: parseThinkingLevel(config.thinkingLevel) || "medium",
-    promptTimeZone: config.promptTimeZone?.trim() || "UTC",
-    promptLocale: config.promptLocale?.trim() || "en-AU",
+    promptTimeZone,
+    promptLocale,
     promptTransform: config.promptTransform || defaultPromptTransform,
     startupMessage:
       config.startupMessage === undefined
-        ? "Bot is online and ready."
+        ? [
+            "Bot is online and ready.",
+            `Host: ${os.hostname()}`,
+            `Started: ${formatDiscordPromptTime(new Date(), {
+              timeZone: promptTimeZone,
+              locale: promptLocale,
+            })}`,
+            `Version: ${packageJson.version}`,
+          ].join("\n")
         : config.startupMessage,
     shutdownOnSignals: config.shutdownOnSignals ?? true,
     visionModelId: config.visionModelId?.trim() || null,

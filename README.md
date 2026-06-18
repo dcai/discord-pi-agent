@@ -320,7 +320,8 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
 - `promptTimeZone` default: `UTC` — used for `sent_at_local` in Discord prompt metadata
 - `promptLocale` default: `en-AU` — used for `sent_at_local` in Discord prompt metadata
 - `promptTransform` default: identity
-- `startupMessage` default: `Bot is online and ready.`
+- `startupMessage` default:
+  `Bot is online and ready.\nHost: <hostname>\nStarted: <local datetime>\nVersion: <package-version>`
 - `shutdownOnSignals` default: `true`
 - `discordCommandPrefixes` default: `["!"]`
 - `discordCommandRegistrationScope` default: `"none"`
