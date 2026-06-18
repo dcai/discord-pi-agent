@@ -5,8 +5,9 @@ import type { AgentService } from "./agent-service";
 import { createModuleLogger } from "./logger";
 import { PromptQueue } from "./prompt-queue";
 import { DEFAULT_WORKING_EMOJI } from "./discord-replies";
+import type { TaskSessionScope } from "./types";
 
-export type SessionScope = "dm" | `thread:${string}` | `job:${string}`;
+export type SessionScope = TaskSessionScope;
 
 export type ScopedSessionEntry = {
   session: AgentSession;

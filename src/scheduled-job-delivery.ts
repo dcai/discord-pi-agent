@@ -10,11 +10,18 @@ type DeliverableJob = {
   result?: TaskResultTarget;
 };
 
-export class ScheduledJobDeliveryService {
-  private readonly client: Client | null;
+type DiscordClientProvider = Client | null | (() => Client | null);
 
-  constructor(client: Client | null) {
-    this.client = client;
+export class ScheduledJobDeliveryService {
+  private readonly getClient: () => Client | null;
+
+  constructor(client: DiscordClientProvider) {
+    this.getClient =
+      typeof client === "function"
+        ? client
+        : () => {
+            return client;
+          };
   }
 
   async deliverResult(job: DeliverableJob, text: string): Promise<void> {
@@ -54,13 +61,14 @@ export class ScheduledJobDeliveryService {
   private requireClient(
     target: Exclude<TaskResultTarget, { target: "logs" }>,
   ): Client {
-    if (!this.client) {
+    const client = this.getClient();
+    if (!client) {
       throw new Error(
         `Scheduled job delivery target ${target.target} requires a Discord client.`,
       );
     }
 
-    return this.client;
+    return client;
   }
 }
 

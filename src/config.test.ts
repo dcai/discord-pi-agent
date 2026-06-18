@@ -99,7 +99,7 @@ describe("config", () => {
       expect(config.modelId).toBe("anthropic/claude-3.5-haiku");
       expect(config.thinkingLevel).toBe("medium");
       expect(config.promptTimeZone).toBe("UTC");
-      expect(config.promptLocale).toBe("en-AU");
+      expect(config.promptLocale).toBe("en-US");
       expect(config.startupMessage).toBe(
         [
           "Bot is online and ready.",
@@ -109,7 +109,7 @@ describe("config", () => {
             new Date("2026-06-18T01:51:03.618Z"),
             {
               timeZone: "UTC",
-              locale: "en-AU",
+              locale: "en-US",
             },
           )}`,
           `Version: ${packageJson.name}@${packageJson.version}`,

@@ -1005,7 +1005,6 @@ describe("executeSessionCommand", () => {
       expect.objectContaining({
         input: "tomorrow 14:00, check what is aapl's latest share price",
         timeZone: "Australia/Sydney",
-        locale: "en-AU",
       }),
     );
     expect(taskScheduler.addRuntimeReminder).toHaveBeenCalledWith({

@@ -1,8 +1,6 @@
+import * as chrono from "chrono-node";
 import { z } from "zod";
-import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import type { AgentService } from "./agent-service";
 import { createModuleLogger } from "./logger";
-import { formatDiscordPromptTime } from "./prompt-context";
 
 const logger = createModuleLogger("reminder-command-parser");
 
@@ -14,122 +12,177 @@ const parsedReminderSchema = z.object({
   description: z.string().trim().min(1).optional(),
 });
 
-const reminderParserResponseSchema = z.union([
-  parsedReminderSchema,
-  z.object({
-    error: z.string().trim().min(1),
-  }),
-]);
-
-type ReminderParserResponse = z.infer<typeof reminderParserResponseSchema>;
-
 export type ParsedReminderCommand = z.infer<typeof parsedReminderSchema>;
 
 export async function parseReminderCommand(options: {
-  agentService: AgentService;
   input: string;
   now: Date;
   timeZone: string;
-  locale: string;
 }): Promise<ParsedReminderCommand> {
-  const session = await options.agentService.createTemporarySession();
-
   try {
-    await options.agentService.models.ensureSessionHasConfiguredModel(session);
-    await session.prompt(
-      buildReminderParserPrompt(
-        options.input,
-        options.now,
-        options.timeZone,
-        options.locale,
-      ),
-    );
-
-    const responseText = extractLastAssistantText(session);
-    if (!responseText) {
-      throw new Error("Reminder parser returned no response.");
-    }
-
-    const parsedResponse = reminderParserResponseSchema.parse(
-      JSON.parse(extractJsonBlock(responseText)),
-    );
-
-    if ("error" in parsedResponse) {
-      throw new Error(parsedResponse.error);
-    }
-
-    return parsedResponse;
+    return parseReminderInput(options.input, options.now, options.timeZone);
   } catch (error) {
     logger.error({ error, input: options.input }, "reminder parsing failed");
     throw error;
-  } finally {
-    session.dispose();
   }
 }
 
-function buildReminderParserPrompt(
+function parseReminderInput(
   input: string,
   now: Date,
   timeZone: string,
-  locale: string,
-): string {
-  return [
-    "Convert the user's Discord !remind request into one runtime reminder.",
-    "",
-    "Rules:",
-    "- Return JSON only.",
-    "- Do not wrap the JSON in markdown unless necessary.",
-    "- Create exactly one reminder.",
-    "- Resolve relative dates/times using the provided current datetime and timezone.",
-    "- The runAt field must be an ISO datetime string with timezone information.",
-    "- The prompt field must contain only the task the reminder should run.",
-    "- The description field is optional.",
-    '- If the time or request is ambiguous, invalid, or missing, return {"error":"..."}.',
-    "",
-    `Current datetime ISO: ${now.toISOString()}`,
-    `Current datetime local: ${formatDiscordPromptTime(now, { timeZone, locale })}`,
-    `Default timezone: ${timeZone}`,
-    "",
-    `User request: ${input}`,
-    "",
-    "Return exactly one of these shapes:",
-    '{"runAt":"<ISO datetime>","prompt":"<task prompt>","description":"<optional short description>"}',
-    '{"error":"<what went wrong>"}',
-  ].join("\n");
-}
+): ParsedReminderCommand {
+  const { whenText, prompt } = splitReminderRequest(input);
+  const parsedDate = chrono.parseDate(
+    whenText,
+    createChronoReferenceDate(now, timeZone),
+    {
+      forwardDate: true,
+    },
+  );
 
-function extractJsonBlock(text: string): string {
-  const fencedJsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fencedJsonMatch?.[1]) {
-    return fencedJsonMatch[1].trim();
+  if (!parsedDate) {
+    throw new Error("Could not determine the reminder time.");
   }
 
-  return text.trim();
+  return parsedReminderSchema.parse({
+    runAt: resolveTimeZoneDate(parsedDate, timeZone).toISOString(),
+    prompt,
+    description: buildReminderDescription(prompt),
+  });
 }
 
-function extractLastAssistantText(session: AgentSession): string {
-  const messages = session.messages;
+function splitReminderRequest(input: string): {
+  whenText: string;
+  prompt: string;
+} {
+  const commaIndex = input.indexOf(",");
+  if (commaIndex === -1) {
+    throw new Error(
+      "Reminder format is `!remind <when>, <what you want to be reminded about>`.",
+    );
+  }
 
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    if (
-      !message ||
-      message.role !== "assistant" ||
-      !Array.isArray(message.content)
-    ) {
-      continue;
+  const whenText = input.slice(0, commaIndex).trim();
+  const prompt = input.slice(commaIndex + 1).trim();
+
+  if (!whenText || !prompt) {
+    throw new Error(
+      "Reminder format is `!remind <when>, <what you want to be reminded about>`.",
+    );
+  }
+
+  return {
+    whenText,
+    prompt,
+  };
+}
+
+function buildReminderDescription(prompt: string): string {
+  const normalizedPrompt = prompt.replace(/\s+/g, " ").trim();
+  if (normalizedPrompt.length <= 80) {
+    return normalizedPrompt;
+  }
+
+  return `${normalizedPrompt.slice(0, 77)}...`;
+}
+
+function createChronoReferenceDate(now: Date, timeZone: string): Date {
+  const timeParts = getTimeZoneParts(now, timeZone);
+
+  return new Date(
+    timeParts.year,
+    timeParts.month - 1,
+    timeParts.day,
+    timeParts.hour,
+    timeParts.minute,
+    timeParts.second,
+  );
+}
+
+function resolveTimeZoneDate(parsedDate: Date, timeZone: string): Date {
+  const desired = {
+    year: parsedDate.getFullYear(),
+    month: parsedDate.getMonth() + 1,
+    day: parsedDate.getDate(),
+    hour: parsedDate.getHours(),
+    minute: parsedDate.getMinutes(),
+    second: parsedDate.getSeconds(),
+  };
+  const desiredUtc = Date.UTC(
+    desired.year,
+    desired.month - 1,
+    desired.day,
+    desired.hour,
+    desired.minute,
+    desired.second,
+  );
+
+  let guess = desiredUtc;
+
+  for (let iteration = 0; iteration < 4; iteration += 1) {
+    const actual = getTimeZoneParts(new Date(guess), timeZone);
+    const actualUtc = Date.UTC(
+      actual.year,
+      actual.month - 1,
+      actual.day,
+      actual.hour,
+      actual.minute,
+      actual.second,
+    );
+    const diff = desiredUtc - actualUtc;
+
+    if (diff === 0) {
+      return new Date(guess);
     }
 
-    return message.content
-      .filter((item): item is { type: "text"; text: string } => {
-        return item.type === "text" && typeof item.text === "string";
-      })
-      .map((item) => {
-        return item.text;
-      })
-      .join("\n")
-      .trim();
+    guess += diff;
   }
 
-  return "";
+  return new Date(guess);
+}
+
+function getTimeZoneParts(
+  date: Date,
+  timeZone: string,
+): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = formatter.formatToParts(date);
+
+  return {
+    year: Number(getRequiredPart(parts, "year")),
+    month: Number(getRequiredPart(parts, "month")),
+    day: Number(getRequiredPart(parts, "day")),
+    hour: Number(getRequiredPart(parts, "hour")),
+    minute: Number(getRequiredPart(parts, "minute")),
+    second: Number(getRequiredPart(parts, "second")),
+  };
+}
+
+function getRequiredPart(
+  parts: Intl.DateTimeFormatPart[],
+  type: Intl.DateTimeFormatPartTypes,
+): string {
+  const part = parts.find((entry) => entry.type === type)?.value;
+  if (!part) {
+    throw new Error(`Missing datetime part ${type}.`);
+  }
+
+  return part;
 }

@@ -68,7 +68,6 @@ vi.mock("./task-scheduler-service", () => {
   class TaskSchedulerServiceMock {
     start = vi.fn();
     stop = vi.fn();
-    setDeliveryService = vi.fn();
     getStatus = vi.fn(() => ({
       jobsFile: "/repo/scheduled-jobs.ts",
       jobCount: 1,
@@ -213,12 +212,7 @@ describe("startDiscordGateway", () => {
       resolvedConfig,
       agentService,
       sessionRegistry,
-      {
-        discordAllowedUserId: "user-1",
-        discordAllowedForumChannelIds: ["forum-1"],
-        discordAllowedUserIds: ["user-1", "user-2"],
-        startupMessage: false,
-      },
+      resolvedConfig,
       null,
     );
     expect(gateway.client).toBe(client);
@@ -295,7 +289,6 @@ describe("startDiscordGateway", () => {
     const taskScheduler = taskSchedulerState.instances[0] as {
       start: ReturnType<typeof vi.fn>;
       getStatus: ReturnType<typeof vi.fn>;
-      setDeliveryService: ReturnType<typeof vi.fn>;
     };
 
     expect(resolveTaskSchedulerConfigMock).toHaveBeenCalledWith(
@@ -314,17 +307,11 @@ describe("startDiscordGateway", () => {
       },
     );
     expect(taskScheduler.start).toHaveBeenCalledTimes(1);
-    expect(taskScheduler.setDeliveryService).toHaveBeenCalledTimes(1);
     expect(startGatewayClientMock).toHaveBeenCalledWith(
       resolvedConfig,
       expect.anything(),
       expect.anything(),
-      {
-        discordAllowedUserId: "user-1",
-        discordAllowedForumChannelIds: ["forum-1"],
-        discordAllowedUserIds: ["user-1", "user-2"],
-        startupMessage: false,
-      },
+      resolvedConfig,
       taskScheduler,
     );
     expect(gateway.getTaskSchedulerStatus()).toEqual({

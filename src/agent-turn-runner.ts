@@ -45,15 +45,6 @@ export async function runAgentTurn(
 
   debugPrint(prompt, "Full Prompt");
 
-  // logger.debug(
-  //   {
-  //     promptLength: prompt.length,
-  //     model,
-  //     prompt,
-  //   },
-  //   "prompt start",
-  // );
-
   const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
     eventCount += 1;
 
@@ -85,12 +76,6 @@ export async function runAgentTurn(
 
       if (event.toolName === "bash") {
         debugPrint(input, "CMD");
-        // logger.debug(
-        //   {
-        //     toolName: event.toolName,
-        //   },
-        //   `agent tool start: [${event.toolName}]`,
-        // );
       } else {
         logger.debug(
           {
@@ -122,15 +107,6 @@ export async function runAgentTurn(
           extractToolOutput(event.result),
           event.isError ? "BASH TOOL ERROR OUTPUT" : "BASH TOOL OUTPUT",
         );
-        // logger.debug(
-        //   {
-        //     toolName: event.toolName,
-        //     isError: event.isError,
-        //   },
-        //   `agent tool end: [${event.toolName}] ${truncateForLog(
-        //     typeof input === "string" ? input : "",
-        //   )}`,
-        // );
       } else {
         logger.debug(
           {
@@ -175,18 +151,6 @@ export async function runAgentTurn(
         );
       }
     }
-
-    // if (event.type === "agent_end") {
-    //   logger.debug(
-    //     {
-    //       messageCount: event.messages.length,
-    //       model,
-    //       toolCount,
-    //       eventCount,
-    //     },
-    //     "agent end",
-    //   );
-    // }
   });
 
   try {

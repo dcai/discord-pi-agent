@@ -210,12 +210,13 @@ export type AgentStatus = {
   thinkingInfo: string;
 };
 
-export type GatewayAccessConfig = {
-  discordAllowedUserId: string;
-  discordAllowedForumChannelIds: string[];
-  discordAllowedUserIds: string[];
-  startupMessage: string | false;
-};
+export type GatewayAccessConfig = Pick<
+  ResolvedDiscordGatewayConfig,
+  | "discordAllowedUserId"
+  | "discordAllowedForumChannelIds"
+  | "discordAllowedUserIds"
+  | "startupMessage"
+>;
 
 export type TaskSchedulerStatus = {
   jobsFile: string;

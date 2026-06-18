@@ -318,7 +318,7 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
 - `modelId` default: `anthropic/claude-3.5-haiku`
 - `thinkingLevel` default: `medium` (values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`)
 - `promptTimeZone` default: `UTC` — used for `sent_at_local` in Discord prompt metadata
-- `promptLocale` default: `en-AU` — used for `sent_at_local` in Discord prompt metadata
+- `promptLocale` default: `en-US` — used for `sent_at_local` in Discord prompt metadata
 - `promptTransform` default: identity
 - `startupMessage` default:
   `Bot is online and ready.\n```\nHost: <hostname>\nStarted: <local datetime>\nVersion: @friendlyrobot/discord-pi-agent@<package-version>\n````

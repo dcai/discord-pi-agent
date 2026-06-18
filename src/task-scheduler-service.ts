@@ -228,10 +228,6 @@ export class TaskSchedulerService {
     this.nextTickAt = null;
   }
 
-  setDeliveryService(deliveryService: ScheduledJobDeliveryService): void {
-    this.deliveryService = deliveryService;
-  }
-
   usesDiscordDelivery(): boolean {
     return this.getAllJobs().some((job) => {
       return (job.result?.target ?? "logs") !== "logs";

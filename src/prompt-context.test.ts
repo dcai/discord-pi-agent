@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { formatDiscordPromptTime } from "./prompt-context";
 
 describe("formatDiscordPromptTime", () => {
-  it("formats time with default options (UTC, en-AU)", () => {
+  it("formats time with default options (UTC, en-US)", () => {
     const fixedDate = new Date("2024-06-15T10:30:00Z");
     const result = formatDiscordPromptTime(fixedDate);
     expect(result).toMatchSnapshot();

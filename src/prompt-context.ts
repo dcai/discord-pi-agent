@@ -2,6 +2,9 @@ import type { Message } from "discord.js";
 import { getAuthorDisplayName } from "./discord-auth";
 import type { SessionScope } from "./session-registry";
 
+export const DEFAULT_PROMPT_TIME_ZONE = "UTC";
+export const DEFAULT_PROMPT_LOCALE = "en-US";
+
 export type DiscordPromptTimeFormatOptions = {
   timeZone?: string;
   locale?: string;
@@ -16,8 +19,8 @@ export function formatDiscordPromptTime(
   date: Date,
   options: DiscordPromptTimeFormatOptions = {},
 ): string {
-  const timeZone = options.timeZone || "UTC";
-  const locale = options.locale || "en-AU";
+  const timeZone = options.timeZone || DEFAULT_PROMPT_TIME_ZONE;
+  const locale = options.locale || DEFAULT_PROMPT_LOCALE;
 
   return new Intl.DateTimeFormat(locale, {
     timeZone,
@@ -36,6 +39,7 @@ export function buildDiscordMessageMetadata(
   message: Message,
   scope: SessionScope,
   options: DiscordMessageMetadataOptions = {},
+  timeFormatOptions: DiscordPromptTimeFormatOptions = {},
 ): string {
   const isThread = scope.startsWith("thread:") && message.channel.isThread();
 
@@ -43,11 +47,16 @@ export function buildDiscordMessageMetadata(
     ["scope", scope === "dm" ? "dm" : "thread"],
     ["event_type", options.eventType],
     ["sent_at", message.createdAt.toISOString()],
-    ["sent_at_local", formatDiscordPromptTime(message.createdAt)],
+    [
+      "sent_at_local",
+      formatDiscordPromptTime(message.createdAt, timeFormatOptions),
+    ],
     ["edited_at", options.editedAt?.toISOString()],
     [
       "edited_at_local",
-      options.editedAt ? formatDiscordPromptTime(options.editedAt) : undefined,
+      options.editedAt
+        ? formatDiscordPromptTime(options.editedAt, timeFormatOptions)
+        : undefined,
     ],
     ["message_id", message.id],
     [

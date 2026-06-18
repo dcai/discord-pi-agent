@@ -1,15 +1,6 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ChannelType,
   Events,
-  InteractionContextType,
   MessageFlags,
-  ModalBuilder,
-  SlashCommandBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   type AutocompleteInteraction,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
@@ -19,210 +10,50 @@ import {
   type TextBasedChannel,
 } from "discord.js";
 import type { AgentService } from "./agent-service";
-import { formatCommandReplyChunks } from "./discord-replies";
 import { runAgentTurn } from "./agent-turn-runner";
+import {
+  abortInteractionScope,
+  parseAbortButtonScope,
+  resolveAbortControlQueue,
+  resolveInteractionAbortControl,
+  showAbortControlReply,
+  type AbortControl,
+} from "./discord-interactions/abort-controls";
+import {
+  buildCommandTextFromInteraction,
+  buildDiscordApplicationCommands,
+  buildInteractionComponents,
+  buildRemindModal,
+  getPrimaryPrefix,
+  isPromptCommandName,
+  JOB_RUN_HERE_BUTTON_PREFIX,
+  JOBS_RELOAD_BUTTON_ID,
+  REMIND_MODAL_ID,
+  REMIND_MODAL_TASK_FIELD,
+  REMIND_MODAL_WHEN_FIELD,
+} from "./discord-interactions/command-builders";
+import {
+  buildSessionScopeChoices,
+  buildThinkingChoices,
+  filterChoices,
+  isAuthorizedInteraction,
+  resolveInteractionScope,
+  resolveSessionForAutocomplete,
+} from "./discord-interactions/scope";
+import { formatCommandReplyChunks } from "./discord-replies";
 import { createModuleLogger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import { formatDiscordPromptTime, wrapXmlTag } from "./prompt-context";
+import { PromptQueueCancelledError } from "./prompt-queue";
 import type { SessionRegistry, SessionScope } from "./session-registry";
-import { PromptQueueCancelledError, type PromptQueue } from "./prompt-queue";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   GatewayAccessConfig,
   ResolvedDiscordGatewayConfig,
-  ThinkingLevel,
 } from "./types";
 
 const logger = createModuleLogger("discord-interactions");
-
-const JOBS_RELOAD_BUTTON_ID = "jobs:reload";
-const JOB_RUN_HERE_BUTTON_PREFIX = "job:run-here:";
-const ABORT_BUTTON_PREFIX = "abort:";
-const REMIND_MODAL_ID = "remind:create";
-const REMIND_MODAL_WHEN_FIELD = "when";
-const REMIND_MODAL_TASK_FIELD = "task";
-
-type AbortControl = {
-  scope: SessionScope;
-  queue: PromptQueue;
-  queuedMessage?: string;
-  runningMessage?: string;
-};
-
-export function buildDiscordApplicationCommands(): ReturnType<
-  SlashCommandBuilder["toJSON"]
->[] {
-  return [
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("help")
-        .setDescription("Show the built-in Discord gateway commands."),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("status")
-        .setDescription("Show the current session status."),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("thinking")
-        .setDescription("Show or set the current thinking level.")
-        .addStringOption((option) => {
-          return option
-            .setName("level")
-            .setDescription("Thinking level to set.")
-            .setAutocomplete(true)
-            .setRequired(false);
-        }),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("model")
-        .setDescription("Show or switch the current model.")
-        .addStringOption((option) => {
-          return option
-            .setName("target")
-            .setDescription("Provider/modelId to switch to.")
-            .setAutocomplete(true)
-            .setRequired(false);
-        }),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("compact")
-        .setDescription("Compact the current persistent session."),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("session-reset")
-        .setDescription("Reset persisted session data for a scope.")
-        .addStringOption((option) => {
-          return option
-            .setName("scope")
-            .setDescription("Session scope to reset.")
-            .setRequired(true)
-            .setAutocomplete(true);
-        }),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("reload")
-        .setDescription("Reload AGENTS.md, skills, extensions, and resources."),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("prompt")
-        .setDescription(
-          "Send a prompt through the current DM or thread session.",
-        )
-        .addStringOption((option) => {
-          return option
-            .setName("text")
-            .setDescription("Prompt text to send to the agent.")
-            .setRequired(true);
-        }),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("p")
-        .setDescription("Short alias for /prompt.")
-        .addStringOption((option) => {
-          return option
-            .setName("text")
-            .setDescription("Prompt text to send to the agent.")
-            .setRequired(true);
-        }),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("remind")
-        .setDescription("Create a one-off runtime reminder.")
-        .addStringOption((option) => {
-          return option
-            .setName("request")
-            .setDescription("Natural language reminder request.")
-            .setRequired(false);
-        }),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("jobs")
-        .setDescription("List loaded scheduled jobs."),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("jobs-reload")
-        .setDescription("Reload scheduled jobs from the jobs file."),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("job")
-        .setDescription("Inspect or run one scheduled job.")
-        .addSubcommand((subcommand) => {
-          return subcommand
-            .setName("info")
-            .setDescription("Show one scheduled job.")
-            .addStringOption((option) => {
-              return option
-                .setName("id")
-                .setDescription("Scheduled job id.")
-                .setRequired(true)
-                .setAutocomplete(true);
-            });
-        })
-        .addSubcommand((subcommand) => {
-          return subcommand
-            .setName("run")
-            .setDescription(
-              "Run one scheduled job now with its configured target.",
-            )
-            .addStringOption((option) => {
-              return option
-                .setName("id")
-                .setDescription("Scheduled job id.")
-                .setRequired(true)
-                .setAutocomplete(true);
-            });
-        })
-        .addSubcommand((subcommand) => {
-          return subcommand
-            .setName("run-here")
-            .setDescription("Run one scheduled job now in this conversation.")
-            .addStringOption((option) => {
-              return option
-                .setName("id")
-                .setDescription("Scheduled job id.")
-                .setRequired(true)
-                .setAutocomplete(true);
-            });
-        }),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("abort")
-        .setDescription("Abort the active run and clear queued prompts."),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("reaction")
-        .setDescription("Show or set the working reaction emoji.")
-        .addStringOption((option) => {
-          return option
-            .setName("emoji")
-            .setDescription("Emoji to use while work is running.")
-            .setRequired(false);
-        }),
-    ).toJSON(),
-    applyDefaultCommandContexts(
-      new SlashCommandBuilder()
-        .setName("archive")
-        .setDescription(
-          "Archive the current forum thread and end its session.",
-        ),
-    ).toJSON(),
-  ];
-}
 
 export async function syncDiscordApplicationCommands(
   client: Client<true>,
@@ -315,15 +146,6 @@ export async function handleDiscordInteraction(
   }
 }
 
-function applyDefaultCommandContexts<
-  T extends { setContexts: (...args: any[]) => T },
->(builder: T): T {
-  return builder.setContexts(
-    InteractionContextType.BotDM,
-    InteractionContextType.Guild,
-  );
-}
-
 async function handleAutocompleteInteraction(
   interaction: AutocompleteInteraction,
   agentService: AgentService,
@@ -339,27 +161,39 @@ async function handleAutocompleteInteraction(
 
   const focused = interaction.options.getFocused(true);
   if (interaction.commandName === "thinking" && focused.name === "level") {
-    const choices = buildThinkingChoices(
-      resolveSessionForAutocomplete(scope, agentService, sessionRegistry),
+    await interaction.respond(
+      filterChoices(
+        buildThinkingChoices(
+          resolveSessionForAutocomplete(scope, agentService, sessionRegistry),
+        ),
+        focused.value,
+      ),
     );
-    await interaction.respond(filterChoices(choices, focused.value));
     return;
   }
 
   if (interaction.commandName === "model" && focused.name === "target") {
-    const choices = await agentService.models.listModelChoices();
-    await interaction.respond(filterChoices(choices, focused.value));
+    await interaction.respond(
+      filterChoices(
+        await agentService.models.listModelChoices(),
+        focused.value,
+      ),
+    );
     return;
   }
 
   if (interaction.commandName === "job" && focused.name === "id") {
-    const choices = (taskScheduler?.listJobs() ?? []).map((job) => {
-      return {
-        name: job.id,
-        value: job.id,
-      };
-    });
-    await interaction.respond(filterChoices(choices, focused.value));
+    await interaction.respond(
+      filterChoices(
+        (taskScheduler?.listJobs() ?? []).map((job) => {
+          return {
+            name: job.id,
+            value: job.id,
+          };
+        }),
+        focused.value,
+      ),
+    );
     return;
   }
 
@@ -404,10 +238,9 @@ async function handleChatInputInteraction(
   }
 
   if (isPromptCommandName(interaction.commandName)) {
-    const promptText = interaction.options.getString("text", true).trim();
     await executePromptInteraction(
       interaction,
-      promptText,
+      interaction.options.getString("text", true).trim(),
       config,
       sessionRegistry,
       scope,
@@ -421,12 +254,6 @@ async function handleChatInputInteraction(
     return;
   }
 
-  const abortControl = await resolveInteractionAbortControl(
-    interaction,
-    sessionRegistry,
-    taskScheduler,
-  );
-
   await executeInteractionCommand(
     interaction,
     commandText,
@@ -435,7 +262,11 @@ async function handleChatInputInteraction(
     sessionRegistry,
     taskScheduler,
     scope,
-    abortControl,
+    await resolveInteractionAbortControl(
+      interaction,
+      sessionRegistry,
+      taskScheduler,
+    ),
   );
 }
 
@@ -458,7 +289,7 @@ async function handleButtonCommandInteraction(
     return;
   }
 
-  if (interaction.customId.startsWith(ABORT_BUTTON_PREFIX)) {
+  if (interaction.customId.startsWith("abort:")) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await sendInteractionCommandResult(
       interaction,
@@ -477,8 +308,9 @@ async function handleButtonCommandInteraction(
   if (interaction.customId === JOBS_RELOAD_BUTTON_ID) {
     commandText = `${primaryPrefix}jobs reload`;
   } else if (interaction.customId.startsWith(JOB_RUN_HERE_BUTTON_PREFIX)) {
-    const jobId = interaction.customId.slice(JOB_RUN_HERE_BUTTON_PREFIX.length);
-    commandText = `${primaryPrefix}job run-here ${jobId}`;
+    commandText =
+      `${primaryPrefix}job run-here ` +
+      interaction.customId.slice(JOB_RUN_HERE_BUTTON_PREFIX.length);
   }
 
   if (!commandText) {
@@ -597,10 +429,7 @@ async function executeInteractionCommand(
     ) {
       await sendInteractionCommandResult(
         interaction,
-        {
-          handled: true,
-          response: "Cancelled.",
-        },
+        { handled: true, response: "Cancelled." },
         [],
       );
       return;
@@ -612,10 +441,7 @@ async function executeInteractionCommand(
   if (cancellationTracker.getCancellationCount() !== cancellationCount) {
     await sendInteractionCommandResult(
       interaction,
-      {
-        handled: true,
-        response: "Cancelled.",
-      },
+      { handled: true, response: "Cancelled." },
       [],
     );
     return;
@@ -629,12 +455,11 @@ async function executeInteractionCommand(
     result,
   );
 
-  const components = buildInteractionComponents(
+  await sendInteractionCommandResult(
     interaction,
     result,
-    Boolean(taskScheduler),
+    buildInteractionComponents(interaction, result, Boolean(taskScheduler)),
   );
-  await sendInteractionCommandResult(interaction, result, components);
 }
 
 async function applyInteractionCommandSideEffects(
@@ -671,54 +496,6 @@ async function applyInteractionCommandSideEffects(
     await interaction.channel.setArchived(true);
   }
   await sessionRegistry.remove(scope);
-}
-
-function buildInteractionComponents(
-  interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction,
-  commandResult: CommandResult,
-  hasTaskScheduler: boolean,
-) {
-  if (!commandResult.handled) {
-    return [];
-  }
-
-  if (
-    hasTaskScheduler &&
-    interaction.isChatInputCommand() &&
-    interaction.commandName === "jobs"
-  ) {
-    return [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(JOBS_RELOAD_BUTTON_ID)
-          .setLabel("Reload jobs")
-          .setStyle(ButtonStyle.Secondary),
-      ),
-    ];
-  }
-
-  if (
-    hasTaskScheduler &&
-    interaction.isChatInputCommand() &&
-    interaction.commandName === "job" &&
-    interaction.options.getSubcommand() === "info"
-  ) {
-    const jobId = interaction.options.getString("id", true);
-
-    return [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`${JOB_RUN_HERE_BUTTON_PREFIX}${jobId}`)
-          .setLabel("Run here")
-          .setStyle(ButtonStyle.Primary),
-      ),
-    ];
-  }
-
-  return [];
 }
 
 async function executePromptInteraction(
@@ -792,10 +569,9 @@ async function sendInteractionCommandResult(
     | ButtonInteraction
     | ModalSubmitInteraction,
   result: CommandResult,
-  components: Array<ActionRowBuilder<ButtonBuilder>>,
+  components: ReturnType<typeof buildInteractionComponents>,
 ): Promise<void> {
-  const text = result.response ?? "Done.";
-  const chunks = formatCommandReplyChunks(text);
+  const chunks = formatCommandReplyChunks(result.response ?? "Done.");
   const [firstChunk, ...remainingChunks] = chunks;
 
   await interaction.editReply({
@@ -809,230 +585,6 @@ async function sendInteractionCommandResult(
       flags: MessageFlags.Ephemeral,
     });
   }
-}
-
-function buildRemindModal(): ModalBuilder {
-  return new ModalBuilder()
-    .setCustomId(REMIND_MODAL_ID)
-    .setTitle("Create reminder")
-    .addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(REMIND_MODAL_WHEN_FIELD)
-          .setLabel("When")
-          .setPlaceholder("tomorrow 9am")
-          .setRequired(true)
-          .setStyle(TextInputStyle.Short),
-      ),
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(REMIND_MODAL_TASK_FIELD)
-          .setLabel("Task")
-          .setPlaceholder("review the overnight alerts")
-          .setRequired(true)
-          .setStyle(TextInputStyle.Paragraph),
-      ),
-    );
-}
-
-function buildCommandTextFromInteraction(
-  interaction: ChatInputCommandInteraction,
-  config: ResolvedDiscordGatewayConfig,
-): string | null {
-  const primaryPrefix = getPrimaryPrefix(config);
-
-  switch (interaction.commandName) {
-    case "help":
-    case "status":
-    case "compact":
-    case "abort":
-    case "reload":
-    case "jobs":
-    case "jobs-reload":
-    case "archive":
-      return `${primaryPrefix}${interaction.commandName.replace("jobs-reload", "jobs reload")}`;
-    case "session-reset": {
-      const scope = interaction.options.getString("scope", true);
-      return `${primaryPrefix}session reset ${scope}`;
-    }
-    case "thinking": {
-      const level = interaction.options.getString("level");
-      return level
-        ? `${primaryPrefix}thinking ${level}`
-        : `${primaryPrefix}thinking`;
-    }
-    case "model": {
-      const target = interaction.options.getString("target");
-      return target
-        ? `${primaryPrefix}model ${target}`
-        : `${primaryPrefix}model`;
-    }
-    case "reaction": {
-      const emoji = interaction.options.getString("emoji");
-      return emoji
-        ? `${primaryPrefix}reaction ${emoji}`
-        : `${primaryPrefix}reaction`;
-    }
-    case "remind": {
-      const request = interaction.options.getString("request");
-      return request ? `${primaryPrefix}remind ${request}` : null;
-    }
-
-    case "job": {
-      const subcommand = interaction.options.getSubcommand();
-      const id = interaction.options.getString("id", true);
-      return `${primaryPrefix}job ${subcommand} ${id}`;
-    }
-    default:
-      return null;
-  }
-}
-
-function isPromptCommandName(commandName: string): boolean {
-  return commandName === "prompt" || commandName === "p";
-}
-
-function buildAbortButtonCustomId(scope: SessionScope): string {
-  return `${ABORT_BUTTON_PREFIX}${scope}`;
-}
-
-function parseAbortButtonScope(customId: string): SessionScope | null {
-  if (!customId.startsWith(ABORT_BUTTON_PREFIX)) {
-    return null;
-  }
-
-  const scope = customId.slice(ABORT_BUTTON_PREFIX.length);
-  if (
-    scope === "dm" ||
-    scope.startsWith("thread:") ||
-    scope.startsWith("job:")
-  ) {
-    return scope as SessionScope;
-  }
-
-  return null;
-}
-
-function buildAbortButtonRow(
-  scope: SessionScope,
-): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildAbortButtonCustomId(scope))
-      .setLabel("Abort run")
-      .setStyle(ButtonStyle.Danger),
-  );
-}
-
-async function showAbortControlReply(
-  interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction,
-  abortControl: AbortControl,
-  queue: PromptQueue,
-): Promise<void> {
-  const pendingCount = queue.getSnapshot().pending;
-  await interaction.editReply({
-    content:
-      pendingCount > 0
-        ? (abortControl.queuedMessage ??
-          `Queued. ${pendingCount} request(s) ahead of this one.`)
-        : (abortControl.runningMessage ?? "Running..."),
-    components: [buildAbortButtonRow(abortControl.scope)],
-  });
-}
-
-function resolveAbortControlQueue(
-  abortControl: AbortControl,
-  sessionRegistry: SessionRegistry,
-): PromptQueue {
-  return (
-    sessionRegistry.get(abortControl.scope)?.promptQueue ?? abortControl.queue
-  );
-}
-
-async function abortInteractionScope(
-  scope: SessionScope | null,
-  sessionRegistry: SessionRegistry,
-): Promise<CommandResult> {
-  if (!scope) {
-    return {
-      handled: true,
-      response: "Nothing was running or queued.",
-    };
-  }
-
-  const entry = sessionRegistry.get(scope);
-  if (!entry) {
-    return {
-      handled: true,
-      response: "Nothing was running or queued.",
-    };
-  }
-
-  const queueStatus = entry.promptQueue.getSnapshot();
-  entry.promptQueue.markAbort();
-  const clearedCount = entry.promptQueue.cancelPending();
-  await entry.session.abort();
-
-  let response = "Aborted the active run.";
-  if (!queueStatus.busy && clearedCount === 0) {
-    response = "Nothing was running or queued.";
-  } else if (!queueStatus.busy && clearedCount > 0) {
-    response = `Cleared ${clearedCount} queued request(s).`;
-  } else if (clearedCount > 0) {
-    response = `Aborted the active run and cleared ${clearedCount} queued request(s).`;
-  }
-
-  return {
-    handled: true,
-    response,
-  };
-}
-
-async function resolveInteractionAbortControl(
-  interaction: ChatInputCommandInteraction,
-  sessionRegistry: SessionRegistry,
-  taskScheduler?: TaskSchedulerService | null,
-): Promise<AbortControl | null> {
-  if (interaction.commandName !== "job") {
-    return null;
-  }
-
-  const subcommand = interaction.options.getSubcommand();
-  if (subcommand !== "run" && subcommand !== "run-here") {
-    return null;
-  }
-
-  if (!taskScheduler) {
-    return null;
-  }
-
-  const jobId = interaction.options.getString("id", true);
-  const scope = resolveAbortScopeForJob(taskScheduler.getJob(jobId), jobId);
-  if (!scope) {
-    return null;
-  }
-
-  const { entry } = await sessionRegistry.getOrCreate(scope);
-  return {
-    scope,
-    queue: entry.promptQueue,
-    runningMessage:
-      subcommand === "run-here" ? "Running job here..." : "Running job...",
-  };
-}
-
-function resolveAbortScopeForJob(
-  job: ReturnType<TaskSchedulerService["getJob"]>,
-  jobId: string,
-): SessionScope | null {
-  if (!job || job.session?.strategy === "ephemeral") {
-    return null;
-  }
-
-  return job.session?.scope ?? `job:${jobId}`;
 }
 
 function buildInteractionPromptMetadata(
@@ -1096,153 +648,13 @@ async function sendPromptOutputToChannel(
   const sendableChannel = channel as TextBasedChannel & {
     send: (value: { content: string; flags: MessageFlags }) => Promise<unknown>;
   };
-  const chunks = chunkMessage(text);
 
-  for (const chunk of chunks) {
+  for (const chunk of chunkMessage(text)) {
     await sendableChannel.send({
       content: chunk,
       flags: MessageFlags.SuppressEmbeds,
     });
   }
-}
-
-function resolveInteractionScope(
-  interaction:
-    | Interaction
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction
-    | AutocompleteInteraction,
-): SessionScope | null {
-  if (!interaction.channel) {
-    return null;
-  }
-
-  if (interaction.channel.type === ChannelType.DM) {
-    return "dm";
-  }
-
-  if (interaction.channel.isThread()) {
-    return `thread:${interaction.channel.id}`;
-  }
-
-  return null;
-}
-
-function isAuthorizedInteraction(
-  interaction:
-    | Interaction
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction
-    | AutocompleteInteraction,
-  scope: SessionScope,
-  accessConfig: GatewayAccessConfig,
-): boolean {
-  if (scope === "dm") {
-    return interaction.user.id === accessConfig.discordAllowedUserId;
-  }
-
-  if (!scope.startsWith("thread:") || !interaction.channel?.isThread()) {
-    return false;
-  }
-
-  const parentId = interaction.channel.parentId;
-  if (
-    !parentId ||
-    !accessConfig.discordAllowedForumChannelIds.includes(parentId)
-  ) {
-    return false;
-  }
-
-  return accessConfig.discordAllowedUserIds.includes(interaction.user.id);
-}
-
-function resolveSessionForAutocomplete(
-  scope: SessionScope,
-  agentService: AgentService,
-  sessionRegistry: SessionRegistry,
-) {
-  if (scope === "dm") {
-    return sessionRegistry.get("dm")?.session ?? agentService.getSession();
-  }
-
-  return sessionRegistry.get(scope)?.session ?? null;
-}
-
-function buildThinkingChoices(session: ReturnType<AgentService["getSession"]>) {
-  const levels: ThinkingLevel[] = session?.supportsThinking()
-    ? session.getAvailableThinkingLevels()
-    : ["off", "minimal", "low", "medium", "high", "xhigh"];
-
-  return levels.map((level) => {
-    return {
-      name: level,
-      value: level,
-    };
-  });
-}
-
-function buildSessionScopeChoices(
-  currentScope: SessionScope,
-  sessionRegistry: SessionRegistry,
-  taskScheduler?: TaskSchedulerService | null,
-) {
-  const scopes = new Set<SessionScope>();
-  scopes.add("dm");
-  scopes.add(currentScope);
-
-  for (const scope of sessionRegistry.getScopes()) {
-    scopes.add(scope);
-  }
-
-  for (const job of taskScheduler?.listJobs() ?? []) {
-    scopes.add(`job:${job.id}` as SessionScope);
-  }
-
-  return Array.from(scopes)
-    .sort((left, right) => left.localeCompare(right))
-    .map((scope) => {
-      return {
-        name: scope,
-        value: scope,
-      };
-    });
-}
-
-function filterChoices(
-  choices: Array<{ name: string; value: string }>,
-  focusedValue: string,
-): Array<{ name: string; value: string }> {
-  const normalizedFocus = focusedValue.trim().toLowerCase();
-  const rankedChoices = choices
-    .filter((choice) => {
-      if (!normalizedFocus) {
-        return true;
-      }
-
-      return choice.name.toLowerCase().includes(normalizedFocus);
-    })
-    .sort((left, right) => {
-      const leftStartsWith = left.name
-        .toLowerCase()
-        .startsWith(normalizedFocus);
-      const rightStartsWith = right.name
-        .toLowerCase()
-        .startsWith(normalizedFocus);
-
-      if (leftStartsWith === rightStartsWith) {
-        return left.name.localeCompare(right.name);
-      }
-
-      return leftStartsWith ? -1 : 1;
-    });
-
-  return rankedChoices.slice(0, 25);
-}
-
-function getPrimaryPrefix(config: ResolvedDiscordGatewayConfig): string {
-  return config.discordCommandPrefixes[0] ?? "!";
 }
 
 async function replyUnsupportedInteraction(

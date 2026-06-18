@@ -1,14 +1,25 @@
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import dotenv from "dotenv";
-import packageJson from "../package.json";
-import { formatDiscordPromptTime } from "./prompt-context";
+import {
+  DEFAULT_PROMPT_LOCALE,
+  DEFAULT_PROMPT_TIME_ZONE,
+  formatDiscordPromptTime,
+} from "./prompt-context";
 import type {
   CommandRegistrationScope,
   DiscordGatewayConfig,
   ResolvedDiscordGatewayConfig,
   ThinkingLevel,
 } from "./types";
+
+const require = createRequire(import.meta.url);
+const packageJson = require("../package.json") as {
+  name?: string;
+  version?: string;
+};
+const packageDisplayName = `${packageJson.name ?? "@friendlyrobot/discord-pi-agent"}@${packageJson.version ?? "0.0.0"}`;
 
 export function resolveConfig(
   config: DiscordGatewayConfig,
@@ -23,8 +34,9 @@ export function resolveConfig(
     "none";
   const discordCommandRegistrationGuildIds =
     config.discordCommandRegistrationGuildIds ?? [];
-  const promptTimeZone = config.promptTimeZone?.trim() || "UTC";
-  const promptLocale = config.promptLocale?.trim() || "en-AU";
+  const promptTimeZone =
+    config.promptTimeZone?.trim() || DEFAULT_PROMPT_TIME_ZONE;
+  const promptLocale = config.promptLocale?.trim() || DEFAULT_PROMPT_LOCALE;
 
   if (
     discordCommandRegistrationScope === "guild" &&
@@ -59,7 +71,7 @@ export function resolveConfig(
               timeZone: promptTimeZone,
               locale: promptLocale,
             })}`,
-            `Version: ${packageJson.name}@${packageJson.version}`,
+            `Version: ${packageDisplayName}`,
             "```",
           ].join("\n")
         : config.startupMessage,

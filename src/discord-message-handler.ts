@@ -514,6 +514,10 @@ async function buildPromptInput(
     message,
     preparedMessage.scope,
     preparedMessage.metadataOptions,
+    {
+      timeZone: config.promptTimeZone,
+      locale: config.promptLocale,
+    },
   );
 
   const prompt = await config.promptTransform({

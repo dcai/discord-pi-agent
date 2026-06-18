@@ -14,7 +14,6 @@ import { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   DiscordGateway,
   DiscordGatewayConfig,
-  GatewayAccessConfig,
   ResolvedDiscordGatewayConfig,
   StartDiscordGatewayOptions,
   TaskScheduler,
@@ -134,34 +133,34 @@ async function startRuntime(
   await agentService.initialize();
   logger.info(agentService.getStatus(), "agent ready");
 
-  const accessConfig = createGatewayAccessConfig(resolvedConfig);
   const sessionRegistry = new SessionRegistry(agentService);
+  let client: Client | null = null;
   const taskScheduler = options.schedulerConfig
     ? await createTaskScheduler(
         resolvedConfig,
         options.schedulerConfig,
         agentService,
         sessionRegistry,
+        new ScheduledJobDeliveryService(() => {
+          return client;
+        }),
       )
     : null;
-
-  let client: Client | null = null;
 
   if (options.enableGatewayHandlers) {
     client = await startGatewayClient(
       resolvedConfig,
       agentService,
       sessionRegistry,
-      accessConfig,
+      resolvedConfig,
       taskScheduler,
     );
   } else if (taskScheduler?.usesDiscordDelivery()) {
-    client = createDiscordClient(resolvedConfig, accessConfig);
+    client = createDiscordClient(resolvedConfig, resolvedConfig);
     await loginDiscordClient(client, resolvedConfig);
   }
 
   if (taskScheduler) {
-    replaceTaskSchedulerDeliveryClient(taskScheduler, client);
     taskScheduler.start();
   }
 
@@ -182,22 +181,12 @@ async function startRuntime(
   };
 }
 
-function createGatewayAccessConfig(
-  config: ResolvedDiscordGatewayConfig,
-): GatewayAccessConfig {
-  return {
-    discordAllowedUserId: config.discordAllowedUserId,
-    discordAllowedForumChannelIds: config.discordAllowedForumChannelIds,
-    discordAllowedUserIds: config.discordAllowedUserIds,
-    startupMessage: config.startupMessage,
-  };
-}
-
 async function createTaskScheduler(
   config: ResolvedDiscordGatewayConfig,
   schedulerConfig: TaskSchedulerConfig,
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
+  deliveryService: ScheduledJobDeliveryService,
 ): Promise<TaskSchedulerService> {
   const resolvedSchedulerConfig = resolveTaskSchedulerConfig(
     schedulerConfig,
@@ -214,15 +203,8 @@ async function createTaskScheduler(
     jobs,
     agentService,
     sessionRegistry,
-    deliveryService: new ScheduledJobDeliveryService(null),
+    deliveryService,
   });
-}
-
-function replaceTaskSchedulerDeliveryClient(
-  taskScheduler: TaskSchedulerService,
-  client: Client | null,
-): void {
-  taskScheduler.setDeliveryService(new ScheduledJobDeliveryService(client));
 }
 
 function createGatewayStopHandler(
