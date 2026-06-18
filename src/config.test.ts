@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadDiscordGatewayConfigFromEnv, resolveConfig } from "./config";
 import { formatDiscordPromptTime } from "./prompt-context";
 import type { DiscordGatewayConfig } from "./types";
-import packageJson from "../package.json";
 
 vi.mock("node:os", () => {
   return {
@@ -112,7 +111,6 @@ describe("config", () => {
               locale: "en-US",
             },
           )}`,
-          `Version: ${packageJson.name}@${packageJson.version}`,
           "```",
         ].join("\n"),
       );

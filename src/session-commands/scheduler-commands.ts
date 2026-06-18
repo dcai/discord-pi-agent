@@ -290,9 +290,11 @@ async function handleRemindCommand(
 
   try {
     const parsedReminder = await parseReminderCommand({
+      agentService: context.agentService,
       input: request,
       now: new Date(),
       timeZone: context.promptTimeZone ?? DEFAULT_PROMPT_TIME_ZONE,
+      locale: context.promptLocale ?? "en-US",
     });
     const reminderId = buildReminderId(
       parsedReminder.runAt,

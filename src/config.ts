@@ -1,4 +1,3 @@
-import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import dotenv from "dotenv";
@@ -13,13 +12,6 @@ import type {
   ResolvedDiscordGatewayConfig,
   ThinkingLevel,
 } from "./types";
-
-const require = createRequire(import.meta.url);
-const packageJson = require("../package.json") as {
-  name?: string;
-  version?: string;
-};
-const packageDisplayName = `${packageJson.name ?? "@friendlyrobot/discord-pi-agent"}@${packageJson.version ?? "0.0.0"}`;
 
 export function resolveConfig(
   config: DiscordGatewayConfig,
@@ -71,7 +63,6 @@ export function resolveConfig(
               timeZone: promptTimeZone,
               locale: promptLocale,
             })}`,
-            `Version: ${packageDisplayName}`,
             "```",
           ].join("\n")
         : config.startupMessage,

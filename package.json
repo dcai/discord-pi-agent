@@ -32,14 +32,12 @@
     "format": "prettier --write ./src",
     "build:clean": "rm -rf dist",
     "build:emit": "tsgo -p tsconfig.build.json --declaration --declarationMap false",
-    "build:fix-imports": "node ./scripts/fix-dist-imports.mjs",
-    "build": "npm run build:clean && npm run build:emit && npm run build:fix-imports",
+    "build": "npm run build:clean && npm run build:emit",
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "^0.79.6",
     "@earendil-works/pi-coding-agent": "^0.79.6",
-    "chrono-node": "^2.9.1",
     "discord.js": "^14.26.4",
     "dotenv": "^17.4.2",
     "jiti": "^2.7.0",
