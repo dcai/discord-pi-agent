@@ -1,7 +1,22 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { SessionRegistry } from "./session-registry";
 import type { AgentService } from "./agent-service";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
+
+const { rmMock } = vi.hoisted(() => {
+  return {
+    rmMock: vi.fn(async () => undefined),
+  };
+});
+
+vi.mock("node:fs/promises", () => {
+  return {
+    default: {
+      rm: rmMock,
+    },
+    rm: rmMock,
+  };
+});
 
 function mockAgentService(agentDir = "/tmp/test-agent"): AgentService {
   const sessionId = `session-${Math.random().toString(36).slice(2, 8)}`;
@@ -15,10 +30,45 @@ function mockAgentService(agentDir = "/tmp/test-agent"): AgentService {
   return {
     getAgentDir: () => agentDir,
     createSession: vi.fn().mockResolvedValue(mockSession),
+    resetMainSession: vi.fn().mockResolvedValue(mockSession),
   } as unknown as AgentService;
 }
 
 describe("SessionRegistry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("resets non-dm scope data from disk", async () => {
+    const agentService = mockAgentService();
+    const registry = new SessionRegistry(agentService);
+    const { entry } = await registry.getOrCreate("thread:999");
+
+    await registry.reset("thread:999");
+
+    expect(entry.session.abort).toHaveBeenCalledOnce();
+    expect(entry.session.dispose).toHaveBeenCalledOnce();
+    expect(rmMock).toHaveBeenCalledWith("/tmp/test-agent/sessions/thread-999", {
+      recursive: true,
+      force: true,
+    });
+    expect(registry.get("thread:999")).toBeUndefined();
+  });
+
+  it("resets dm scope through the primary agent session", async () => {
+    const agentService = mockAgentService();
+    const registry = new SessionRegistry(agentService);
+    const { entry } = await registry.getOrCreate("dm");
+
+    await registry.reset("dm");
+
+    expect(entry.session.abort).toHaveBeenCalledOnce();
+    expect(entry.session.dispose).toHaveBeenCalledOnce();
+    expect(agentService.resetMainSession).toHaveBeenCalledOnce();
+    expect(rmMock).not.toHaveBeenCalled();
+    expect(registry.get("dm")).toBeUndefined();
+  });
+
   describe("getOrCreate", () => {
     it("returns created: true on first call for a scope", async () => {
       const registry = new SessionRegistry(mockAgentService());

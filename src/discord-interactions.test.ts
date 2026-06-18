@@ -86,6 +86,7 @@ function createSessionRegistry() {
       };
     }),
     get: vi.fn(() => entry),
+    getScopes: vi.fn(() => ["dm", "thread:123"]),
     remove: vi.fn(async () => undefined),
   };
 }
@@ -340,6 +341,59 @@ describe("discord interactions", () => {
         value: "openrouter/model-2",
       },
     ]);
+  });
+
+  it("responds to autocomplete from known session scopes", async () => {
+    const interaction = createAutocompleteInteraction({
+      commandName: "session-reset",
+      focusedName: "scope",
+      focusedValue: "job:",
+    });
+
+    await handleDiscordInteraction(
+      interaction as never,
+      createConfig(),
+      createAgentService() as never,
+      createSessionRegistry() as never,
+      accessConfig,
+      {
+        listJobs: vi.fn(() => [
+          {
+            id: "daily-summary",
+          },
+        ]),
+      } as never,
+    );
+
+    expect(interaction.respond).toHaveBeenCalledWith([
+      {
+        name: "job:daily-summary",
+        value: "job:daily-summary",
+      },
+    ]);
+  });
+
+  it("routes session reset slash commands through the existing command engine", async () => {
+    const interaction = createChatInputInteraction({
+      commandName: "session-reset",
+      stringOptions: { scope: "job:daily-summary" },
+    });
+
+    await handleDiscordInteraction(
+      interaction as never,
+      createConfig(),
+      createAgentService() as never,
+      createSessionRegistry() as never,
+      accessConfig,
+      null,
+    );
+
+    expect(executeSessionCommandMock).toHaveBeenCalledWith(
+      "!session reset job:daily-summary",
+      expect.objectContaining({
+        scope: "dm",
+      }),
+    );
   });
 
   it("routes button interactions through the command engine", async () => {

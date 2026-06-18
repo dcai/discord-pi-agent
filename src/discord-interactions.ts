@@ -95,6 +95,18 @@ export function buildDiscordApplicationCommands(): ReturnType<
     ).toJSON(),
     applyDefaultCommandContexts(
       new SlashCommandBuilder()
+        .setName("session-reset")
+        .setDescription("Reset persisted session data for a scope.")
+        .addStringOption((option) => {
+          return option
+            .setName("scope")
+            .setDescription("Session scope to reset.")
+            .setRequired(true)
+            .setAutocomplete(true);
+        }),
+    ).toJSON(),
+    applyDefaultCommandContexts(
+      new SlashCommandBuilder()
         .setName("reload")
         .setDescription("Reload AGENTS.md, skills, extensions, and resources."),
     ).toJSON(),
@@ -351,6 +363,16 @@ async function handleAutocompleteInteraction(
     return;
   }
 
+  if (interaction.commandName === "session-reset" && focused.name === "scope") {
+    await interaction.respond(
+      filterChoices(
+        buildSessionScopeChoices(scope, sessionRegistry, taskScheduler),
+        focused.value,
+      ),
+    );
+    return;
+  }
+
   await interaction.respond([]);
 }
 
@@ -559,6 +581,7 @@ async function executeInteractionCommand(
       agentService,
       promptQueue: entry.promptQueue,
       session: entry.session,
+      sessionRegistry,
       taskScheduler,
       channelId: interaction.channelId ?? undefined,
       promptTimeZone: config.promptTimeZone,
@@ -828,6 +851,10 @@ function buildCommandTextFromInteraction(
     case "jobs-reload":
     case "archive":
       return `${primaryPrefix}${interaction.commandName.replace("jobs-reload", "jobs reload")}`;
+    case "session-reset": {
+      const scope = interaction.options.getString("scope", true);
+      return `${primaryPrefix}session reset ${scope}`;
+    }
     case "thinking": {
       const level = interaction.options.getString("level");
       return level
@@ -1154,6 +1181,33 @@ function buildThinkingChoices(session: ReturnType<AgentService["getSession"]>) {
       value: level,
     };
   });
+}
+
+function buildSessionScopeChoices(
+  currentScope: SessionScope,
+  sessionRegistry: SessionRegistry,
+  taskScheduler?: TaskSchedulerService | null,
+) {
+  const scopes = new Set<SessionScope>();
+  scopes.add("dm");
+  scopes.add(currentScope);
+
+  for (const scope of sessionRegistry.getScopes()) {
+    scopes.add(scope);
+  }
+
+  for (const job of taskScheduler?.listJobs() ?? []) {
+    scopes.add(`job:${job.id}` as SessionScope);
+  }
+
+  return Array.from(scopes)
+    .sort((left, right) => left.localeCompare(right))
+    .map((scope) => {
+      return {
+        name: scope,
+        value: scope,
+      };
+    });
 }
 
 function filterChoices(

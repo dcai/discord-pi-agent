@@ -90,6 +90,21 @@ export class AgentService {
     return this.config.agentDir;
   }
 
+  async resetMainSession(): Promise<AgentSession> {
+    const session = this.session;
+    if (session) {
+      await session.abort();
+      session.dispose();
+      this.session = null;
+    }
+
+    await fs.rm(this.getSessionDir(), { recursive: true, force: true });
+    await fs.mkdir(this.getSessionDir(), { recursive: true });
+    await this.createOrResumeSession();
+    await this.ensureConfiguredModel();
+    return this.requireSession();
+  }
+
   /**
    * Create a temporary in-memory session. For one-shot tasks like image
    * description — no file persistence, no cleanup needed. The caller must

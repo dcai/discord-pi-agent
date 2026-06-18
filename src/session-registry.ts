@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { AgentService } from "./agent-service";
@@ -109,6 +110,22 @@ export class SessionRegistry {
     await entry.session.abort();
     entry.session.dispose();
     this.scopes.delete(scope);
+  }
+
+  async reset(scope: SessionScope): Promise<void> {
+    logger.info({ scope }, "resetting scope");
+
+    if (scope === "dm") {
+      await this.remove(scope);
+      await this.agentService.resetMainSession();
+      return;
+    }
+
+    await this.remove(scope);
+    await fs.rm(sessionDirForScope(this.agentService.getAgentDir(), scope), {
+      recursive: true,
+      force: true,
+    });
   }
 
   get(scope: SessionScope): ScopedSessionEntry | undefined {

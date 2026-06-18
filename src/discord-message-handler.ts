@@ -148,6 +148,7 @@ export async function handleDiscordMessage(
     agentService,
     promptQueue: entry.promptQueue,
     session: entry.session,
+    sessionRegistry,
     taskScheduler,
     channelId: message.channel.id,
     promptTimeZone: config.promptTimeZone,

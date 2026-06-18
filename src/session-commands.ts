@@ -1,7 +1,7 @@
 import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
-import type { SessionScope } from "./session-registry";
+import type { SessionRegistry, SessionScope } from "./session-registry";
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   TaskJobRuntimeState,
@@ -30,6 +30,7 @@ export type CommandContext = {
   promptQueue: PromptQueue;
   session?: AgentSession;
   taskScheduler?: TaskSchedulerService | null;
+  sessionRegistry?: SessionRegistry;
   channelId?: string;
   promptTimeZone?: string;
   promptLocale?: string;
@@ -177,6 +178,7 @@ async function handleHelpCommand(
       `${formatCommandUsage(context, "thinking")} - show or set thinking/reasoning level`,
       `${formatCommandUsage(context, "model")} - list available models or switch to one`,
       `${formatCommandUsage(context, "compact")} - compact the persistent session`,
+      `${formatCommandUsage(context, "session reset <scope|here>")} - reset persisted session data for a scope`,
       `${formatCommandUsage(context, "abort")} - abort the active run and clear queued prompts`,
       `${formatCommandUsage(context, "reload")} - reload resources (AGENTS.md, extensions, skills, etc.)`,
       `${formatCommandUsage(context, "remind <when>, <task>")} - create a one-off runtime reminder`,
@@ -423,6 +425,55 @@ async function handleAbortCommand(
   return {
     handled: true,
     response,
+  };
+}
+
+async function handleSessionResetCommand(
+  trimmedInput: string,
+  context: CommandContext,
+): Promise<CommandResult | null> {
+  if (
+    trimmedInput !== `${INTERNAL_COMMAND_PREFIX}session reset` &&
+    !trimmedInput.startsWith(`${INTERNAL_COMMAND_PREFIX}session reset `)
+  ) {
+    return null;
+  }
+
+  const target = trimmedInput
+    .slice(`${INTERNAL_COMMAND_PREFIX}session reset`.length)
+    .trim();
+  if (!target) {
+    return {
+      handled: true,
+      response: `Usage: ${formatCommandUsage(context, "session reset <scope|here>")}`,
+    };
+  }
+
+  if (!context.sessionRegistry) {
+    return {
+      handled: true,
+      response:
+        "Session reset is unavailable because the session registry is not configured.",
+    };
+  }
+
+  const scope = resolveSessionResetScope(target, context.scope);
+  if (!scope) {
+    return {
+      handled: true,
+      response:
+        `Unknown session scope: ${target}\n` +
+        `Supported scopes: dm, thread:<id>, job:<id>, or here`,
+    };
+  }
+
+  await context.sessionRegistry.reset(scope);
+  return {
+    handled: true,
+    response:
+      scope === context.scope
+        ? `Reset session data for ${scope}. The next message will start a fresh session.`
+        : `Reset session data for ${scope}.`,
   };
 }
 
@@ -1084,6 +1135,7 @@ const commandHandlers: CommandHandler[] = [
   handleThinkingCommand,
   handleModelCommand,
   handleCompactCommand,
+  handleSessionResetCommand,
   handleAbortCommand,
   handleReloadCommand,
   handleRemindCommand,
@@ -1152,6 +1204,25 @@ function buildReminderId(
   }
 
   return `${baseId}-${suffix}`;
+}
+
+function resolveSessionResetScope(
+  value: string,
+  currentScope: SessionScope,
+): SessionScope | null {
+  if (value === "here") {
+    return currentScope;
+  }
+
+  if (
+    value === "dm" ||
+    value.startsWith("thread:") ||
+    value.startsWith("job:")
+  ) {
+    return value as SessionScope;
+  }
+
+  return null;
 }
 
 function stringifyCommandError(error: unknown): string {

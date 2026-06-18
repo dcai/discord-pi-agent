@@ -21,6 +21,7 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - `!thinking`
 - `!model`
 - `!compact`
+- `!session reset <scope|here>`
 - `!reload`
 - `!remind <when>, <task>`
 - `!jobs`
@@ -47,6 +48,8 @@ Prefix commands default to `!`. You can add others, such as `;`, with `discordCo
 Slash command handling uses the existing Discord gateway connection (`InteractionCreate`). It does **not** require a separate inbound webhook server or an extra public port on your VPS.
 
 `!abort` cancels the active run for the current DM or thread scope and clears any queued prompts behind it.
+
+`!session reset <scope|here>` clears persisted session data for a scope. The least-impact scope names are the existing internal ones: `dm`, `thread:<id>`, and `job:<id>`. Slash command `/session-reset` supports autocomplete for known scopes.
 
 `/prompt` and `/p` are slash-only prompt entry points. They send text into the same DM/thread session as normal chat, keep Discord's interaction loading UI while the run is starting, and show an **Abort run** button on the ephemeral control reply. Slash job execution commands that start a run (`/job run` and `/job run-here`) reuse the same abort-button flow.
 

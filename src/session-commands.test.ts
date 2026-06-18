@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeSessionCommand } from "./session-commands";
 import type { AgentService } from "./agent-service";
 import type { PromptQueue } from "./prompt-queue";
-import type { SessionScope } from "./session-registry";
+import type { SessionRegistry, SessionScope } from "./session-registry";
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type { TaskJobRuntimeState, TaskSchedulerStatus } from "./types";
 import type { AgentSession, ToolInfo } from "@earendil-works/pi-coding-agent";
@@ -208,6 +208,15 @@ function createTaskSchedulerMock(
   } as unknown as TaskSchedulerService;
 }
 
+function createSessionRegistryMock(
+  overrides: Partial<SessionRegistry> = {},
+): SessionRegistry {
+  return {
+    reset: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  } as unknown as SessionRegistry;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   parseReminderCommandMock.mockResolvedValue({
@@ -306,6 +315,9 @@ describe("executeSessionCommand", () => {
     );
     expect(dmResult.response).toContain(
       "!job update <what you want changed> - edit the jobs file via the agent",
+    );
+    expect(dmResult.response).toContain(
+      "!session reset <scope|here> - reset persisted session data for a scope",
     );
     expect(dmResult.response).toContain(
       "!jobs reload - reload scheduled jobs from the jobs file",
@@ -610,6 +622,73 @@ describe("executeSessionCommand", () => {
     expect(result).toEqual({
       handled: true,
       response: "Unknown command: !wat. Try !help.",
+    });
+  });
+
+  it("resets a requested session scope", async () => {
+    const sessionRegistry = createSessionRegistryMock();
+
+    const result = await executeSessionCommand(
+      "!session reset job:daily-summary",
+      {
+        agentService: createAgentServiceMock(createSessionMock()),
+        promptQueue: createPromptQueueMock(),
+        sessionRegistry,
+        scope: DM_SCOPE,
+        workingEmoji: "⚙️",
+      },
+    );
+
+    expect(sessionRegistry.reset).toHaveBeenCalledWith("job:daily-summary");
+    expect(result).toEqual({
+      handled: true,
+      response: "Reset session data for job:daily-summary.",
+    });
+  });
+
+  it("resets the current scope when using here", async () => {
+    const sessionRegistry = createSessionRegistryMock();
+
+    const result = await executeSessionCommand("!session reset here", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      sessionRegistry,
+      scope: "thread:123",
+      workingEmoji: "⚙️",
+    });
+
+    expect(sessionRegistry.reset).toHaveBeenCalledWith("thread:123");
+    expect(result).toEqual({
+      handled: true,
+      response:
+        "Reset session data for thread:123. The next message will start a fresh session.",
+    });
+  });
+
+  it("shows session reset usage for missing or invalid scope", async () => {
+    const missingTarget = await executeSessionCommand("!session reset", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      sessionRegistry: createSessionRegistryMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+    const invalidTarget = await executeSessionCommand("!session reset nope", {
+      agentService: createAgentServiceMock(createSessionMock()),
+      promptQueue: createPromptQueueMock(),
+      sessionRegistry: createSessionRegistryMock(),
+      scope: DM_SCOPE,
+      workingEmoji: "⚙️",
+    });
+
+    expect(missingTarget).toEqual({
+      handled: true,
+      response: "Usage: !session reset <scope|here>",
+    });
+    expect(invalidTarget).toEqual({
+      handled: true,
+      response:
+        "Unknown session scope: nope\nSupported scopes: dm, thread:<id>, job:<id>, or here",
     });
   });
 
