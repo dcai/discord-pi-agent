@@ -53,12 +53,14 @@ export function resolveConfig(
       config.startupMessage === undefined
         ? [
             "Bot is online and ready.",
+            "```",
             `Host: ${os.hostname()}`,
             `Started: ${formatDiscordPromptTime(new Date(), {
               timeZone: promptTimeZone,
               locale: promptLocale,
             })}`,
-            `Version: ${packageJson.version}`,
+            `Version: ${packageJson.name}@${packageJson.version}`,
+            "```",
           ].join("\n")
         : config.startupMessage,
     shutdownOnSignals: config.shutdownOnSignals ?? true,

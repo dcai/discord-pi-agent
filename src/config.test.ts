@@ -103,6 +103,7 @@ describe("config", () => {
       expect(config.startupMessage).toBe(
         [
           "Bot is online and ready.",
+          "```",
           "Host: test-host",
           `Started: ${formatDiscordPromptTime(
             new Date("2026-06-18T01:51:03.618Z"),
@@ -111,7 +112,8 @@ describe("config", () => {
               locale: "en-AU",
             },
           )}`,
-          `Version: ${packageJson.version}`,
+          `Version: ${packageJson.name}@${packageJson.version}`,
+          "```",
         ].join("\n"),
       );
       expect(config.shutdownOnSignals).toBe(true);

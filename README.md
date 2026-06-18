@@ -321,7 +321,7 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
 - `promptLocale` default: `en-AU` — used for `sent_at_local` in Discord prompt metadata
 - `promptTransform` default: identity
 - `startupMessage` default:
-  `Bot is online and ready.\nHost: <hostname>\nStarted: <local datetime>\nVersion: <package-version>`
+  `Bot is online and ready.\n```\nHost: <hostname>\nStarted: <local datetime>\nVersion: @friendlyrobot/discord-pi-agent@<package-version>\n````
 - `shutdownOnSignals` default: `true`
 - `discordCommandPrefixes` default: `["!"]`
 - `discordCommandRegistrationScope` default: `"none"`
