@@ -1,3 +1,8 @@
+## [unreleased]
+
+### 📚 Documentation
+
+- *(changelog)* Add release notes for 0.27.7–0.27.16
 ## [0.27.16] - 2026-06-18
 
 ### 🚀 Features
@@ -836,6 +841,7 @@
 ### 🚀 Features
 
 - *(discord-client)* Add periodic typing indicator while processing messages
+## [0.1.3] - 2026-04-22
 
 ### 🐛 Bug Fixes
 
