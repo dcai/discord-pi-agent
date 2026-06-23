@@ -621,6 +621,7 @@ function buildJobUpdatePrompt(
     `- After editing, remind the user to run \`${commandPrefix}jobs reload\` to reload the scheduler.`,
     `- Also remind the user to run \`${commandPrefix}jobs\` to see the latest scheduled jobs.`,
     `- Do not claim the live scheduler has changed until \`${commandPrefix}jobs reload\` is run.`,
+    "- After editing, run `tsc --noEmit --skipLibCheck` to verify the edited jobs file is valid TypeScript before reporting success.",
     "",
     "Job definition examples:",
     examples,
