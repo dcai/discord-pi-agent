@@ -7,6 +7,7 @@ import type { ResolvedDiscordGatewayConfig, TaskModelTarget } from "./types";
 const logger = createModuleLogger("discord-post-reply-review");
 const NO_FOLLOW_UP_PATTERN = /<no_follow_up\s*\/>/i;
 const FOLLOW_UP_PATTERN = /<follow_up>([\s\S]*?)<\/follow_up>/i;
+const FOLLOW_UP_TEST_TOKEN = "FOLLOW_UP_TEST";
 
 const DEFAULT_REVIEW_PROMPT_MAX_CHARS = 12_000;
 
@@ -28,6 +29,12 @@ export async function generatePostReplyFollowUp(
 
   if (!input.assistantReply.trim()) {
     return null;
+  }
+
+  if (input.promptText.includes(FOLLOW_UP_TEST_TOKEN)) {
+    return buildDeterministicTestFollowUp(
+      input.config.postReplyReview.maxFollowUpLength,
+    );
   }
 
   try {
@@ -73,8 +80,9 @@ function buildPostReplyReviewPrompt(
       "- the reply missed an important caveat or required next step",
       "- the reply would likely confuse the user without a short clarification",
       "- the reply promised something important and needs one immediate correction or completion",
+      `- the user explicitly asks you to send a follow-up or says this is a follow-up test, including the literal token ${FOLLOW_UP_TEST_TOKEN}`,
       "",
-      "Do not send a follow-up for style tweaks, optional nice-to-have details, repetition, or minor elaborations.",
+      `Do not send a follow-up for style tweaks, optional nice-to-have details, repetition, or minor elaborations, unless the user explicitly asked for a follow-up test such as ${FOLLOW_UP_TEST_TOKEN}.`,
       "",
       "If no follow-up is needed, respond with exactly:",
       "<no_follow_up/>",
@@ -111,6 +119,17 @@ function buildPostReplyReviewPrompt(
   );
 
   return sections.join("\n\n");
+}
+
+function buildDeterministicTestFollowUp(maxFollowUpLength: number): string {
+  const message =
+    "Test follow-up: deterministic FOLLOW_UP_TEST trigger worked.";
+
+  if (message.length <= maxFollowUpLength) {
+    return message;
+  }
+
+  return message.slice(0, maxFollowUpLength).trim();
 }
 
 function parsePostReplyReviewResponse(

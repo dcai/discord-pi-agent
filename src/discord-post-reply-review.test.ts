@@ -84,6 +84,23 @@ beforeEach(() => {
 });
 
 describe("generatePostReplyFollowUp", () => {
+  it("returns a deterministic follow-up when the FOLLOW_UP_TEST token is present", async () => {
+    const agentService = createAgentService();
+
+    const result = await generatePostReplyFollowUp({
+      config: createConfig(),
+      agentService,
+      promptText: "Please do a FOLLOW_UP_TEST now.",
+      assistantReply: "Main reply.",
+    });
+
+    expect(result).toBe(
+      "Test follow-up: deterministic FOLLOW_UP_TEST trigger worked.",
+    );
+    expect(agentService.createTemporarySession).not.toHaveBeenCalled();
+    expect(runAgentTurnMock).not.toHaveBeenCalled();
+  });
+
   it("returns null when post-reply review is disabled", async () => {
     const agentService = createAgentService();
 
@@ -105,6 +122,33 @@ describe("generatePostReplyFollowUp", () => {
 
     expect(result).toBeNull();
     expect(agentService.createTemporarySession).not.toHaveBeenCalled();
+  });
+
+  it("includes an explicit follow-up test escape hatch in the review prompt", async () => {
+    const agentService = createAgentService();
+    runAgentTurnMock.mockResolvedValue(
+      "<follow_up>Test follow-up sent as requested.</follow_up>",
+    );
+
+    await generatePostReplyFollowUp({
+      config: createConfig(),
+      agentService,
+      promptText: "Please send a follow-up for testing.",
+      assistantReply: "Main reply.",
+    });
+
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "review-session-1" }),
+      expect.stringContaining(
+        "the user explicitly asks you to send a follow-up or says this is a follow-up test, including the literal token FOLLOW_UP_TEST",
+      ),
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "review-session-1" }),
+      expect.stringContaining(
+        "unless the user explicitly asked for a follow-up test such as FOLLOW_UP_TEST.",
+      ),
+    );
   });
 
   it("uses a temporary session on the same model and returns a parsed follow-up", async () => {
