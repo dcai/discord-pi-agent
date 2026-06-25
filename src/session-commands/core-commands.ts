@@ -44,6 +44,7 @@ async function handleHelpCommand(
       `${formatCommandUsage(context, "jobs reload")} - reload scheduled jobs from the jobs file`,
       `${formatCommandUsage(context, "reaction")} - show or set the working reaction emoji`,
       extraCommands,
+      `Loaded pi prompt templates can also be invoked with command prefixes, for example ${formatCommandUsage(context, "review src/index.ts")}.`,
       "Any other text goes to the agent session.",
     ]
       .filter(Boolean)

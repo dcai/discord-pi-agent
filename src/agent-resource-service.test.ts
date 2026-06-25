@@ -5,6 +5,7 @@ function createResourceLoader() {
   return {
     getSkills: vi.fn(() => ({ skills: [], errors: [] })),
     getExtensions: vi.fn(() => ({ extensions: [], errors: [] })),
+    getPrompts: vi.fn(() => ({ prompts: [], diagnostics: [] })),
     getAgentsFiles: vi.fn(() => ({ agentsFiles: [] })),
     reload: vi.fn(async () => undefined),
   };
@@ -60,6 +61,40 @@ describe("AgentResourceService", () => {
     );
   });
 
+  it("expands prompt template commands using Discord prefixes", () => {
+    const loader = createResourceLoader();
+    loader.getPrompts.mockReturnValue({
+      prompts: [
+        {
+          name: "journal",
+          description: "Journal template",
+          content: "Journal: $1 | $ARGUMENTS",
+          filePath: "/repo/.pi/prompts/journal.md",
+          sourceInfo: {} as never,
+        },
+      ] as never,
+      diagnostics: [],
+    });
+
+    const service = new AgentResourceService(loader as never);
+
+    expect(
+      service.expandPromptTemplateCommand('!journal "hello world" extra', [
+        "!",
+      ]),
+    ).toEqual({
+      matched: true,
+      expandedPrompt: "Journal: hello world | hello world extra",
+      template: {
+        name: "journal",
+        description: "Journal template",
+        content: "Journal: $1 | $ARGUMENTS",
+        filePath: "/repo/.pi/prompts/journal.md",
+        sourceInfo: {} as never,
+      },
+    });
+  });
+
   it("reloads resources and returns a formatted summary", async () => {
     const loader = createResourceLoader();
     loader.getSkills.mockReturnValue({
@@ -72,6 +107,18 @@ describe("AgentResourceService", () => {
       ] as never,
       errors: [],
     });
+    loader.getPrompts.mockReturnValue({
+      prompts: [
+        {
+          name: "journal",
+          description: "Journal template",
+          content: "content",
+          filePath: "/repo/.pi/prompts/journal.md",
+          sourceInfo: {} as never,
+        },
+      ] as never,
+      diagnostics: [],
+    });
     loader.getAgentsFiles.mockReturnValue({
       agentsFiles: [{ path: "/repo/AGENTS.md" }] as never,
     });
@@ -83,6 +130,7 @@ describe("AgentResourceService", () => {
         "Resources reloaded.",
         "Extensions (1): /ext/one",
         "Skills (1): glimpse",
+        "Prompt templates (1): /journal",
         "AGENTS.md files (1): /repo/AGENTS.md",
       ].join("\n"),
     );

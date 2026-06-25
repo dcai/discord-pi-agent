@@ -1,4 +1,11 @@
-import type { DefaultResourceLoader } from "@earendil-works/pi-coding-agent";
+import type {
+  DefaultResourceLoader,
+  PromptTemplate,
+} from "@earendil-works/pi-coding-agent";
+import {
+  expandDiscordPromptTemplateCommand,
+  type DiscordPromptTemplateMatchResult,
+} from "./discord-prompt-templates";
 
 export class AgentResourceService {
   private readonly resourceLoader: DefaultResourceLoader;
@@ -57,6 +64,21 @@ export class AgentResourceService {
     return [header, ...lines, ...errorLines].join("\n");
   }
 
+  getPromptTemplates(): PromptTemplate[] {
+    return this.resourceLoader.getPrompts().prompts;
+  }
+
+  expandPromptTemplateCommand(
+    input: string,
+    commandPrefixes: string[],
+  ): DiscordPromptTemplateMatchResult {
+    return expandDiscordPromptTemplateCommand(
+      input,
+      commandPrefixes,
+      this.getPromptTemplates(),
+    );
+  }
+
   async reloadResources(): Promise<string> {
     await this.resourceLoader.reload();
     const extensions = this.resourceLoader
@@ -68,6 +90,9 @@ export class AgentResourceService {
     const skillNames = skills.skills.map((skill) => {
       return skill.name;
     });
+    const promptTemplates = this.getPromptTemplates().map((template) => {
+      return `/${template.name}`;
+    });
     const agentsFiles = this.resourceLoader
       .getAgentsFiles()
       .agentsFiles.map((file) => {
@@ -78,6 +103,7 @@ export class AgentResourceService {
       "Resources reloaded.",
       `Extensions (${extensions.length}): ${extensions.join(", ") || "(none)"}`,
       `Skills (${skills.skills.length}): ${skillNames.join(", ") || "(none)"}`,
+      `Prompt templates (${promptTemplates.length}): ${promptTemplates.join(", ") || "(none)"}`,
       `AGENTS.md files (${agentsFiles.length}): ${agentsFiles.join(", ") || "(none)"}`,
     ].join("\n");
   }

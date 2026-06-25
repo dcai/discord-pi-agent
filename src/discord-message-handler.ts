@@ -144,6 +144,33 @@ export async function handleDiscordMessage(
   );
   logNewThreadSession(message, preparedMessage.scope, created);
 
+  const promptTemplateCommand =
+    agentService.resources.expandPromptTemplateCommand(
+      preparedMessage.content,
+      config.discordCommandPrefixes,
+    );
+  if (promptTemplateCommand.matched) {
+    logger.info(
+      {
+        scope: preparedMessage.scope,
+        templateName: promptTemplateCommand.template.name,
+      },
+      "prompt template command received",
+    );
+    await processAgentPrompt(
+      message,
+      config,
+      agentService,
+      entry,
+      {
+        ...preparedMessage,
+        content: promptTemplateCommand.expandedPrompt,
+      },
+      channelKey,
+    );
+    return;
+  }
+
   const commandResult = await executeSessionCommand(preparedMessage.content, {
     agentService,
     promptQueue: entry.promptQueue,

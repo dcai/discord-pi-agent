@@ -13,6 +13,7 @@ import type {
 
 const {
   executeSessionCommandMock,
+  expandPromptTemplateCommandMock,
   readTextAttachmentsMock,
   readMediaAttachmentsMock,
   resolveMediaAttachmentsForPromptMock,
@@ -28,6 +29,7 @@ const {
 } = vi.hoisted(() => {
   return {
     executeSessionCommandMock: vi.fn(),
+    expandPromptTemplateCommandMock: vi.fn(),
     readTextAttachmentsMock: vi.fn(),
     readMediaAttachmentsMock: vi.fn(),
     resolveMediaAttachmentsForPromptMock: vi.fn(),
@@ -164,7 +166,11 @@ function createSessionRegistry(
 }
 
 function createAgentService(): AgentService {
-  return {} as AgentService;
+  return {
+    resources: {
+      expandPromptTemplateCommand: expandPromptTemplateCommandMock,
+    },
+  } as AgentService;
 }
 
 function createMessage(
@@ -224,6 +230,7 @@ function createForumStarterMessage(
 beforeEach(() => {
   vi.clearAllMocks();
   executeSessionCommandMock.mockResolvedValue({ handled: false });
+  expandPromptTemplateCommandMock.mockReturnValue({ matched: false });
   readTextAttachmentsMock.mockResolvedValue([]);
   readMediaAttachmentsMock.mockResolvedValue([]);
   resolveMediaAttachmentsForPromptMock.mockImplementation(
@@ -559,6 +566,40 @@ describe("handleDiscordMessage", () => {
     expect(runAgentTurnMock).not.toHaveBeenCalled();
     expect(addWorkingReactionMock).not.toHaveBeenCalled();
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
+  });
+
+  it("expands loaded prompt templates before running the agent", async () => {
+    const config = createConfig();
+    const registry = createSessionRegistry();
+    const message = createMessage({ content: "!journal shipped the fix" });
+
+    expandPromptTemplateCommandMock.mockReturnValue({
+      matched: true,
+      expandedPrompt: "Expanded journal prompt",
+      template: {
+        name: "journal",
+      },
+    });
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(executeSessionCommandMock).not.toHaveBeenCalled();
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "transformed:Expanded journal prompt",
+      expect.objectContaining({
+        images: undefined,
+        onToolStart: expect.any(Function),
+        onToolEnd: expect.any(Function),
+      }),
+    );
+    expect(sendReplyMock).toHaveBeenCalledWith(message, "agent reply");
   });
 
   it("forwards command-built input into the agent prompt pipeline", async () => {

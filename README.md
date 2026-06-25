@@ -45,6 +45,8 @@ The gateway supports two command entry points:
 
 Prefix commands default to `!`. You can add others, such as `;`, with `discordCommandPrefixes`.
 
+Loaded pi prompt templates also work through those same Discord prefixes. If pi has a `/review` prompt template from `.pi/prompts/`, `~/.pi/agent/prompts/`, or another loaded prompt source, you can invoke it in Discord as `!review ...` or `;review ...`. The package expands the template with pi's normal argument rules and sends the expanded prompt into the current DM or thread session.
+
 Slash command handling uses the existing Discord gateway connection (`InteractionCreate`). It does **not** require a separate inbound webhook server or an extra public port on your VPS.
 
 `!abort` cancels the active run for the current DM or thread scope and clears any queued prompts behind it.
