@@ -56,6 +56,21 @@ Slash command handling uses the existing Discord gateway connection (`Interactio
 
 `/prompt` and `/p` are slash-only prompt entry points. They send text into the same DM/thread session as normal chat, keep Discord's interaction loading UI while the run is starting, and show an **Abort run** button on the ephemeral control reply. Slash job execution commands that start a run (`/job run` and `/job run-here`) reuse the same abort-button flow.
 
+### Post-reply review
+
+When `postReplyReview` is enabled, the gateway can send one extra proactive follow-up after a normal prompt reply.
+
+Current behavior:
+
+- runs one hidden second-pass review after the main reply
+- sends at most one extra follow-up message
+- uses a temporary in-memory review session, so the review does not pollute the main DM/thread session history
+- tries to use the same model as the main reply
+- is available for normal message replies and slash prompt replies
+- is intentionally conservative; if the reviewer does not return a valid follow-up block, nothing extra is sent
+
+This feature is still a tuning area. Expect the review prompt and heuristics to evolve.
+
 ### Slash command sync
 
 Interaction handling is always wired in, but automatic slash-command registration is opt-in.
@@ -330,6 +345,8 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
 - `shutdownOnSignals` default: `true`
 - `discordCommandPrefixes` default: `["!"]`
 - `postReplyReview` default: `false` — when enabled, the bot runs one hidden second-pass review after each prompt reply and may send one extra proactive follow-up if it adds clear value
+  - `true` enables it with defaults
+  - `{ enabled: true, maxFollowUpLength: 280 }` enables it with an explicit follow-up length cap
 - `discordCommandRegistrationScope` default: `"none"`
 - `discordCommandRegistrationGuildIds` default: `[]`
 - scheduler via `startDiscordGateway(config, { scheduler: { jobsFile } })`

@@ -1,8 +1,23 @@
-## [unreleased]
+## [0.29.0] - 2026-06-25
+
+### 🚀 Features
+
+- *(discord)* Add optional second-pass review for proactive post-reply follow-ups
+## [0.28.0] - 2026-06-25
+
+### 🚀 Features
+
+- *(discord)* Add support for invoking loaded prompt templates via Discord command prefixes
+## [0.27.17] - 2026-06-23
 
 ### 📚 Documentation
 
 - *(changelog)* Add release notes for 0.27.7–0.27.16
+- *(changelog)* Add release notes for 0.27.7–0.27.16
+
+### ⚙️ Miscellaneous Tasks
+
+- Update dependency versions and add tsc verification step for scheduler jobs
 ## [0.27.16] - 2026-06-18
 
 ### 🚀 Features
