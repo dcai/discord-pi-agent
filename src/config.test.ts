@@ -49,6 +49,9 @@ function withEnv(
     DISCORD_FORUM_CHANNEL_IDS: process.env.DISCORD_FORUM_CHANNEL_IDS,
     DISCORD_ALLOWED_USER_IDS: process.env.DISCORD_ALLOWED_USER_IDS,
     DISCORD_COMMAND_PREFIXES: process.env.DISCORD_COMMAND_PREFIXES,
+    DISCORD_POST_REPLY_REVIEW: process.env.DISCORD_POST_REPLY_REVIEW,
+    DISCORD_POST_REPLY_REVIEW_MAX_FOLLOW_UP_LENGTH:
+      process.env.DISCORD_POST_REPLY_REVIEW_MAX_FOLLOW_UP_LENGTH,
     DISCORD_COMMAND_REGISTRATION_SCOPE:
       process.env.DISCORD_COMMAND_REGISTRATION_SCOPE,
     DISCORD_COMMAND_REGISTRATION_GUILD_IDS:
@@ -119,6 +122,10 @@ describe("config", () => {
       expect(config.discordAllowedForumChannelIds).toEqual([]);
       expect(config.discordAllowedUserIds).toEqual(["user-1"]);
       expect(config.discordCommandPrefixes).toEqual(["!"]);
+      expect(config.postReplyReview).toEqual({
+        enabled: false,
+        maxFollowUpLength: 600,
+      });
       expect(config.discordCommandRegistrationScope).toBe("none");
       expect(config.discordCommandRegistrationGuildIds).toEqual([]);
       expect(
@@ -158,6 +165,10 @@ describe("config", () => {
           discordAllowedForumChannelIds: ["forum-1"],
           discordAllowedUserIds: ["user-1", "user-2"],
           discordCommandPrefixes: [";", "!"],
+          postReplyReview: {
+            enabled: true,
+            maxFollowUpLength: 280,
+          },
           discordCommandRegistrationScope: "guild",
           discordCommandRegistrationGuildIds: ["guild-1", "guild-2"],
         }),
@@ -176,6 +187,10 @@ describe("config", () => {
       expect(config.discordAllowedForumChannelIds).toEqual(["forum-1"]);
       expect(config.discordAllowedUserIds).toEqual(["user-1", "user-2"]);
       expect(config.discordCommandPrefixes).toEqual([";", "!"]);
+      expect(config.postReplyReview).toEqual({
+        enabled: true,
+        maxFollowUpLength: 280,
+      });
       expect(config.discordCommandRegistrationScope).toBe("guild");
       expect(config.discordCommandRegistrationGuildIds).toEqual([
         "guild-1",
@@ -253,6 +268,8 @@ describe("config", () => {
           DISCORD_FORUM_CHANNEL_IDS: "forum-1, forum-2",
           DISCORD_ALLOWED_USER_IDS: "user-1, user-2",
           DISCORD_COMMAND_PREFIXES: "!, ;",
+          DISCORD_POST_REPLY_REVIEW: "true",
+          DISCORD_POST_REPLY_REVIEW_MAX_FOLLOW_UP_LENGTH: "420",
           DISCORD_COMMAND_REGISTRATION_SCOPE: "guild",
           DISCORD_COMMAND_REGISTRATION_GUILD_IDS: "guild-1, guild-2",
         },
@@ -278,6 +295,10 @@ describe("config", () => {
           ]);
           expect(config.discordAllowedUserIds).toEqual(["user-1", "user-2"]);
           expect(config.discordCommandPrefixes).toEqual(["!", ";"]);
+          expect(config.postReplyReview).toEqual({
+            enabled: true,
+            maxFollowUpLength: 420,
+          });
           expect(config.discordCommandRegistrationScope).toBe("guild");
           expect(config.discordCommandRegistrationGuildIds).toEqual([
             "guild-1",
@@ -302,6 +323,10 @@ describe("config", () => {
             startupMessage: false,
             discordAllowedUserIds: ["override-user", "friend"],
             discordCommandPrefixes: [";", "!"],
+            postReplyReview: {
+              enabled: true,
+              maxFollowUpLength: 333,
+            },
             discordCommandRegistrationScope: "global",
           });
 
@@ -314,6 +339,10 @@ describe("config", () => {
             "friend",
           ]);
           expect(config.discordCommandPrefixes).toEqual([";", "!"]);
+          expect(config.postReplyReview).toEqual({
+            enabled: true,
+            maxFollowUpLength: 333,
+          });
           expect(config.discordCommandRegistrationScope).toBe("global");
         },
       );

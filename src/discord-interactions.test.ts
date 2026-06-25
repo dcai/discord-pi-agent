@@ -9,10 +9,15 @@ import type {
   ResolvedDiscordGatewayConfig,
 } from "./types";
 
-const { executeSessionCommandMock, runAgentTurnMock } = vi.hoisted(() => {
+const {
+  executeSessionCommandMock,
+  runAgentTurnMock,
+  generatePostReplyFollowUpMock,
+} = vi.hoisted(() => {
   return {
     executeSessionCommandMock: vi.fn(),
     runAgentTurnMock: vi.fn(),
+    generatePostReplyFollowUpMock: vi.fn(),
   };
 });
 
@@ -25,6 +30,12 @@ vi.mock("./session-commands", () => {
 vi.mock("./agent-turn-runner", () => {
   return {
     runAgentTurn: runAgentTurnMock,
+  };
+});
+
+vi.mock("./discord-post-reply-review", () => {
+  return {
+    generatePostReplyFollowUp: generatePostReplyFollowUpMock,
   };
 });
 
@@ -48,6 +59,10 @@ function createConfig(
     discordAllowedForumChannelIds: ["forum-1"],
     discordAllowedUserIds: ["user-1"],
     discordCommandPrefixes: ["!", ";"],
+    postReplyReview: {
+      enabled: false,
+      maxFollowUpLength: 600,
+    },
     discordCommandRegistrationScope: "none",
     discordCommandRegistrationGuildIds: [],
     ...overrides,
@@ -214,6 +229,7 @@ describe("discord interactions", () => {
       response: "ok",
     });
     runAgentTurnMock.mockResolvedValue("prompt reply");
+    generatePostReplyFollowUpMock.mockResolvedValue(null);
   });
 
   it("routes slash commands through the existing command engine", async () => {
@@ -318,6 +334,45 @@ describe("discord interactions", () => {
       expect(executeSessionCommandMock).not.toHaveBeenCalled();
     },
   );
+
+  it("can send one extra proactive follow-up after a slash prompt", async () => {
+    const config = createConfig({
+      postReplyReview: {
+        enabled: true,
+        maxFollowUpLength: 280,
+      },
+    });
+    const interaction = createChatInputInteraction({
+      commandName: "prompt",
+      stringOptions: { text: "hello from slash" },
+    });
+
+    generatePostReplyFollowUpMock.mockResolvedValue(
+      "One more thing: the env change only applies after a restart.",
+    );
+
+    await handleDiscordInteraction(
+      interaction as never,
+      config,
+      createAgentService() as never,
+      createSessionRegistry() as never,
+      accessConfig,
+      null,
+    );
+
+    expect(generatePostReplyFollowUpMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config,
+        promptText: "hello from slash",
+        assistantReply: "prompt reply",
+        sourceModel: undefined,
+      }),
+    );
+    expect(interaction.channel.send).toHaveBeenNthCalledWith(2, {
+      content: "One more thing: the env change only applies after a restart.",
+      flags: MessageFlags.SuppressEmbeds,
+    });
+  });
 
   it("responds to autocomplete from model choices", async () => {
     const interaction = createAutocompleteInteraction({

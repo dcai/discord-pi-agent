@@ -12,6 +12,7 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - exposes built-in session commands (per-scope, including `!archive`)
 - can expose slash commands, autocomplete, buttons, and reminder modals through Discord interactions
 - can run scheduled prompt jobs from a JS/TS jobs file
+- can optionally self-review a reply and send one extra proactive follow-up
 - can run in Discord-only, scheduler-only, or combined mode
 
 ## Built-in commands
@@ -125,6 +126,8 @@ const config = loadDiscordGatewayConfigFromEnv({
   discordAllowedForumChannelIds: ["1498563501780897832"],
   // Optional extra prefix support
   discordCommandPrefixes: ["!", ";"],
+  // Optional one-message second-pass follow-up after each reply
+  postReplyReview: true,
   // Optional slash-command sync during startup
   discordCommandRegistrationScope: "guild",
   discordCommandRegistrationGuildIds: ["123456789012345678"],
@@ -326,6 +329,7 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
   `Bot is online and ready.\n```\nHost: <hostname>\nStarted: <local datetime>\n````
 - `shutdownOnSignals` default: `true`
 - `discordCommandPrefixes` default: `["!"]`
+- `postReplyReview` default: `false` — when enabled, the bot runs one hidden second-pass review after each prompt reply and may send one extra proactive follow-up if it adds clear value
 - `discordCommandRegistrationScope` default: `"none"`
 - `discordCommandRegistrationGuildIds` default: `[]`
 - scheduler via `startDiscordGateway(config, { scheduler: { jobsFile } })`
@@ -391,6 +395,8 @@ Pretty console logs use:
 - `DISCORD_FORUM_CHANNEL_IDS` — comma-separated forum channel IDs
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated allowed user IDs
 - `DISCORD_COMMAND_PREFIXES` — comma-separated command prefixes (example: `!, ;`)
+- `DISCORD_POST_REPLY_REVIEW` — `true` or `false` to enable one proactive second-pass follow-up
+- `DISCORD_POST_REPLY_REVIEW_MAX_FOLLOW_UP_LENGTH` — optional positive integer character limit for proactive follow-ups
 - `DISCORD_COMMAND_REGISTRATION_SCOPE` — `none`, `global`, or `guild`
 - `DISCORD_COMMAND_REGISTRATION_GUILD_IDS` — comma-separated guild IDs for guild-scoped slash-command sync
 

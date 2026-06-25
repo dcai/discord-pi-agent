@@ -8,12 +8,14 @@ import {
 } from "./discord-attachments";
 import { isAuthorizedMessage, resolveMessageScope } from "./discord-auth";
 import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
+import { generatePostReplyFollowUp } from "./discord-post-reply-review";
 import {
   addReaction,
   addWorkingReaction,
   removeReaction,
   removeWorkingReaction,
   sendCommandReply,
+  sendFollowUp,
   sendReply,
 } from "./discord-replies";
 import { PromptQueueCancelledError } from "./prompt-queue";
@@ -54,6 +56,13 @@ type PreparedDiscordMessage = {
   content: string;
   mediaAttachments: MediaAttachmentContent[];
   metadataOptions?: DiscordMessageMetadataOptions;
+};
+
+type BuiltPromptInput = {
+  prompt: string;
+  images: ImageContent[] | undefined;
+  rawContent: string;
+  discordMetadata: string;
 };
 
 /**
@@ -439,7 +448,7 @@ async function processAgentPrompt(
   const cancellationCount = entry.promptQueue.getCancellationCount();
 
   try {
-    const response = await entry.promptQueue.enqueue(async () => {
+    const result = await entry.promptQueue.enqueue(async () => {
       const promptInput = await buildPromptInput(
         message,
         config,
@@ -448,7 +457,7 @@ async function processAgentPrompt(
         preparedMessage,
       );
 
-      return runAgentTurn(entry.session, promptInput.prompt, {
+      const response = await runAgentTurn(entry.session, promptInput.prompt, {
         images: promptInput.images,
         onToolStart: async ({ toolName, toolCallId }) => {
           reactionOperationChain = reactionOperationChain.then(async () => {
@@ -486,9 +495,33 @@ async function processAgentPrompt(
           await reactionOperationChain;
         },
       });
+
+      return {
+        response,
+        promptInput,
+      };
     });
 
-    await sendReply(message, response);
+    await sendReply(message, result.response);
+
+    if (config.postReplyReview.enabled) {
+      const followUp = await generatePostReplyFollowUp({
+        config,
+        agentService,
+        promptText: result.promptInput.rawContent,
+        assistantReply: result.response,
+        discordMetadata: result.promptInput.discordMetadata,
+        sourceModel: entry.session.model,
+      });
+
+      if (followUp) {
+        logger.info(
+          { messageId: message.id, scope: preparedMessage.scope },
+          "sending post-reply follow-up",
+        );
+        await sendFollowUp(message, followUp);
+      }
+    }
   } catch (error) {
     if (
       error instanceof PromptQueueCancelledError ||
@@ -530,7 +563,7 @@ async function buildPromptInput(
   agentService: AgentService,
   entry: ScopedSessionEntry,
   preparedMessage: PreparedDiscordMessage,
-): Promise<{ prompt: string; images: ImageContent[] | undefined }> {
+): Promise<BuiltPromptInput> {
   const resolvedPromptMedia = await resolvePromptMedia(
     preparedMessage,
     entry,
@@ -570,6 +603,8 @@ async function buildPromptInput(
       resolvedPromptMedia.images.length > 0
         ? resolvedPromptMedia.images
         : undefined,
+    rawContent: resolvedPromptMedia.content,
+    discordMetadata,
   };
 }
 

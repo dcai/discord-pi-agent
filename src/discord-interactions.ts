@@ -11,6 +11,7 @@ import {
 } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { runAgentTurn } from "./agent-turn-runner";
+import { generatePostReplyFollowUp } from "./discord-post-reply-review";
 import {
   abortInteractionScope,
   parseAbortButtonScope,
@@ -242,6 +243,7 @@ async function handleChatInputInteraction(
       interaction,
       interaction.options.getString("text", true).trim(),
       config,
+      agentService,
       sessionRegistry,
       scope,
     );
@@ -482,7 +484,12 @@ function getInteractionCancellationCount(
     return fallbackQueue.getCancellationCount();
   }
 
-  return resolveAbortControlQueue(abortControl, sessionRegistry)?.getCancellationCount() ?? 0;
+  return (
+    resolveAbortControlQueue(
+      abortControl,
+      sessionRegistry,
+    )?.getCancellationCount() ?? 0
+  );
 }
 
 async function applyInteractionCommandSideEffects(
@@ -525,6 +532,7 @@ async function executePromptInteraction(
   interaction: ChatInputCommandInteraction,
   promptText: string,
   config: ResolvedDiscordGatewayConfig,
+  agentService: AgentService,
   sessionRegistry: SessionRegistry,
   scope: SessionScope,
 ): Promise<void> {
@@ -540,14 +548,15 @@ async function executePromptInteraction(
   await showAbortControlReply(interaction, abortControl, entry.promptQueue);
 
   try {
+    const discordMetadata = buildInteractionPromptMetadata(
+      interaction,
+      scope,
+      config,
+    );
     const response = await entry.promptQueue.enqueue(async () => {
       const transformedPrompt = await config.promptTransform({
         rawContent: promptText,
-        discordMetadata: buildInteractionPromptMetadata(
-          interaction,
-          scope,
-          config,
-        ),
+        discordMetadata,
         now: () => {
           return wrapXmlTag(
             "datetime",
@@ -566,6 +575,21 @@ async function executePromptInteraction(
     });
 
     await sendPromptOutputToChannel(interaction.channel, response);
+
+    if (config.postReplyReview.enabled) {
+      const followUp = await generatePostReplyFollowUp({
+        config,
+        agentService,
+        promptText,
+        assistantReply: response,
+        discordMetadata,
+        sourceModel: entry.session.model,
+      });
+
+      if (followUp) {
+        await sendPromptOutputToChannel(interaction.channel, followUp);
+      }
+    }
     await interaction.editReply({
       content: "Prompt completed.",
       components: [],

@@ -9,7 +9,9 @@ import {
 import type {
   CommandRegistrationScope,
   DiscordGatewayConfig,
+  PostReplyReviewConfig,
   ResolvedDiscordGatewayConfig,
+  ResolvedPostReplyReviewConfig,
   ThinkingLevel,
 } from "./types";
 
@@ -29,6 +31,7 @@ export function resolveConfig(
   const promptTimeZone =
     config.promptTimeZone?.trim() || getDefaultPromptTimeZone();
   const promptLocale = config.promptLocale?.trim() || getDefaultPromptLocale();
+  const postReplyReview = resolvePostReplyReviewConfig(config.postReplyReview);
 
   if (
     discordCommandRegistrationScope === "guild" &&
@@ -75,6 +78,7 @@ export function resolveConfig(
     discordCommandPrefixes: normalizeCommandPrefixes(
       config.discordCommandPrefixes,
     ),
+    postReplyReview,
     discordCommandRegistrationScope,
     discordCommandRegistrationGuildIds,
   };
@@ -84,6 +88,11 @@ export function loadDiscordGatewayConfigFromEnv(
   overrides: Partial<DiscordGatewayConfig> = {},
 ): ResolvedDiscordGatewayConfig {
   dotenv.config();
+
+  const envPostReplyReview = readBooleanFromEnv("DISCORD_POST_REPLY_REVIEW");
+  const envPostReplyReviewMaxFollowUpLength = readNumberFromEnv(
+    "DISCORD_POST_REPLY_REVIEW_MAX_FOLLOW_UP_LENGTH",
+  );
 
   return resolveConfig({
     discordBotToken:
@@ -115,6 +124,12 @@ export function loadDiscordGatewayConfigFromEnv(
     discordCommandPrefixes:
       overrides.discordCommandPrefixes ??
       parseStringArrayFromEnv("DISCORD_COMMAND_PREFIXES"),
+    postReplyReview:
+      overrides.postReplyReview ??
+      buildPostReplyReviewConfigFromEnv(
+        envPostReplyReview,
+        envPostReplyReviewMaxFollowUpLength,
+      ),
     discordCommandRegistrationScope:
       parseCommandRegistrationScope(
         overrides.discordCommandRegistrationScope ??
@@ -134,6 +149,43 @@ function requireNonEmptyConfigValue(name: string, value: string): string {
   }
 
   return trimmedValue;
+}
+
+function resolvePostReplyReviewConfig(
+  value: PostReplyReviewConfig | undefined,
+): ResolvedPostReplyReviewConfig {
+  if (typeof value === "boolean") {
+    return {
+      enabled: value,
+      maxFollowUpLength: 600,
+    };
+  }
+
+  if (!value) {
+    return {
+      enabled: false,
+      maxFollowUpLength: 600,
+    };
+  }
+
+  return {
+    enabled: value.enabled ?? true,
+    maxFollowUpLength: normalizePositiveInteger(value.maxFollowUpLength) ?? 600,
+  };
+}
+
+function buildPostReplyReviewConfigFromEnv(
+  enabled: boolean | undefined,
+  maxFollowUpLength: number | undefined,
+): PostReplyReviewConfig | undefined {
+  if (enabled === undefined && maxFollowUpLength === undefined) {
+    return undefined;
+  }
+
+  return {
+    enabled,
+    maxFollowUpLength,
+  };
 }
 
 function readStartupMessageFromEnv(): string | false | undefined {
@@ -201,6 +253,50 @@ function defaultPromptTransform(ctx: {
   return [ctx.now(), ctx.discordMetadata, "", ctx.userMessage()]
     .filter(Boolean)
     .join("\n");
+}
+
+function readBooleanFromEnv(key: string): boolean | undefined {
+  const value = process.env[key];
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalizedValue = value.trim().toLowerCase();
+  if (normalizedValue === "true" || normalizedValue === "1") {
+    return true;
+  }
+
+  if (normalizedValue === "false" || normalizedValue === "0") {
+    return false;
+  }
+
+  return undefined;
+}
+
+function readNumberFromEnv(key: string): number | undefined {
+  const value = process.env[key];
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return normalizePositiveInteger(Number(value.trim()));
+}
+
+function normalizePositiveInteger(
+  value: number | undefined,
+): number | undefined {
+  if (
+    value === undefined ||
+    !Number.isInteger(value) ||
+    value <= 0 ||
+    !Number.isFinite(value)
+  ) {
+    return undefined;
+  }
+
+  return value;
 }
 
 function parseStringArrayFromEnv(key: string): string[] | undefined {

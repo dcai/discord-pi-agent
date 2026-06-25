@@ -4,6 +4,7 @@ import {
   addWorkingReaction,
   removeReaction,
   removeWorkingReaction,
+  sendFollowUp,
   sendReply,
 } from "./discord-replies";
 
@@ -118,6 +119,17 @@ describe("discord-replies", () => {
     expect(message.reply).toHaveBeenCalledWith("chunk-1");
     expect(message.channel.send).toHaveBeenNthCalledWith(1, "chunk-2");
     expect(message.channel.send).toHaveBeenNthCalledWith(2, "chunk-3");
+  });
+
+  it("sends follow-up messages directly to the channel", async () => {
+    chunkMessageMock.mockReturnValue(["chunk-1", "chunk-2"]);
+    const message = createMessage();
+
+    await sendFollowUp(message as never, "follow-up");
+
+    expect(message.reply).not.toHaveBeenCalled();
+    expect(message.channel.send).toHaveBeenNthCalledWith(1, "chunk-1");
+    expect(message.channel.send).toHaveBeenNthCalledWith(2, "chunk-2");
   });
 
   it("returns early when chunking yields no content and swallows reply errors", async () => {

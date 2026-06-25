@@ -171,6 +171,42 @@ export async function sendReply(message: Message, text: string): Promise<void> {
   }
 }
 
+export async function sendFollowUp(
+  message: Message,
+  text: string,
+): Promise<void> {
+  const channel = message.channel;
+  if (!channel.isSendable()) {
+    logger.debug(
+      {
+        messageId: message.id,
+      },
+      "follow-up skipped, channel not sendable",
+    );
+    return;
+  }
+
+  const chunks = chunkMessage(text);
+
+  if (chunks.length === 0) {
+    return;
+  }
+
+  try {
+    for (const chunk of chunks) {
+      await channel.send(chunk);
+    }
+  } catch (error) {
+    logger.error(
+      {
+        messageId: message.id,
+        error,
+      },
+      "send follow-up failed",
+    );
+  }
+}
+
 /**
  * Sends a command response wrapped in triple backticks.
  * Splits by newlines so each chunk stays within Discord's 2000-char limit.

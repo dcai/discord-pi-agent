@@ -42,6 +42,8 @@ export type {
   ResolvedDiscordGatewayConfig,
   GatewayAccessConfig,
   LoadScheduleJobs,
+  PostReplyReviewConfig,
+  ResolvedPostReplyReviewConfig,
   ScheduledJobsContext,
   StartDiscordGatewayOptions,
   TaskResultTarget,

@@ -23,9 +23,11 @@ const {
   removeWorkingReactionMock,
   sendReplyMock,
   sendCommandReplyMock,
+  sendFollowUpMock,
   startTypingForChannelMock,
   stopTypingForChannelMock,
   runAgentTurnMock,
+  generatePostReplyFollowUpMock,
 } = vi.hoisted(() => {
   return {
     executeSessionCommandMock: vi.fn(),
@@ -39,9 +41,11 @@ const {
     removeWorkingReactionMock: vi.fn(),
     sendReplyMock: vi.fn(),
     sendCommandReplyMock: vi.fn(),
+    sendFollowUpMock: vi.fn(),
     startTypingForChannelMock: vi.fn(),
     stopTypingForChannelMock: vi.fn(),
     runAgentTurnMock: vi.fn(),
+    generatePostReplyFollowUpMock: vi.fn(),
   };
 });
 
@@ -72,6 +76,13 @@ vi.mock("./discord-replies", () => {
     removeWorkingReaction: removeWorkingReactionMock,
     sendReply: sendReplyMock,
     sendCommandReply: sendCommandReplyMock,
+    sendFollowUp: sendFollowUpMock,
+  };
+});
+
+vi.mock("./discord-post-reply-review", () => {
+  return {
+    generatePostReplyFollowUp: generatePostReplyFollowUpMock,
   };
 });
 
@@ -115,6 +126,10 @@ function createConfig(
     discordAllowedForumChannelIds: ["forum-1"],
     discordAllowedUserIds: ["user-1", "user-2"],
     discordCommandPrefixes: ["!"],
+    postReplyReview: {
+      enabled: false,
+      maxFollowUpLength: 600,
+    },
     discordCommandRegistrationScope: "none",
     discordCommandRegistrationGuildIds: [],
     ...overrides,
@@ -247,9 +262,11 @@ beforeEach(() => {
   removeWorkingReactionMock.mockResolvedValue(undefined);
   sendReplyMock.mockResolvedValue(undefined);
   sendCommandReplyMock.mockResolvedValue(undefined);
+  sendFollowUpMock.mockResolvedValue(undefined);
   startTypingForChannelMock.mockImplementation(() => undefined);
   stopTypingForChannelMock.mockImplementation(() => undefined);
   runAgentTurnMock.mockResolvedValue("agent reply");
+  generatePostReplyFollowUpMock.mockResolvedValue(null);
 });
 
 describe("handleForumPostEdit", () => {
@@ -442,8 +459,72 @@ describe("handleDiscordMessage", () => {
       }),
     );
     expect(sendReplyMock).toHaveBeenCalledWith(message, "agent reply");
+    expect(generatePostReplyFollowUpMock).not.toHaveBeenCalled();
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
     expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
+  });
+
+  it("can send one extra post-reply follow-up when second-pass review is enabled", async () => {
+    const config = createConfig({
+      postReplyReview: {
+        enabled: true,
+        maxFollowUpLength: 280,
+      },
+    });
+    const registry = createSessionRegistry();
+    const message = createMessage();
+
+    generatePostReplyFollowUpMock.mockResolvedValue(
+      "One more thing: restart the bot after changing that config.",
+    );
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(generatePostReplyFollowUpMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config,
+        promptText: "hello there",
+        assistantReply: "agent reply",
+        sourceModel: {
+          provider: "openrouter",
+          id: "model-1",
+        },
+      }),
+    );
+    expect(sendFollowUpMock).toHaveBeenCalledWith(
+      message,
+      "One more thing: restart the bot after changing that config.",
+    );
+  });
+
+  it("skips the extra follow-up when the reviewer declines", async () => {
+    const config = createConfig({
+      postReplyReview: {
+        enabled: true,
+        maxFollowUpLength: 280,
+      },
+    });
+    const registry = createSessionRegistry();
+    const message = createMessage();
+
+    generatePostReplyFollowUpMock.mockResolvedValue(null);
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(generatePostReplyFollowUpMock).toHaveBeenCalledTimes(1);
+    expect(sendFollowUpMock).not.toHaveBeenCalled();
   });
 
   it("adds and removes mapped and fallback tool reactions during a prompt", async () => {
