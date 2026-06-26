@@ -36,8 +36,8 @@
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.79.10",
-    "@earendil-works/pi-coding-agent": "^0.79.10",
+    "@earendil-works/pi-ai": "^0.80.2",
+    "@earendil-works/pi-coding-agent": "^0.80.2",
     "discord.js": "^14.26.4",
     "dotenv": "^17.4.2",
     "jiti": "^2.7.0",
@@ -47,11 +47,17 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
-    "@typescript/native-preview": "^7.0.0-dev.20260623.1",
+    "@types/node": "^26.0.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260624.1",
     "@vitest/coverage-v8": "^4.1.9",
     "@vitest/ui": "^4.1.9",
     "prettier": "^3.8.4",
     "vitest": "^4.1.9"
+  },
+  "allowScripts": {
+    "@google/genai@1.52.0": true,
+    "protobufjs@7.6.4": true,
+    "protobufjs@7.6.1": true,
+    "fsevents@2.3.3": true
   }
 }
