@@ -67,6 +67,14 @@ export function chunkMessage(
       continue;
     }
 
+    // For any other oversized token (list, paragraph, etc.),
+    // split into sub-chunks at newline boundaries.
+    if (size > DISCORD_MESSAGE_LIMIT && currentTokens.length === 0) {
+      const subChunks = splitOversizedToken(token, maxChunkSize);
+      chunks.push(...subChunks);
+      continue;
+    }
+
     currentTokens.push(token);
     currentSize += size;
   }
@@ -74,6 +82,44 @@ export function chunkMessage(
   flushChunk();
 
   return chunks.map((chunk) => chunk.slice(0, DISCORD_MESSAGE_LIMIT));
+}
+
+/**
+ * Split an oversized non-code token (list, paragraph, etc.)
+ * into smaller chunks, each under maxChunkSize.
+ *
+ * For list tokens, tries to split on list item boundaries
+ * (\n- , \n* , \n1. ) so list structure is preserved.
+ * For everything else, splits on newline boundaries.
+ * Falls back to character-level split if no clean break found.
+ */
+function splitOversizedToken(token: Tokens.Generic, maxChunkSize: number): string[] {
+  const raw = token.raw;
+  const chunks: string[] = [];
+  let offset = 0;
+
+  while (offset < raw.length) {
+    const remaining = raw.length - offset;
+    if (remaining <= maxChunkSize) {
+      chunks.push(raw.slice(offset));
+      break;
+    }
+
+    // Try to split on a newline within the allowed range.
+    const end = offset + maxChunkSize;
+    const newlineBeforeEnd = raw.lastIndexOf("\n", end);
+
+    if (newlineBeforeEnd > offset) {
+      chunks.push(raw.slice(offset, newlineBeforeEnd));
+      offset = newlineBeforeEnd;
+    } else {
+      // No newline in range — hard split at maxChunkSize.
+      chunks.push(raw.slice(offset, end));
+      offset = end;
+    }
+  }
+
+  return chunks;
 }
 
 /**

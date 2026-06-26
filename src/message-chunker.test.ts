@@ -264,6 +264,67 @@ describe("chunkMessage", () => {
     expect(flat).toContain("> Memory usage is elevated");
   });
 
+  it("preserves tail items from a long real-world markdown list section", () => {
+    const text = [
+      "━━━━━━━━━━━━━━━━━━━━━━",
+      "Fun, Games & Culture",
+      "━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      "- Show HN: Chess-Inspired Roguelike (165 pts, 63 comments)",
+      "  A roguelike where you move like chess pieces. Clever, fun, and the comments are full of strategy discussions.",
+      "  HN: <https://news.ycombinator.com/item?id=48616304>",
+      "",
+      "- Om Malik has died (161 pts, 13 comments)",
+      "  Om Malik, veteran tech journalist and founder of GigaOM, has passed away at 59. The comments are full of tributes and personal stories.",
+      "  HN: <https://news.ycombinator.com/item?id=48678852>",
+      "",
+      "- OS9Map (147 pts, 20 comments)",
+      "  A web-based reimplementation of Mac OS 9's map of the world. Pure nostalgia — the 90s Mac spinning globe.",
+      "  HN: <https://news.ycombinator.com/item?id=48674484>",
+      "",
+      "- The disappearance of Japan's animators (118 pts, 97 comments)",
+      "  Economist interactive: Japan's animation industry is losing its artists. The working conditions are driving people away. Important look at the human cost of anime.",
+      "  HN: <https://news.ycombinator.com/item?id=48620422>",
+      "",
+      "- Advanced NES: modded to use 2 PPUs (79 pts, 23 comments)",
+      "  An NES mod that adds a second Picture Processing Unit for better graphics. Hardware modding at its finest.",
+      "  HN: <https://news.ycombinator.com/item?id=48652997>",
+      "",
+      "- Tw-fade: pure CSS scroll-driven edge masking (71 pts)",
+      "  Beautiful CSS technique for fading content at scroll edges. No JavaScript. Front-end delight.",
+      "  HN: <https://news.ycombinator.com/item?id=48631302>",
+      "",
+      "- GloriousEggroll's Proton rebased on Proton 11 (33 pts)",
+      "  The popular Proton-GE custom build for Linux gaming gets rebased. Game on Linux continues getting better.",
+      "  HN: <https://news.ycombinator.com/item?id=48656692>",
+      "",
+      "- You're the OS — game where you manage processes (12 pts)",
+      "  A game that simulates being an operating system. Educational and fun for systems programming enthusiasts.",
+      "  HN: <https://news.ycombinator.com/item?id=48642474>",
+      "",
+      "- The anxiety of the perfect loaf (19 pts)",
+      "  An essay on letting go of precision in cooking. Philosophical food writing that resonates with anyone who's stressed about following recipes exactly.",
+      "  HN: <https://news.ycombinator.com/item?id=48636982>",
+      "",
+      "- The last Romans are still around (19 pts, 26 comments)",
+      "  On communities in Italy that still speak a direct descendant of Latin. Linguistic survival against the odds.",
+      "  HN: <https://news.ycombinator.com/item?id=48631119>",
+      "",
+      "- Migrating from Proxmox to NixOS and Incus (8 pts)",
+      "  Homelab migration story. Just landed for the infra crowd.",
+      "  HN: <https://news.ycombinator.com/item?id=48679385>",
+    ].join("\n");
+
+    const result = chunkMessage(text);
+    const flat = result.join("\n");
+
+    expect(result.length).toBeGreaterThan(1);
+    expect(result.every((chunk) => chunk.length <= 2000)).toBe(true);
+    expect(flat).toContain("The anxiety of the perfect loaf");
+    expect(flat).toContain("The last Romans are still around");
+    expect(flat).toContain("Migrating from Proxmox to NixOS and Incus");
+  });
+
   // ── Default limit ───────────────────────────────────────────────
 
   it("uses SAFE_MESSAGE_LIMIT (1900) when no maxChunkSize is provided", () => {
@@ -276,14 +337,15 @@ describe("chunkMessage", () => {
 
   // ── DISCORD_MESSAGE_LIMIT cap ───────────────────────────────────
 
-  it("caps each chunk at DISCORD_MESSAGE_LIMIT (2000)", () => {
+  it("splits oversized non-code tokens and caps each sub-chunk", () => {
     // Single paragraph token of 2500 chars, maxChunkSize=2100 triggers
-    // token-level path. The paragraph won't split (single token),
-    // but the final .slice(0, 2000) caps it.
+    // oversized non-code token splitting. Split into sub-chunks at
+    // maxChunkSize boundaries, then each sub-chunk capped at 2000.
     const text = "A".repeat(2500);
     const result = chunkMessage(text, 2100);
-    expect(result.length).toBe(1);
+    expect(result.length).toBe(2);
     expect(result[0].length).toBeLessThanOrEqual(2000);
+    expect(result[1].length).toBeLessThanOrEqual(2000);
     expect(result).toMatchSnapshot();
   });
 });
