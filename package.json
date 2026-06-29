@@ -48,10 +48,10 @@
   },
   "devDependencies": {
     "@types/node": "^26.0.1",
-    "@typescript/native-preview": "^7.0.0-dev.20260624.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260629.1",
     "@vitest/coverage-v8": "^4.1.9",
     "@vitest/ui": "^4.1.9",
-    "prettier": "^3.8.4",
+    "prettier": "^3.9.3",
     "vitest": "^4.1.9"
   },
   "allowScripts": {
