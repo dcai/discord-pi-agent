@@ -9,9 +9,9 @@ import {
 import type {
   CommandRegistrationScope,
   DiscordGatewayConfig,
-  PostReplyReviewConfig,
+  ReplyReflectionConfig,
   ResolvedDiscordGatewayConfig,
-  ResolvedPostReplyReviewConfig,
+  ResolvedReplyReflectionConfig,
   ThinkingLevel,
 } from "./types";
 
@@ -31,7 +31,7 @@ export function resolveConfig(
   const promptTimeZone =
     config.promptTimeZone?.trim() || getDefaultPromptTimeZone();
   const promptLocale = config.promptLocale?.trim() || getDefaultPromptLocale();
-  const postReplyReview = resolvePostReplyReviewConfig(config.postReplyReview);
+  const replyReflection = resolveReplyReflectionConfig(config.replyReflection);
 
   if (
     discordCommandRegistrationScope === "guild" &&
@@ -78,7 +78,7 @@ export function resolveConfig(
     discordCommandPrefixes: normalizeCommandPrefixes(
       config.discordCommandPrefixes,
     ),
-    postReplyReview,
+    replyReflection,
     discordCommandRegistrationScope,
     discordCommandRegistrationGuildIds,
   };
@@ -89,9 +89,9 @@ export function loadDiscordGatewayConfigFromEnv(
 ): ResolvedDiscordGatewayConfig {
   dotenv.config();
 
-  const envPostReplyReview = readBooleanFromEnv("DISCORD_POST_REPLY_REVIEW");
-  const envPostReplyReviewMaxFollowUpLength = readNumberFromEnv(
-    "DISCORD_POST_REPLY_REVIEW_MAX_FOLLOW_UP_LENGTH",
+  const envReplyReflection = readBooleanFromEnv("DISCORD_REPLY_REFLECTION");
+  const envReplyReflectionMaxFollowUpLength = readNumberFromEnv(
+    "DISCORD_REPLY_REFLECTION_MAX_FOLLOW_UP_LENGTH",
   );
 
   return resolveConfig({
@@ -124,11 +124,11 @@ export function loadDiscordGatewayConfigFromEnv(
     discordCommandPrefixes:
       overrides.discordCommandPrefixes ??
       parseStringArrayFromEnv("DISCORD_COMMAND_PREFIXES"),
-    postReplyReview:
-      overrides.postReplyReview ??
-      buildPostReplyReviewConfigFromEnv(
-        envPostReplyReview,
-        envPostReplyReviewMaxFollowUpLength,
+    replyReflection:
+      overrides.replyReflection ??
+      buildReplyReflectionConfigFromEnv(
+        envReplyReflection,
+        envReplyReflectionMaxFollowUpLength,
       ),
     discordCommandRegistrationScope:
       parseCommandRegistrationScope(
@@ -151,13 +151,14 @@ function requireNonEmptyConfigValue(name: string, value: string): string {
   return trimmedValue;
 }
 
-function resolvePostReplyReviewConfig(
-  value: PostReplyReviewConfig | undefined,
-): ResolvedPostReplyReviewConfig {
+function resolveReplyReflectionConfig(
+  value: ReplyReflectionConfig | undefined,
+): ResolvedReplyReflectionConfig {
   if (typeof value === "boolean") {
     return {
       enabled: value,
       maxFollowUpLength: 600,
+      instructions: undefined,
     };
   }
 
@@ -165,19 +166,21 @@ function resolvePostReplyReviewConfig(
     return {
       enabled: false,
       maxFollowUpLength: 600,
+      instructions: undefined,
     };
   }
 
   return {
     enabled: value.enabled ?? true,
     maxFollowUpLength: normalizePositiveInteger(value.maxFollowUpLength) ?? 600,
+    instructions: normalizeOptionalText(value.instructions),
   };
 }
 
-function buildPostReplyReviewConfigFromEnv(
+function buildReplyReflectionConfigFromEnv(
   enabled: boolean | undefined,
   maxFollowUpLength: number | undefined,
-): PostReplyReviewConfig | undefined {
+): ReplyReflectionConfig | undefined {
   if (enabled === undefined && maxFollowUpLength === undefined) {
     return undefined;
   }
@@ -297,6 +300,16 @@ function normalizePositiveInteger(
   }
 
   return value;
+}
+
+function normalizeOptionalText(value: string | undefined): string | undefined {
+  const trimmedValue = value?.trim();
+
+  if (!trimmedValue) {
+    return undefined;
+  }
+
+  return trimmedValue;
 }
 
 function parseStringArrayFromEnv(key: string): string[] | undefined {

@@ -80,7 +80,7 @@ vi.mock("./discord-replies", () => {
   };
 });
 
-vi.mock("./discord-post-reply-review", () => {
+vi.mock("./discord-reply-reflection", () => {
   return {
     generatePostReplyFollowUp: generatePostReplyFollowUpMock,
   };
@@ -126,7 +126,7 @@ function createConfig(
     discordAllowedForumChannelIds: ["forum-1"],
     discordAllowedUserIds: ["user-1", "user-2"],
     discordCommandPrefixes: ["!"],
-    postReplyReview: {
+    replyReflection: {
       enabled: false,
       maxFollowUpLength: 600,
     },
@@ -466,7 +466,7 @@ describe("handleDiscordMessage", () => {
 
   it("can send one extra post-reply follow-up when second-pass review is enabled", async () => {
     const config = createConfig({
-      postReplyReview: {
+      replyReflection: {
         enabled: true,
         maxFollowUpLength: 280,
       },
@@ -505,7 +505,7 @@ describe("handleDiscordMessage", () => {
 
   it("skips the extra follow-up when the reviewer declines", async () => {
     const config = createConfig({
-      postReplyReview: {
+      replyReflection: {
         enabled: true,
         maxFollowUpLength: 280,
       },

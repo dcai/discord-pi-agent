@@ -11,7 +11,7 @@ import {
 } from "discord.js";
 import type { AgentService } from "./agent-service";
 import { runAgentTurn } from "./agent-turn-runner";
-import { generatePostReplyFollowUp } from "./discord-post-reply-review";
+import { generatePostReplyFollowUp } from "./discord-reply-reflection";
 import {
   abortInteractionScope,
   parseAbortButtonScope,
@@ -576,7 +576,7 @@ async function executePromptInteraction(
 
     await sendPromptOutputToChannel(interaction.channel, response);
 
-    if (config.postReplyReview.enabled) {
+    if (config.replyReflection.enabled) {
       const followUp = await generatePostReplyFollowUp({
         config,
         agentService,

@@ -79,7 +79,7 @@ src/
   discord-auth.ts             # scope resolution + authorization helpers
   discord-attachments.ts      # text/media attachment helpers
   discord-media-resolution.ts # media -> prompt content / vision fallback
-  discord-post-reply-review.ts # optional hidden second-pass review for one extra follow-up
+  discord-reply-reflection.ts # optional hidden second-pass review for one extra follow-up
   discord-replies.ts          # reply sending + working reaction helpers
   discord-typing.ts           # typing indicator lifecycle
   index.ts
@@ -111,26 +111,27 @@ Put message-flow logic in focused helpers like:
 - `discord-auth.ts`
 - `discord-attachments.ts`
 - `discord-media-resolution.ts`
-- `discord-post-reply-review.ts`
+- `discord-reply-reflection.ts`
 - `discord-replies.ts`
 - `discord-typing.ts`
 
 If `discord-gateway-client.ts` starts growing again, move logic out instead of piling more into it.
 
-## Post-reply review note
+## Reply reflection note
 
-The package now has an optional `postReplyReview` feature.
+The package now has an optional `replyReflection` feature.
 
 What it does:
 
 - after a normal prompt reply, run one hidden second-pass review
+- the intent is to give the model room for a small second thought: a eureka moment or sudden spark that did not make it into the first reply
 - if that review finds a meaningful miss or correction, send one extra follow-up message
 - keep it generic, short, and config-driven
 - default stays off unless the consumer opts in
 
 Current shape:
 
-- main logic lives in `src/discord-post-reply-review.ts`
+- main logic lives in `src/discord-reply-reflection.ts`
 - normal message flow uses it in `src/discord-message-handler.ts`
 - slash prompt flow uses it in `src/discord-interactions.ts`
 - review runs in a temporary in-memory session so it does not pollute the main shared DM/thread session

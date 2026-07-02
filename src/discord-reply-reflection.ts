@@ -4,7 +4,7 @@ import { createModuleLogger } from "./logger";
 import { wrapXmlTag } from "./prompt-context";
 import type { ResolvedDiscordGatewayConfig, TaskModelTarget } from "./types";
 
-const logger = createModuleLogger("discord-post-reply-review");
+const logger = createModuleLogger("discord-reply-reflection");
 const NO_FOLLOW_UP_PATTERN = /<no_follow_up\s*\/>/i;
 const FOLLOW_UP_PATTERN = /<follow_up>([\s\S]*?)<\/follow_up>/i;
 const FOLLOW_UP_TEST_TOKEN = "FOLLOW_UP_TEST";
@@ -23,7 +23,7 @@ type GeneratePostReplyFollowUpInput = {
 export async function generatePostReplyFollowUp(
   input: GeneratePostReplyFollowUpInput,
 ): Promise<string | null> {
-  if (!input.config.postReplyReview.enabled) {
+  if (!input.config.replyReflection.enabled) {
     return null;
   }
 
@@ -33,7 +33,7 @@ export async function generatePostReplyFollowUp(
 
   if (input.promptText.includes(FOLLOW_UP_TEST_TOKEN)) {
     return buildDeterministicTestFollowUp(
-      input.config.postReplyReview.maxFollowUpLength,
+      input.config.replyReflection.maxFollowUpLength,
     );
   }
 
@@ -56,7 +56,7 @@ export async function generatePostReplyFollowUp(
 
       return parsePostReplyReviewResponse(
         reviewResponse,
-        input.config.postReplyReview.maxFollowUpLength,
+        input.config.replyReflection.maxFollowUpLength,
       );
     } finally {
       reviewSession.dispose();
@@ -70,7 +70,7 @@ export async function generatePostReplyFollowUp(
 function buildPostReplyReviewPrompt(
   input: GeneratePostReplyFollowUpInput,
 ): string {
-  const maxFollowUpLength = input.config.postReplyReview.maxFollowUpLength;
+  const maxFollowUpLength = input.config.replyReflection.maxFollowUpLength;
   const sections = [
     [
       "Review the assistant reply below and decide whether sending one extra proactive Discord follow-up message would materially help the user.",
@@ -80,9 +80,17 @@ function buildPostReplyReviewPrompt(
       "- the reply missed an important caveat or required next step",
       "- the reply would likely confuse the user without a short clarification",
       "- the reply promised something important and needs one immediate correction or completion",
+      "- the user would likely benefit from a short, sincere, supportive follow-up with warmth, positivity, empathy, and sensitivity because the context calls for it",
       `- the user explicitly asks you to send a follow-up or says this is a follow-up test, including the literal token ${FOLLOW_UP_TEST_TOKEN}`,
       "",
-      `Do not send a follow-up for style tweaks, optional nice-to-have details, repetition, or minor elaborations, unless the user explicitly asked for a follow-up test such as ${FOLLOW_UP_TEST_TOKEN}.`,
+      "Supportive follow-ups are appropriate not only for stress or vulnerability, but also when a brief warm, encouraging, or affirming message would help the user feel supported, seen, or motivated in a real way.",
+      "This can include moments where they are trying hard, making progress, asking for help, taking a risk, dealing with uncertainty, or starting a new long-term process such as learning a skill, building a habit, or taking up a hobby.",
+      "In those cases, if the main reply is useful but emotionally flat, you may add a short confidence-building follow-up that acknowledges their effort, affirms that steady progress is enough, or gently encourages them to keep going.",
+      "Keep it warm, human, and grounded. Do not sound clinical, cheesy, or overbearing. Do not invent feelings or facts.",
+      "",
+      `If the review turn finds any materially helpful addition worth telling the user, send it as the follow-up instead of withholding it just because the original reply was technically correct.`,
+      "",
+      `Do not send a follow-up for style tweaks, optional nice-to-have details, repetition, minor elaborations, or generic encouragement that adds no real value, unless the user explicitly asked for a follow-up test such as ${FOLLOW_UP_TEST_TOKEN}.`,
       "",
       "If no follow-up is needed, respond with exactly:",
       "<no_follow_up/>",
@@ -98,8 +106,22 @@ function buildPostReplyReviewPrompt(
       "- do not mention this review process",
       "- do not restate the whole original answer",
       "- sound natural, like one short extra message",
+      "- when offering support, be specific, kind, positive, and concise",
     ].join("\n"),
   ];
+
+  const hostInstructions = input.config.replyReflection.instructions?.trim();
+  if (hostInstructions) {
+    sections.push(
+      [
+        "Additional host instructions:",
+        wrapXmlTag(
+          "host_review_instructions",
+          limitPromptSection(hostInstructions, DEFAULT_REVIEW_PROMPT_MAX_CHARS),
+        ),
+      ].join("\n"),
+    );
+  }
 
   if (input.discordMetadata?.trim()) {
     sections.push(input.discordMetadata.trim());

@@ -33,7 +33,7 @@ vi.mock("./agent-turn-runner", () => {
   };
 });
 
-vi.mock("./discord-post-reply-review", () => {
+vi.mock("./discord-reply-reflection", () => {
   return {
     generatePostReplyFollowUp: generatePostReplyFollowUpMock,
   };
@@ -59,7 +59,7 @@ function createConfig(
     discordAllowedForumChannelIds: ["forum-1"],
     discordAllowedUserIds: ["user-1"],
     discordCommandPrefixes: ["!", ";"],
-    postReplyReview: {
+    replyReflection: {
       enabled: false,
       maxFollowUpLength: 600,
     },
@@ -337,7 +337,7 @@ describe("discord interactions", () => {
 
   it("can send one extra proactive follow-up after a slash prompt", async () => {
     const config = createConfig({
-      postReplyReview: {
+      replyReflection: {
         enabled: true,
         maxFollowUpLength: 280,
       },

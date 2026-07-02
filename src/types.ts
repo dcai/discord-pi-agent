@@ -28,16 +28,19 @@ export type ThinkingLevel =
 
 export type CommandRegistrationScope = "none" | "global" | "guild";
 
-export type PostReplyReviewConfig =
+export type ReplyReflectionConfig =
   | boolean
   | {
       enabled?: boolean;
       maxFollowUpLength?: number;
+      /** Optional host-specific guidance appended to the default review prompt. */
+      instructions?: string;
     };
 
-export type ResolvedPostReplyReviewConfig = {
+export type ResolvedReplyReflectionConfig = {
   enabled: boolean;
   maxFollowUpLength: number;
+  instructions?: string;
 };
 
 export type DiscordGatewayConfig = {
@@ -66,8 +69,8 @@ export type DiscordGatewayConfig = {
   discordAllowedUserIds?: string[];
   /** Accepted message command prefixes (defaults to ["!"]). */
   discordCommandPrefixes?: string[];
-  /** Optional second-pass review that can send one extra follow-up message. */
-  postReplyReview?: PostReplyReviewConfig;
+  /** Optional second-pass reflection that can send one extra follow-up message. */
+  replyReflection?: ReplyReflectionConfig;
   /**
    * Optional slash command sync mode.
    * - "none": do not auto-register commands
@@ -196,7 +199,7 @@ export type ResolvedDiscordGatewayConfig = {
   discordAllowedForumChannelIds: string[];
   discordAllowedUserIds: string[];
   discordCommandPrefixes: string[];
-  postReplyReview: ResolvedPostReplyReviewConfig;
+  replyReflection: ResolvedReplyReflectionConfig;
   discordCommandRegistrationScope: CommandRegistrationScope;
   discordCommandRegistrationGuildIds: string[];
 };

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { generatePostReplyFollowUp } from "./discord-post-reply-review";
+import { generatePostReplyFollowUp } from "./discord-reply-reflection";
 import type { AgentService } from "./agent-service";
 import type { ResolvedDiscordGatewayConfig } from "./types";
 
@@ -35,9 +35,10 @@ function createConfig(
     discordAllowedForumChannelIds: ["forum-1"],
     discordAllowedUserIds: ["user-1"],
     discordCommandPrefixes: ["!"],
-    postReplyReview: {
+    replyReflection: {
       enabled: true,
       maxFollowUpLength: 120,
+      instructions: undefined,
     },
     discordCommandRegistrationScope: "none",
     discordCommandRegistrationGuildIds: [],
@@ -101,14 +102,15 @@ describe("generatePostReplyFollowUp", () => {
     expect(runAgentTurnMock).not.toHaveBeenCalled();
   });
 
-  it("returns null when post-reply review is disabled", async () => {
+  it("returns null when reply reflection is disabled", async () => {
     const agentService = createAgentService();
 
     const result = await generatePostReplyFollowUp({
       config: createConfig({
-        postReplyReview: {
+        replyReflection: {
           enabled: false,
           maxFollowUpLength: 120,
+          instructions: undefined,
         },
       }),
       agentService,
@@ -140,6 +142,36 @@ describe("generatePostReplyFollowUp", () => {
     expect(runAgentTurnMock).toHaveBeenCalledWith(
       expect.objectContaining({ sessionId: "review-session-1" }),
       expect.stringContaining(
+        "the user would likely benefit from a short, sincere, supportive follow-up with warmth, positivity, empathy, and sensitivity because the context calls for it",
+      ),
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "review-session-1" }),
+      expect.stringContaining(
+        "Supportive follow-ups are appropriate not only for stress or vulnerability, but also when a brief warm, encouraging, or affirming message would help the user feel supported, seen, or motivated in a real way.",
+      ),
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "review-session-1" }),
+      expect.stringContaining(
+        "This can include moments where they are trying hard, making progress, asking for help, taking a risk, dealing with uncertainty, or starting a new long-term process such as learning a skill, building a habit, or taking up a hobby.",
+      ),
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "review-session-1" }),
+      expect.stringContaining(
+        "In those cases, if the main reply is useful but emotionally flat, you may add a short confidence-building follow-up that acknowledges their effort, affirms that steady progress is enough, or gently encourages them to keep going.",
+      ),
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "review-session-1" }),
+      expect.stringContaining(
+        "If the review turn finds any materially helpful addition worth telling the user, send it as the follow-up instead of withholding it just because the original reply was technically correct.",
+      ),
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "review-session-1" }),
+      expect.stringContaining(
         "the user explicitly asks you to send a follow-up or says this is a follow-up test, including the literal token FOLLOW_UP_TEST",
       ),
     );
@@ -147,6 +179,36 @@ describe("generatePostReplyFollowUp", () => {
       expect.objectContaining({ sessionId: "review-session-1" }),
       expect.stringContaining(
         "unless the user explicitly asked for a follow-up test such as FOLLOW_UP_TEST.",
+      ),
+    );
+  });
+
+  it("includes host review instructions without exposing the XML contract", async () => {
+    const agentService = createAgentService();
+    runAgentTurnMock.mockResolvedValue("<follow_up>Nice work sticking with it.</follow_up>");
+
+    await generatePostReplyFollowUp({
+      config: createConfig({
+        replyReflection: {
+          enabled: true,
+          maxFollowUpLength: 120,
+          instructions:
+            "Be extra encouraging when the user starts a long-term skill or hobby.",
+        },
+      }),
+      agentService,
+      promptText: "I just started learning guitar.",
+      assistantReply: "Practice 10 minutes a day and focus on chord changes.",
+    });
+
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "review-session-1" }),
+      expect.stringContaining("Additional host instructions:"),
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: "review-session-1" }),
+      expect.stringContaining(
+        "<host_review_instructions>Be extra encouraging when the user starts a long-term skill or hobby.</host_review_instructions>",
       ),
     );
   });

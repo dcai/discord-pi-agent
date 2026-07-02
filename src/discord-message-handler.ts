@@ -8,7 +8,7 @@ import {
 } from "./discord-attachments";
 import { isAuthorizedMessage, resolveMessageScope } from "./discord-auth";
 import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
-import { generatePostReplyFollowUp } from "./discord-post-reply-review";
+import { generatePostReplyFollowUp } from "./discord-reply-reflection";
 import {
   addReaction,
   addWorkingReaction,
@@ -504,7 +504,7 @@ async function processAgentPrompt(
 
     await sendReply(message, result.response);
 
-    if (config.postReplyReview.enabled) {
+    if (config.replyReflection.enabled) {
       const followUp = await generatePostReplyFollowUp({
         config,
         agentService,
