@@ -36,9 +36,9 @@
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.80.5",
-    "@earendil-works/pi-coding-agent": "^0.80.5",
-    "discord.js": "^14.26.4",
+    "@earendil-works/pi-ai": "^0.80.6",
+    "@earendil-works/pi-coding-agent": "^0.80.6",
+    "discord.js": "^14.26.5",
     "dotenv": "^17.4.2",
     "jiti": "^2.7.0",
     "marked": "^18.0.6",
