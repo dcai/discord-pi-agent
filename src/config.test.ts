@@ -63,6 +63,7 @@ function withEnv(
     PI_AUDIO_TRANSCRIPTION_MODEL: process.env.PI_AUDIO_TRANSCRIPTION_MODEL,
     PI_AUDIO_TRANSCRIPTION_ENDPOINT:
       process.env.PI_AUDIO_TRANSCRIPTION_ENDPOINT,
+    PI_AUDIO_TRANSCRIPTION_PROMPT: process.env.PI_AUDIO_TRANSCRIPTION_PROMPT,
   };
 
   Object.entries(env).forEach(([key, value]) => {
@@ -190,6 +191,7 @@ describe("config", () => {
             model: " whisper-2 ",
             apiKey: " sk-custom-key ",
             endpoint: " https://custom.example.com/transcribe ",
+            prompt: " Keep the same language. Be conservative. ",
           },
           discordCommandRegistrationScope: "guild",
           discordCommandRegistrationGuildIds: ["guild-1", "guild-2"],
@@ -220,6 +222,7 @@ describe("config", () => {
         model: "whisper-2",
         apiKey: "sk-custom-key",
         endpoint: "https://custom.example.com/transcribe",
+        prompt: "Keep the same language. Be conservative.",
       });
       expect(config.discordCommandRegistrationScope).toBe("guild");
       expect(config.discordCommandRegistrationGuildIds).toEqual([
@@ -336,6 +339,7 @@ describe("config", () => {
           PI_AUDIO_TRANSCRIPTION_API_KEY: "env-audio-key",
           PI_AUDIO_TRANSCRIPTION_PROVIDER: "openai",
           PI_AUDIO_TRANSCRIPTION_MODEL: "gpt-4o-mini-transcribe",
+          PI_AUDIO_TRANSCRIPTION_PROMPT: " Keep the same language. ",
         },
         () => {
           const config = loadDiscordGatewayConfigFromEnv();
@@ -375,6 +379,7 @@ describe("config", () => {
             model: "gpt-4o-mini-transcribe",
             apiKey: "env-audio-key",
             endpoint: null,
+            prompt: "Keep the same language.",
           });
         },
       );

@@ -32,6 +32,9 @@ export type AudioTranscriptionConfig = {
   apiKey?: string;
   /** Custom endpoint URL for the transcription API (defaults to provider's standard endpoint). */
   endpoint?: string;
+  /** Optional extra prompt guidance for transcript cleanup.
+   * The cleanup pass keeps the same language and returns only the cleaned text. */
+  prompt?: string;
 };
 
 export type ResolvedAudioTranscriptionConfig = {
@@ -40,6 +43,7 @@ export type ResolvedAudioTranscriptionConfig = {
   model: string;
   apiKey: string | null;
   endpoint: string | null;
+  prompt?: string;
 };
 
 export type ReplyReflectionConfig =

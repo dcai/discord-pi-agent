@@ -11,7 +11,8 @@ import {
 import { isAuthorizedMessage, resolveMessageScope } from "./discord-auth";
 import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
 import { generatePostReplyFollowUp } from "./discord-reply-reflection";
-import { transcribeAudioAttachments } from "./audio-transcription";
+import { postProcessAudioTranscript } from "./audio-transcript-post-process";
+import { transcribeAudio } from "./audio-transcription";
 import {
   addReaction,
   addWorkingReaction,
@@ -574,7 +575,12 @@ async function buildPromptInput(
   entry: ScopedSessionEntry,
   preparedMessage: PreparedDiscordMessage,
 ): Promise<BuiltPromptInput> {
-  const contentWithAudio = await resolveAudio(preparedMessage, config);
+  const contentWithAudio = await resolveAudio(
+    preparedMessage,
+    config,
+    agentService,
+    entry.session.model,
+  );
   const resolvedPromptMedia = await resolvePromptMedia(
     { ...preparedMessage, content: contentWithAudio },
     entry,
@@ -622,6 +628,8 @@ async function buildPromptInput(
 async function resolveAudio(
   preparedMessage: PreparedDiscordMessage,
   config: ResolvedDiscordGatewayConfig,
+  agentService: AgentService,
+  sourceModel: { provider: string; id: string } | undefined,
 ): Promise<string> {
   if (preparedMessage.audioAttachments.length === 0) {
     return preparedMessage.content;
@@ -631,22 +639,68 @@ async function resolveAudio(
     const names = preparedMessage.audioAttachments
       .map((a) => a.filename)
       .join(", ");
-    const note = `\n\n[Audio file(s) received: ${names}]\n(Audio transcription not configured. Set audioTranscription in config to enable.)`;
+    const note = `\n\n[Audio file(s) received: ${names}]\n(Audio transcription is disabled in config.)`;
     return preparedMessage.content ? preparedMessage.content + note : note;
   }
 
-  const transcriptText = await transcribeAudioAttachments(
-    preparedMessage.audioAttachments,
-    config.audioTranscription,
-  );
+  const transcriptBlocks: string[] = [];
 
-  if (!transcriptText) {
+  for (const audioAttachment of preparedMessage.audioAttachments) {
+    const rawTranscript = await transcribeAudio(
+      audioAttachment,
+      config.audioTranscription,
+    );
+
+    if (!rawTranscript) {
+      transcriptBlocks.push(
+        `[Audio file received: ${audioAttachment.filename} — transcription failed]`,
+      );
+      continue;
+    }
+
+    const cleanedTranscript = await postProcessAudioTranscript({
+      agentService,
+      config,
+      filename: audioAttachment.filename,
+      transcript: rawTranscript,
+      sourceModel,
+    });
+
+    const finalTranscript = cleanedTranscript ?? rawTranscript;
+    transcriptBlocks.push(
+      `${buildAudioAttachmentLabel(audioAttachment.filename, audioAttachment.durationSecs)}\n${finalTranscript}`,
+    );
+  }
+
+  if (transcriptBlocks.length === 0) {
     return preparedMessage.content;
   }
 
+  const transcriptText = transcriptBlocks.join("\n\n");
   return preparedMessage.content
     ? `${transcriptText}\n\n---\n${preparedMessage.content}`
     : transcriptText;
+}
+
+function buildAudioAttachmentLabel(
+  filename: string,
+  durationSecs: number | null,
+): string {
+  const durationNote =
+    durationSecs !== null ? ` (${formatAudioDuration(durationSecs)})` : "";
+
+  return `[Audio transcription: ${filename}${durationNote}]`;
+}
+
+function formatAudioDuration(secs: number): string {
+  const minutes = Math.floor(secs / 60);
+  const seconds = Math.floor(secs % 60);
+
+  if (minutes === 0) {
+    return `${seconds}s`;
+  }
+
+  return `${minutes}m ${seconds}s`;
 }
 
 async function resolvePromptMedia(

@@ -330,12 +330,20 @@ function buildAudioTranscriptionConfigFromEnv():
   const model = process.env.PI_AUDIO_TRANSCRIPTION_MODEL?.trim();
   const apiKey = process.env.PI_AUDIO_TRANSCRIPTION_API_KEY?.trim();
   const endpoint = process.env.PI_AUDIO_TRANSCRIPTION_ENDPOINT?.trim();
+  const prompt = process.env.PI_AUDIO_TRANSCRIPTION_PROMPT?.trim();
 
   if (enabled === false) {
     return false;
   }
 
-  if (enabled !== true && !provider && !model && !apiKey && !endpoint) {
+  if (
+    enabled !== true &&
+    !provider &&
+    !model &&
+    !apiKey &&
+    !endpoint &&
+    !prompt
+  ) {
     return undefined;
   }
 
@@ -344,6 +352,7 @@ function buildAudioTranscriptionConfigFromEnv():
     model: model || undefined,
     apiKey: apiKey || undefined,
     endpoint: endpoint || undefined,
+    prompt: prompt || undefined,
   };
 }
 
@@ -379,12 +388,15 @@ function resolveAudioTranscriptionConfig(
     );
   }
 
+  const prompt = normalizeOptionalText(value.prompt);
+
   return createEnabledAudioTranscriptionConfig({
     provider,
     model:
       normalizeOptionalText(value.model) ?? DEFAULT_AUDIO_TRANSCRIPTION_MODEL,
     apiKey: normalizeOptionalText(value.apiKey) ?? null,
     endpoint,
+    ...(prompt ? { prompt } : {}),
   });
 }
 

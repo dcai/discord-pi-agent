@@ -25,6 +25,8 @@ image / PDF / doc    -> media resolution path
                        -> pi vision-capable model or configured vision fallback
 audio / voice msg    -> audio transcription path
                        -> OpenAI-compatible transcription API
+                       -> Pi temporary-session cleanup pass
+                       -> cleaned transcript text
 ```
 
 Important:
@@ -32,7 +34,9 @@ Important:
 - media understanding and audio transcription are **not** the same path
 - images and documents go through `discord-media-resolution.ts`
 - audio files and Discord voice messages go through `audio-transcription.ts`
-- this split is intentional because the current pi SDK flow in this repo supports image input, while audio currently uses a separate transcription API
+- transcript cleanup then goes through `audio-transcript-post-process.ts`
+- the final prompt gets the cleaned transcript only
+- this split is intentional because the current pi SDK flow in this repo supports image input, while audio still needs a separate transcription API before the Pi cleanup pass
 
 ## Built-in commands
 
@@ -373,11 +377,12 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
   - `true` enables it with defaults
   - `{ enabled: true, maxFollowUpLength: 280 }` enables it with an explicit follow-up length cap
   - `{ enabled: true, instructions: "..." }` adds host-specific review guidance while the follow-up XML contract stays library-owned
-- `audioTranscription` default: enabled — audio attachments and Discord voice messages are transcribed to text through a separate OpenAI-compatible audio transcription API
+- `audioTranscription` default: enabled — audio attachments and Discord voice messages are transcribed to text through a separate OpenAI-compatible audio transcription API, then cleaned through a Pi temporary-session pass before reaching the main agent
   - omit it to use the default enabled config
   - set `false` to disable it entirely
   - `{ provider: "openai", model: "gpt-4o-mini-transcribe", apiKey: "sk-..." }` customizes the enabled config
   - optional `endpoint` for custom/self-hosted or non-OpenAI-compatible services
+  - optional `prompt` adds host guidance for transcript cleanup while keeping the same language as the source transcript
   - `provider` currently auto-supports `openai`; for anything else, set `endpoint` explicitly
   - this is separate from `visionModelId` and the media resolution path
   - if disabled when an audio file arrives, the bot notes that audio was received but not transcribed
@@ -453,6 +458,7 @@ Pretty console logs use:
 - `PI_AUDIO_TRANSCRIPTION_PROVIDER` — provider name (defaults to `openai`)
 - `PI_AUDIO_TRANSCRIPTION_MODEL` — model ID (defaults to `gpt-4o-mini-transcribe`)
 - `PI_AUDIO_TRANSCRIPTION_ENDPOINT` — optional custom endpoint URL
+- `PI_AUDIO_TRANSCRIPTION_PROMPT` — optional extra prompt guidance for transcript cleanup
 - `DISCORD_COMMAND_REGISTRATION_SCOPE` — `none`, `global`, or `guild`
 - `DISCORD_COMMAND_REGISTRATION_GUILD_IDS` — comma-separated guild IDs for guild-scoped slash-command sync
 

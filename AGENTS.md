@@ -77,10 +77,11 @@ src/
   discord-gateway-client.ts   # Discord client bootstrapping + event wiring
   discord-message-handler.ts  # main message pipeline orchestration
   discord-auth.ts             # scope resolution + authorization helpers
-  discord-attachments.ts      # text/media/audio attachment fetching helpers
-  discord-media-resolution.ts # images/docs -> prompt content / vision fallback
-  audio-transcription.ts      # audio files -> text via OpenAI-compatible transcription API
-  discord-reply-reflection.ts # optional hidden second-pass review for one extra follow-up
+  discord-attachments.ts            # text/media/audio attachment fetching helpers
+  discord-media-resolution.ts       # images/docs -> prompt content / vision fallback
+  audio-transcription.ts            # audio files -> raw text via OpenAI-compatible transcription API
+  audio-transcript-post-process.ts  # raw transcript -> cleaned transcript via Pi temporary session
+  discord-reply-reflection.ts       # optional hidden second-pass review for one extra follow-up
   discord-replies.ts          # reply sending + working reaction helpers
   discord-typing.ts           # typing indicator lifecycle
   index.ts
@@ -113,6 +114,7 @@ Put message-flow logic in focused helpers like:
 - `discord-attachments.ts`
 - `discord-media-resolution.ts`
 - `audio-transcription.ts`
+- `audio-transcript-post-process.ts`
 - `discord-reply-reflection.ts`
 - `discord-replies.ts`
 - `discord-typing.ts`
@@ -121,7 +123,7 @@ Attachment handling is intentionally split by mechanism:
 
 - text attachments -> inline text content
 - image/document media -> pi session + vision/model fallback flow
-- audio files / voice messages -> dedicated transcription API flow
+- audio files / voice messages -> transcription API -> Pi temporary-session cleanup -> cleaned text
 
 Do not blur the media and audio paths unless the underlying pi SDK grows first-class audio input support.
 Today they are separate on purpose.

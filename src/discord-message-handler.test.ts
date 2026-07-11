@@ -17,7 +17,8 @@ const {
   readTextAttachmentsMock,
   readMediaAttachmentsMock,
   readAudioAttachmentsMock,
-  transcribeAudioAttachmentsMock,
+  transcribeAudioMock,
+  postProcessAudioTranscriptMock,
   resolveMediaAttachmentsForPromptMock,
   addReactionMock,
   addWorkingReactionMock,
@@ -37,7 +38,8 @@ const {
     readTextAttachmentsMock: vi.fn(),
     readMediaAttachmentsMock: vi.fn(),
     readAudioAttachmentsMock: vi.fn(),
-    transcribeAudioAttachmentsMock: vi.fn(),
+    transcribeAudioMock: vi.fn(),
+    postProcessAudioTranscriptMock: vi.fn(),
     resolveMediaAttachmentsForPromptMock: vi.fn(),
     addReactionMock: vi.fn(),
     addWorkingReactionMock: vi.fn(),
@@ -69,7 +71,13 @@ vi.mock("./discord-attachments", () => {
 
 vi.mock("./audio-transcription", () => {
   return {
-    transcribeAudioAttachments: transcribeAudioAttachmentsMock,
+    transcribeAudio: transcribeAudioMock,
+  };
+});
+
+vi.mock("./audio-transcript-post-process", () => {
+  return {
+    postProcessAudioTranscript: postProcessAudioTranscriptMock,
   };
 });
 
@@ -142,7 +150,7 @@ function createConfig(
       maxFollowUpLength: 600,
     },
     audioTranscription: {
-      enabled: false,
+      enabled: true,
       provider: "openai",
       model: "gpt-4o-mini-transcribe",
       apiKey: null,
@@ -267,7 +275,8 @@ beforeEach(() => {
   readTextAttachmentsMock.mockResolvedValue([]);
   readMediaAttachmentsMock.mockResolvedValue([]);
   readAudioAttachmentsMock.mockResolvedValue([]);
-  transcribeAudioAttachmentsMock.mockResolvedValue(null);
+  transcribeAudioMock.mockResolvedValue(null);
+  postProcessAudioTranscriptMock.mockResolvedValue(null);
   resolveMediaAttachmentsForPromptMock.mockImplementation(
     async (_media, content) => {
       return {
@@ -506,9 +515,8 @@ describe("handleDiscordMessage", () => {
     };
 
     readAudioAttachmentsMock.mockResolvedValue([audioAttachment]);
-    transcribeAudioAttachmentsMock.mockResolvedValue(
-      "[Audio transcription: voice-message.ogg (12s)]\nhello from audio",
-    );
+    transcribeAudioMock.mockResolvedValue("hello from audio");
+    postProcessAudioTranscriptMock.mockResolvedValue("Hello from audio.");
 
     await handleDiscordMessage(
       message as never,
@@ -518,19 +526,26 @@ describe("handleDiscordMessage", () => {
       accessConfig,
     );
 
-    expect(transcribeAudioAttachmentsMock).toHaveBeenCalledWith(
-      [audioAttachment],
+    expect(transcribeAudioMock).toHaveBeenCalledWith(
+      audioAttachment,
       config.audioTranscription,
     );
+    expect(postProcessAudioTranscriptMock).toHaveBeenCalledWith({
+      agentService: expect.anything(),
+      config,
+      filename: "voice-message.ogg",
+      transcript: "hello from audio",
+      sourceModel: session.model,
+    });
     expect(config.promptTransform).toHaveBeenCalledWith(
       expect.objectContaining({
         rawContent:
-          "[Audio transcription: voice-message.ogg (12s)]\nhello from audio",
+          "[Audio transcription: voice-message.ogg (12s)]\nHello from audio.",
       }),
     );
     expect(runAgentTurnMock).toHaveBeenCalledWith(
       session,
-      "transformed:[Audio transcription: voice-message.ogg (12s)]\nhello from audio",
+      "transformed:[Audio transcription: voice-message.ogg (12s)]\nHello from audio.",
       expect.objectContaining({
         images: undefined,
         onToolStart: expect.any(Function),
@@ -540,7 +555,15 @@ describe("handleDiscordMessage", () => {
   });
 
   it("keeps audio-only messages usable when transcription is disabled", async () => {
-    const config = createConfig();
+    const config = createConfig({
+      audioTranscription: {
+        enabled: false,
+        provider: "openai",
+        model: "gpt-4o-mini-transcribe",
+        apiKey: null,
+        endpoint: null,
+      },
+    });
     const session = createSession();
     const promptQueue = createPromptQueue();
     const registry = createSessionRegistry({ session, promptQueue });
@@ -563,7 +586,8 @@ describe("handleDiscordMessage", () => {
       accessConfig,
     );
 
-    expect(transcribeAudioAttachmentsMock).not.toHaveBeenCalled();
+    expect(transcribeAudioMock).not.toHaveBeenCalled();
+    expect(postProcessAudioTranscriptMock).not.toHaveBeenCalled();
     expect(config.promptTransform).toHaveBeenCalledWith(
       expect.objectContaining({
         rawContent: expect.stringContaining(
@@ -604,9 +628,8 @@ describe("handleDiscordMessage", () => {
     };
 
     readAudioAttachmentsMock.mockResolvedValue([audioAttachment]);
-    transcribeAudioAttachmentsMock.mockResolvedValue(
-      "[Audio file received: voice-message.ogg — transcription failed]",
-    );
+    transcribeAudioMock.mockResolvedValue("hello from audio");
+    postProcessAudioTranscriptMock.mockResolvedValue(null);
 
     await handleDiscordMessage(
       message as never,
@@ -618,7 +641,7 @@ describe("handleDiscordMessage", () => {
 
     expect(runAgentTurnMock).toHaveBeenCalledWith(
       session,
-      "transformed:[Audio file received: voice-message.ogg — transcription failed]",
+      "transformed:[Audio transcription: voice-message.ogg (12s)]\nhello from audio",
       expect.objectContaining({
         images: undefined,
         onToolStart: expect.any(Function),
