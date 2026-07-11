@@ -76,8 +76,7 @@ type RuntimeReminderJobDefinition = {
 };
 
 type ManagedJobDefinition =
-  | FileBackedJobDefinition
-  | RuntimeReminderJobDefinition;
+  FileBackedJobDefinition | RuntimeReminderJobDefinition;
 
 export class TaskSchedulerService {
   private readonly config: ResolvedDiscordGatewayConfig;

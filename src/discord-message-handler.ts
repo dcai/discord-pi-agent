@@ -2,13 +2,16 @@ import type { ImageContent } from "@earendil-works/pi-ai";
 import type { Message, PartialMessage } from "discord.js";
 import type { AgentService } from "./agent-service";
 import {
+  readAudioAttachments,
   readMediaAttachments,
   readTextAttachments,
+  type AudioAttachmentContent,
   type MediaAttachmentContent,
 } from "./discord-attachments";
 import { isAuthorizedMessage, resolveMessageScope } from "./discord-auth";
 import { resolveMediaAttachmentsForPrompt } from "./discord-media-resolution";
 import { generatePostReplyFollowUp } from "./discord-reply-reflection";
+import { transcribeAudioAttachments } from "./audio-transcription";
 import {
   addReaction,
   addWorkingReaction,
@@ -55,6 +58,7 @@ type PreparedDiscordMessage = {
   scope: SessionScope;
   content: string;
   mediaAttachments: MediaAttachmentContent[];
+  audioAttachments: AudioAttachmentContent[];
   metadataOptions?: DiscordMessageMetadataOptions;
 };
 
@@ -289,11 +293,16 @@ async function prepareDiscordMessage(
 
   const content = await buildMessageContent(message);
   const mediaAttachments = await readMediaAttachments(message);
+  const audioAttachments = await readAudioAttachments(message);
 
-  if (!content && mediaAttachments.length === 0) {
+  if (
+    !content &&
+    mediaAttachments.length === 0 &&
+    audioAttachments.length === 0
+  ) {
     logger.debug(
       { messageId: message.id },
-      "ignored empty message (no text or images)",
+      "ignored empty message (no text, images, or audio)",
     );
     return null;
   }
@@ -302,6 +311,7 @@ async function prepareDiscordMessage(
     scope,
     content,
     mediaAttachments,
+    audioAttachments,
   };
 }
 
@@ -564,8 +574,9 @@ async function buildPromptInput(
   entry: ScopedSessionEntry,
   preparedMessage: PreparedDiscordMessage,
 ): Promise<BuiltPromptInput> {
+  const contentWithAudio = await resolveAudio(preparedMessage, config);
   const resolvedPromptMedia = await resolvePromptMedia(
-    preparedMessage,
+    { ...preparedMessage, content: contentWithAudio },
     entry,
     config,
     agentService,
@@ -606,6 +617,36 @@ async function buildPromptInput(
     rawContent: resolvedPromptMedia.content,
     discordMetadata,
   };
+}
+
+async function resolveAudio(
+  preparedMessage: PreparedDiscordMessage,
+  config: ResolvedDiscordGatewayConfig,
+): Promise<string> {
+  if (preparedMessage.audioAttachments.length === 0) {
+    return preparedMessage.content;
+  }
+
+  if (!config.audioTranscription.enabled) {
+    const names = preparedMessage.audioAttachments
+      .map((a) => a.filename)
+      .join(", ");
+    const note = `\n\n[Audio file(s) received: ${names}]\n(Audio transcription not configured. Set audioTranscription in config to enable.)`;
+    return preparedMessage.content ? preparedMessage.content + note : note;
+  }
+
+  const transcriptText = await transcribeAudioAttachments(
+    preparedMessage.audioAttachments,
+    config.audioTranscription,
+  );
+
+  if (!transcriptText) {
+    return preparedMessage.content;
+  }
+
+  return preparedMessage.content
+    ? `${transcriptText}\n\n---\n${preparedMessage.content}`
+    : transcriptText;
 }
 
 async function resolvePromptMedia(

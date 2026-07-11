@@ -16,6 +16,8 @@ const {
   expandPromptTemplateCommandMock,
   readTextAttachmentsMock,
   readMediaAttachmentsMock,
+  readAudioAttachmentsMock,
+  transcribeAudioAttachmentsMock,
   resolveMediaAttachmentsForPromptMock,
   addReactionMock,
   addWorkingReactionMock,
@@ -34,6 +36,8 @@ const {
     expandPromptTemplateCommandMock: vi.fn(),
     readTextAttachmentsMock: vi.fn(),
     readMediaAttachmentsMock: vi.fn(),
+    readAudioAttachmentsMock: vi.fn(),
+    transcribeAudioAttachmentsMock: vi.fn(),
     resolveMediaAttachmentsForPromptMock: vi.fn(),
     addReactionMock: vi.fn(),
     addWorkingReactionMock: vi.fn(),
@@ -59,6 +63,13 @@ vi.mock("./discord-attachments", () => {
   return {
     readTextAttachments: readTextAttachmentsMock,
     readMediaAttachments: readMediaAttachmentsMock,
+    readAudioAttachments: readAudioAttachmentsMock,
+  };
+});
+
+vi.mock("./audio-transcription", () => {
+  return {
+    transcribeAudioAttachments: transcribeAudioAttachmentsMock,
   };
 });
 
@@ -129,6 +140,13 @@ function createConfig(
     replyReflection: {
       enabled: false,
       maxFollowUpLength: 600,
+    },
+    audioTranscription: {
+      enabled: false,
+      provider: "openai",
+      model: "gpt-4o-mini-transcribe",
+      apiKey: null,
+      endpoint: null,
     },
     discordCommandRegistrationScope: "none",
     discordCommandRegistrationGuildIds: [],
@@ -248,6 +266,8 @@ beforeEach(() => {
   expandPromptTemplateCommandMock.mockReturnValue({ matched: false });
   readTextAttachmentsMock.mockResolvedValue([]);
   readMediaAttachmentsMock.mockResolvedValue([]);
+  readAudioAttachmentsMock.mockResolvedValue([]);
+  transcribeAudioAttachmentsMock.mockResolvedValue(null);
   resolveMediaAttachmentsForPromptMock.mockImplementation(
     async (_media, content) => {
       return {
@@ -462,6 +482,149 @@ describe("handleDiscordMessage", () => {
     expect(generatePostReplyFollowUpMock).not.toHaveBeenCalled();
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
     expect(removeWorkingReactionMock).toHaveBeenCalledWith(message, "⚙️");
+  });
+
+  it("transcribes audio-only messages before running the agent", async () => {
+    const config = createConfig({
+      audioTranscription: {
+        enabled: true,
+        provider: "openai",
+        model: "gpt-4o-mini-transcribe",
+        apiKey: "sk-audio",
+        endpoint: null,
+      },
+    });
+    const session = createSession();
+    const promptQueue = createPromptQueue();
+    const registry = createSessionRegistry({ session, promptQueue });
+    const message = createMessage({ content: "   " });
+    const audioAttachment = {
+      filename: "voice-message.ogg",
+      data: Buffer.from("abc"),
+      mimeType: "audio/ogg",
+      durationSecs: 12,
+    };
+
+    readAudioAttachmentsMock.mockResolvedValue([audioAttachment]);
+    transcribeAudioAttachmentsMock.mockResolvedValue(
+      "[Audio transcription: voice-message.ogg (12s)]\nhello from audio",
+    );
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(transcribeAudioAttachmentsMock).toHaveBeenCalledWith(
+      [audioAttachment],
+      config.audioTranscription,
+    );
+    expect(config.promptTransform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rawContent:
+          "[Audio transcription: voice-message.ogg (12s)]\nhello from audio",
+      }),
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      session,
+      "transformed:[Audio transcription: voice-message.ogg (12s)]\nhello from audio",
+      expect.objectContaining({
+        images: undefined,
+        onToolStart: expect.any(Function),
+        onToolEnd: expect.any(Function),
+      }),
+    );
+  });
+
+  it("keeps audio-only messages usable when transcription is disabled", async () => {
+    const config = createConfig();
+    const session = createSession();
+    const promptQueue = createPromptQueue();
+    const registry = createSessionRegistry({ session, promptQueue });
+    const message = createMessage({ content: "   " });
+
+    readAudioAttachmentsMock.mockResolvedValue([
+      {
+        filename: "voice-message.ogg",
+        data: Buffer.from("abc"),
+        mimeType: "audio/ogg",
+        durationSecs: 12,
+      },
+    ]);
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(transcribeAudioAttachmentsMock).not.toHaveBeenCalled();
+    expect(config.promptTransform).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rawContent: expect.stringContaining(
+          "[Audio file(s) received: voice-message.ogg]",
+        ),
+      }),
+    );
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      session,
+      expect.stringContaining("[Audio file(s) received: voice-message.ogg]"),
+      expect.objectContaining({
+        images: undefined,
+        onToolStart: expect.any(Function),
+        onToolEnd: expect.any(Function),
+      }),
+    );
+  });
+
+  it("forwards audio transcription failure notes into the prompt", async () => {
+    const config = createConfig({
+      audioTranscription: {
+        enabled: true,
+        provider: "openai",
+        model: "gpt-4o-mini-transcribe",
+        apiKey: "sk-audio",
+        endpoint: null,
+      },
+    });
+    const session = createSession();
+    const promptQueue = createPromptQueue();
+    const registry = createSessionRegistry({ session, promptQueue });
+    const message = createMessage({ content: "   " });
+    const audioAttachment = {
+      filename: "voice-message.ogg",
+      data: Buffer.from("abc"),
+      mimeType: "audio/ogg",
+      durationSecs: 12,
+    };
+
+    readAudioAttachmentsMock.mockResolvedValue([audioAttachment]);
+    transcribeAudioAttachmentsMock.mockResolvedValue(
+      "[Audio file received: voice-message.ogg — transcription failed]",
+    );
+
+    await handleDiscordMessage(
+      message as never,
+      config,
+      createAgentService(),
+      registry,
+      accessConfig,
+    );
+
+    expect(runAgentTurnMock).toHaveBeenCalledWith(
+      session,
+      "transformed:[Audio file received: voice-message.ogg — transcription failed]",
+      expect.objectContaining({
+        images: undefined,
+        onToolStart: expect.any(Function),
+        onToolEnd: expect.any(Function),
+      }),
+    );
   });
 
   it("can send one extra post-reply follow-up when second-pass review is enabled", async () => {

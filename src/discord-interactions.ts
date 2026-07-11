@@ -381,9 +381,7 @@ async function handleModalCommandInteraction(
 
 async function executeInteractionCommand(
   interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction,
+    ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
   commandText: string,
   config: ResolvedDiscordGatewayConfig,
   agentService: AgentService,
@@ -494,9 +492,7 @@ function getInteractionCancellationCount(
 
 async function applyInteractionCommandSideEffects(
   interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction,
+    ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
   sessionRegistry: SessionRegistry,
   scope: SessionScope,
   entry: Awaited<ReturnType<SessionRegistry["getOrCreate"]>>["entry"],
@@ -612,9 +608,7 @@ async function executePromptInteraction(
 
 async function sendInteractionCommandResult(
   interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction,
+    ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
   result: CommandResult,
   components: ReturnType<typeof buildInteractionComponents>,
 ): Promise<void> {
@@ -706,9 +700,7 @@ async function sendPromptOutputToChannel(
 
 async function replyUnsupportedInteraction(
   interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction,
+    ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
 ): Promise<void> {
   if (interaction.deferred || interaction.replied) {
     await interaction.editReply({
@@ -728,9 +720,7 @@ async function replyUnsupportedInteraction(
 
 async function replyUnauthorizedInteraction(
   interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction,
+    ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
 ): Promise<void> {
   if (interaction.deferred || interaction.replied) {
     await interaction.editReply({

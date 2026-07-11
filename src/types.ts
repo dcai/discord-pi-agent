@@ -19,14 +19,28 @@ export type PromptTransform = (
 ) => string | Promise<string>;
 
 export type ThinkingLevel =
-  | "off"
-  | "minimal"
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh";
+  "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
 export type CommandRegistrationScope = "none" | "global" | "guild";
+
+export type AudioTranscriptionConfig = {
+  /** Provider for audio transcription (e.g. "openai"). Default: "openai". */
+  provider?: string;
+  /** Model ID for transcription (e.g. "gpt-4o-mini-transcribe"). Default: "gpt-4o-mini-transcribe". */
+  model?: string;
+  /** API key for the transcription service. */
+  apiKey?: string;
+  /** Custom endpoint URL for the transcription API (defaults to provider's standard endpoint). */
+  endpoint?: string;
+};
+
+export type ResolvedAudioTranscriptionConfig = {
+  enabled: boolean;
+  provider: string;
+  model: string;
+  apiKey: string | null;
+  endpoint: string | null;
+};
 
 export type ReplyReflectionConfig =
   | boolean
@@ -71,6 +85,12 @@ export type DiscordGatewayConfig = {
   discordCommandPrefixes?: string[];
   /** Optional second-pass reflection that can send one extra follow-up message. */
   replyReflection?: ReplyReflectionConfig;
+  /** Audio transcription config. Enabled by default.
+   * Audio attachments (.mp3, .wav, etc.) are transcribed to text via a
+   * third-party API and included in the prompt.
+   * Set to false to disable.
+   * Default model: gpt-4o-mini-transcribe (cheapest + better WER than whisper-1). */
+  audioTranscription?: AudioTranscriptionConfig | false;
   /**
    * Optional slash command sync mode.
    * - "none": do not auto-register commands
@@ -100,13 +120,7 @@ export type DailyAtTaskSchedule = {
 };
 
 export type TaskScheduleDayOfWeek =
-  | "sun"
-  | "mon"
-  | "tue"
-  | "wed"
-  | "thu"
-  | "fri"
-  | "sat";
+  "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 
 export type TaskSchedule = EveryMinutesTaskSchedule | DailyAtTaskSchedule;
 
@@ -200,6 +214,7 @@ export type ResolvedDiscordGatewayConfig = {
   discordAllowedUserIds: string[];
   discordCommandPrefixes: string[];
   replyReflection: ResolvedReplyReflectionConfig;
+  audioTranscription: ResolvedAudioTranscriptionConfig;
   discordCommandRegistrationScope: CommandRegistrationScope;
   discordCommandRegistrationGuildIds: string[];
 };

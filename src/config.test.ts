@@ -56,6 +56,13 @@ function withEnv(
       process.env.DISCORD_COMMAND_REGISTRATION_SCOPE,
     DISCORD_COMMAND_REGISTRATION_GUILD_IDS:
       process.env.DISCORD_COMMAND_REGISTRATION_GUILD_IDS,
+    PI_AUDIO_TRANSCRIPTION_ENABLED: process.env.PI_AUDIO_TRANSCRIPTION_ENABLED,
+    PI_AUDIO_TRANSCRIPTION_API_KEY: process.env.PI_AUDIO_TRANSCRIPTION_API_KEY,
+    PI_AUDIO_TRANSCRIPTION_PROVIDER:
+      process.env.PI_AUDIO_TRANSCRIPTION_PROVIDER,
+    PI_AUDIO_TRANSCRIPTION_MODEL: process.env.PI_AUDIO_TRANSCRIPTION_MODEL,
+    PI_AUDIO_TRANSCRIPTION_ENDPOINT:
+      process.env.PI_AUDIO_TRANSCRIPTION_ENDPOINT,
   };
 
   Object.entries(env).forEach(([key, value]) => {
@@ -127,6 +134,13 @@ describe("config", () => {
         maxFollowUpLength: 600,
         instructions: undefined,
       });
+      expect(config.audioTranscription).toEqual({
+        enabled: true,
+        provider: "openai",
+        model: "gpt-4o-mini-transcribe",
+        apiKey: null,
+        endpoint: null,
+      });
       expect(config.discordCommandRegistrationScope).toBe("none");
       expect(config.discordCommandRegistrationGuildIds).toEqual([]);
       expect(
@@ -171,6 +185,12 @@ describe("config", () => {
             maxFollowUpLength: 280,
             instructions: " Be warm when effort deserves encouragement. ",
           },
+          audioTranscription: {
+            provider: " custom-provider ",
+            model: " whisper-2 ",
+            apiKey: " sk-custom-key ",
+            endpoint: " https://custom.example.com/transcribe ",
+          },
           discordCommandRegistrationScope: "guild",
           discordCommandRegistrationGuildIds: ["guild-1", "guild-2"],
         }),
@@ -194,11 +214,48 @@ describe("config", () => {
         maxFollowUpLength: 280,
         instructions: "Be warm when effort deserves encouragement.",
       });
+      expect(config.audioTranscription).toEqual({
+        enabled: true,
+        provider: "custom-provider",
+        model: "whisper-2",
+        apiKey: "sk-custom-key",
+        endpoint: "https://custom.example.com/transcribe",
+      });
       expect(config.discordCommandRegistrationScope).toBe("guild");
       expect(config.discordCommandRegistrationGuildIds).toEqual([
         "guild-1",
         "guild-2",
       ]);
+    });
+
+    it("disables audio transcription when passed false", () => {
+      const config = resolveConfig(
+        createBaseConfig({
+          audioTranscription: false,
+        }),
+      );
+
+      expect(config.audioTranscription).toEqual({
+        enabled: false,
+        provider: "openai",
+        model: "gpt-4o-mini-transcribe",
+        apiKey: null,
+        endpoint: null,
+      });
+    });
+
+    it("rejects unsupported audio providers without an explicit endpoint", () => {
+      expect(() => {
+        resolveConfig(
+          createBaseConfig({
+            audioTranscription: {
+              provider: "gemini",
+            },
+          }),
+        );
+      }).toThrow(
+        'audioTranscription.provider currently only supports "openai" unless audioTranscription.endpoint is set.',
+      );
     });
 
     it("uses prompt defaults from env when prompt settings are omitted", () => {
@@ -275,6 +332,10 @@ describe("config", () => {
           DISCORD_REPLY_REFLECTION_MAX_FOLLOW_UP_LENGTH: "420",
           DISCORD_COMMAND_REGISTRATION_SCOPE: "guild",
           DISCORD_COMMAND_REGISTRATION_GUILD_IDS: "guild-1, guild-2",
+          PI_AUDIO_TRANSCRIPTION_ENABLED: "true",
+          PI_AUDIO_TRANSCRIPTION_API_KEY: "env-audio-key",
+          PI_AUDIO_TRANSCRIPTION_PROVIDER: "openai",
+          PI_AUDIO_TRANSCRIPTION_MODEL: "gpt-4o-mini-transcribe",
         },
         () => {
           const config = loadDiscordGatewayConfigFromEnv();
@@ -308,6 +369,35 @@ describe("config", () => {
             "guild-1",
             "guild-2",
           ]);
+          expect(config.audioTranscription).toEqual({
+            enabled: true,
+            provider: "openai",
+            model: "gpt-4o-mini-transcribe",
+            apiKey: "env-audio-key",
+            endpoint: null,
+          });
+        },
+      );
+    });
+
+    it("loads audio transcription from env with defaults", () => {
+      withEnv(
+        {
+          DISCORD_BOT_TOKEN: "env-token",
+          DISCORD_ALLOWED_USER_ID: "env-user",
+          PI_AGENT_CWD: "/env-repo",
+          PI_AUDIO_TRANSCRIPTION_API_KEY: "sk-audio-key",
+        },
+        () => {
+          const config = loadDiscordGatewayConfigFromEnv();
+
+          expect(config.audioTranscription).toEqual({
+            enabled: true,
+            provider: "openai",
+            model: "gpt-4o-mini-transcribe",
+            apiKey: "sk-audio-key",
+            endpoint: null,
+          });
         },
       );
     });
@@ -350,6 +440,27 @@ describe("config", () => {
             instructions: "Add confidence-building support when it helps.",
           });
           expect(config.discordCommandRegistrationScope).toBe("global");
+        },
+      );
+    });
+
+    it("lets env disable audio transcription explicitly", () => {
+      withEnv(
+        {
+          DISCORD_BOT_TOKEN: "env-token",
+          DISCORD_ALLOWED_USER_ID: "env-user",
+          PI_AGENT_CWD: "/env-repo",
+          PI_AUDIO_TRANSCRIPTION_ENABLED: "false",
+          PI_AUDIO_TRANSCRIPTION_API_KEY: "sk-audio-key",
+        },
+        () => {
+          expect(loadDiscordGatewayConfigFromEnv().audioTranscription).toEqual({
+            enabled: false,
+            provider: "openai",
+            model: "gpt-4o-mini-transcribe",
+            apiKey: null,
+            endpoint: null,
+          });
         },
       );
     });

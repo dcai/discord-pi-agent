@@ -31,6 +31,7 @@ export {
 } from "./scheduled-job-loader";
 export type {
   AgentStatus,
+  AudioTranscriptionConfig,
   CommandRegistrationScope,
   DiscordGateway,
   DiscordGatewayConfig,

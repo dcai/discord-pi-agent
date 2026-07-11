@@ -267,9 +267,7 @@ export function buildCommandTextFromInteraction(
 
 export function buildInteractionComponents(
   interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction,
+    ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
   commandResult: CommandResult,
   hasTaskScheduler: boolean,
 ) {

@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  isSupportedAudioAttachment,
   isSupportedMediaAttachment,
   isSupportedTextAttachment,
+  readAudioAttachments,
   readMediaAttachments,
   readTextAttachments,
 } from "./discord-attachments";
@@ -196,6 +198,152 @@ describe("discord-attachments", () => {
               contentType: "image/png",
               size: 10,
               url: "https://example.com/throw.png",
+            },
+          ]) as never,
+        ),
+      ).resolves.toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("isSupportedAudioAttachment", () => {
+    it("accepts audio attachments with matching content type and extension", () => {
+      expect(
+        isSupportedAudioAttachment({
+          name: "voice-message.ogg",
+          contentType: "audio/ogg",
+        }),
+      ).toBe(true);
+      expect(
+        isSupportedAudioAttachment({
+          name: "recording.mp3",
+          contentType: "audio/mpeg",
+        }),
+      ).toBe(true);
+    });
+
+    it("rejects non-audio content types", () => {
+      expect(
+        isSupportedAudioAttachment({
+          name: "photo.png",
+          contentType: "image/png",
+        }),
+      ).toBe(false);
+    });
+
+    it("rejects audio content type with unsupported extension", () => {
+      expect(
+        isSupportedAudioAttachment({
+          name: "sound.aiff",
+          contentType: "audio/aiff",
+        }),
+      ).toBe(false);
+    });
+
+    it("rejects null content type", () => {
+      expect(
+        isSupportedAudioAttachment({
+          name: "voice-message.ogg",
+          contentType: null,
+        }),
+      ).toBe(false);
+    });
+
+    it("rejects null name", () => {
+      expect(
+        isSupportedAudioAttachment({
+          name: null,
+          contentType: "audio/ogg",
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe("readAudioAttachments", () => {
+    it("returns empty when no attachments", async () => {
+      await expect(
+        readAudioAttachments(createMessage([]) as never),
+      ).resolves.toEqual([]);
+    });
+
+    it("fetches audio attachments with duration", async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode("audio-data").buffer,
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        readAudioAttachments(
+          createMessage([
+            {
+              name: "voice-message.ogg",
+              contentType: "audio/ogg",
+              size: 1000,
+              url: "https://example.com/voice.ogg",
+              duration: 12.5,
+            },
+          ]) as never,
+        ),
+      ).resolves.toEqual([
+        {
+          filename: "voice-message.ogg",
+          data: Buffer.from("audio-data"),
+          mimeType: "audio/ogg",
+          durationSecs: 12.5,
+        },
+      ]);
+    });
+
+    it("skips non-audio and oversized attachments", async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode("data").buffer,
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        readAudioAttachments(
+          createMessage([
+            {
+              name: "photo.png",
+              contentType: "image/png",
+              size: 10,
+              url: "https://example.com/photo.png",
+            },
+            {
+              name: "huge.ogg",
+              contentType: "audio/ogg",
+              size: 30 * 1024 * 1024,
+              url: "https://example.com/huge.ogg",
+            },
+          ]) as never,
+        ),
+      ).resolves.toEqual([]);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("handles failed fetches gracefully", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 500 })
+        .mockRejectedValueOnce(new Error("network error"));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        readAudioAttachments(
+          createMessage([
+            {
+              name: "bad.ogg",
+              contentType: "audio/ogg",
+              size: 10,
+              url: "https://example.com/bad.ogg",
+            },
+            {
+              name: "throw.ogg",
+              contentType: "audio/ogg",
+              size: 10,
+              url: "https://example.com/throw.ogg",
             },
           ]) as never,
         ),

@@ -93,7 +93,10 @@ export function chunkMessage(
  * For everything else, splits on newline boundaries.
  * Falls back to character-level split if no clean break found.
  */
-function splitOversizedToken(token: Tokens.Generic, maxChunkSize: number): string[] {
+function splitOversizedToken(
+  token: Tokens.Generic,
+  maxChunkSize: number,
+): string[] {
   const raw = token.raw;
   const chunks: string[] = [];
   let offset = 0;

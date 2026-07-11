@@ -15,6 +15,25 @@ Reusable Discord gateway for persistent pi agent sessions — DM and forum chann
 - can optionally self-review a reply and send one extra proactive follow-up
 - can run in Discord-only, scheduler-only, or combined mode
 
+## Attachment handling
+
+This package uses separate mechanisms for different file types:
+
+```text
+text attachment      -> read directly as text
+image / PDF / doc    -> media resolution path
+                       -> pi vision-capable model or configured vision fallback
+audio / voice msg    -> audio transcription path
+                       -> OpenAI-compatible transcription API
+```
+
+Important:
+
+- media understanding and audio transcription are **not** the same path
+- images and documents go through `discord-media-resolution.ts`
+- audio files and Discord voice messages go through `audio-transcription.ts`
+- this split is intentional because the current pi SDK flow in this repo supports image input, while audio currently uses a separate transcription API
+
 ## Built-in commands
 
 - `!help`
@@ -354,6 +373,14 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
   - `true` enables it with defaults
   - `{ enabled: true, maxFollowUpLength: 280 }` enables it with an explicit follow-up length cap
   - `{ enabled: true, instructions: "..." }` adds host-specific review guidance while the follow-up XML contract stays library-owned
+- `audioTranscription` default: enabled — audio attachments and Discord voice messages are transcribed to text through a separate OpenAI-compatible audio transcription API
+  - omit it to use the default enabled config
+  - set `false` to disable it entirely
+  - `{ provider: "openai", model: "gpt-4o-mini-transcribe", apiKey: "sk-..." }` customizes the enabled config
+  - optional `endpoint` for custom/self-hosted or non-OpenAI-compatible services
+  - `provider` currently auto-supports `openai`; for anything else, set `endpoint` explicitly
+  - this is separate from `visionModelId` and the media resolution path
+  - if disabled when an audio file arrives, the bot notes that audio was received but not transcribed
 - `discordCommandRegistrationScope` default: `"none"`
 - `discordCommandRegistrationGuildIds` default: `[]`
 - scheduler via `startDiscordGateway(config, { scheduler: { jobsFile } })`
@@ -421,6 +448,11 @@ Pretty console logs use:
 - `DISCORD_COMMAND_PREFIXES` — comma-separated command prefixes (example: `!, ;`)
 - `DISCORD_REPLY_REFLECTION` — `true` or `false` to enable one proactive second-pass follow-up
 - `DISCORD_REPLY_REFLECTION_MAX_FOLLOW_UP_LENGTH` — optional positive integer character limit for proactive follow-ups
+- `PI_AUDIO_TRANSCRIPTION_ENABLED` — optional override; set to `false` to disable audio transcription explicitly
+- `PI_AUDIO_TRANSCRIPTION_API_KEY` — API key for the transcription service
+- `PI_AUDIO_TRANSCRIPTION_PROVIDER` — provider name (defaults to `openai`)
+- `PI_AUDIO_TRANSCRIPTION_MODEL` — model ID (defaults to `gpt-4o-mini-transcribe`)
+- `PI_AUDIO_TRANSCRIPTION_ENDPOINT` — optional custom endpoint URL
 - `DISCORD_COMMAND_REGISTRATION_SCOPE` — `none`, `global`, or `guild`
 - `DISCORD_COMMAND_REGISTRATION_GUILD_IDS` — comma-separated guild IDs for guild-scoped slash-command sync
 

@@ -185,7 +185,9 @@ describe("generatePostReplyFollowUp", () => {
 
   it("includes host review instructions without exposing the XML contract", async () => {
     const agentService = createAgentService();
-    runAgentTurnMock.mockResolvedValue("<follow_up>Nice work sticking with it.</follow_up>");
+    runAgentTurnMock.mockResolvedValue(
+      "<follow_up>Nice work sticking with it.</follow_up>",
+    );
 
     await generatePostReplyFollowUp({
       config: createConfig({

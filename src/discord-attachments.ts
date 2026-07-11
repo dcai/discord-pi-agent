@@ -36,6 +36,10 @@ const MEDIA_ATTACHMENT_EXTENSIONS = [
 
 const MAX_MEDIA_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024;
 
+const AUDIO_EXTENSIONS = [".ogg", ".mp3", ".wav", ".flac", ".m4a", ".webm"];
+
+const MAX_AUDIO_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024;
+
 const OFFICE_MIME_TYPES = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -55,6 +59,14 @@ export type MediaAttachmentContent = {
   filename: string;
   data: string;
   mimeType: string;
+};
+
+export type AudioAttachmentContent = {
+  filename: string;
+  data: Buffer;
+  mimeType: string;
+  /** Duration in seconds, available for Discord voice messages. */
+  durationSecs: number | null;
 };
 
 export function isSupportedTextAttachment(attachment: {
@@ -145,6 +157,94 @@ export async function readTextAttachments(
       logger.error(
         { messageId: message.id, filename: attachment.name, error },
         "error fetching attachment",
+      );
+    }
+  }
+
+  return results;
+}
+
+export function isSupportedAudioAttachment(attachment: {
+  name: string | null;
+  contentType: string | null;
+}): boolean {
+  const contentType = attachment.contentType;
+  if (!contentType) {
+    return false;
+  }
+
+  if (!contentType.startsWith("audio/")) {
+    return false;
+  }
+
+  const ext = attachment.name
+    ?.slice(attachment.name.lastIndexOf("."))
+    .toLowerCase();
+
+  return Boolean(ext && AUDIO_EXTENSIONS.includes(ext));
+}
+
+export async function readAudioAttachments(
+  message: Message,
+): Promise<AudioAttachmentContent[]> {
+  const attachments = message.attachments;
+  if (attachments.size === 0) {
+    return [];
+  }
+
+  const results: AudioAttachmentContent[] = [];
+
+  for (const [, attachment] of attachments) {
+    if (!isSupportedAudioAttachment(attachment)) {
+      continue;
+    }
+
+    if (attachment.size > MAX_AUDIO_ATTACHMENT_SIZE_BYTES) {
+      logger.warn(
+        {
+          messageId: message.id,
+          filename: attachment.name,
+          size: attachment.size,
+        },
+        "audio attachment too large, skipping",
+      );
+      continue;
+    }
+
+    try {
+      logger.info(
+        {
+          messageId: message.id,
+          filename: attachment.name,
+          size: attachment.size,
+          duration: attachment.duration,
+        },
+        "fetching audio attachment",
+      );
+      const response = await fetch(attachment.url);
+      if (!response.ok) {
+        logger.warn(
+          {
+            messageId: message.id,
+            filename: attachment.name,
+            status: response.status,
+          },
+          "failed to fetch audio attachment",
+        );
+        continue;
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      results.push({
+        filename: attachment.name,
+        data: buffer,
+        mimeType: attachment.contentType ?? "audio/ogg",
+        durationSecs: attachment.duration ?? null,
+      });
+    } catch (error) {
+      logger.error(
+        { messageId: message.id, filename: attachment.name, error },
+        "error fetching audio attachment",
       );
     }
   }

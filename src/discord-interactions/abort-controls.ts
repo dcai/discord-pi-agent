@@ -40,9 +40,7 @@ export function parseAbortButtonScope(customId: string): SessionScope | null {
 
 export async function showAbortControlReply(
   interaction:
-    | ChatInputCommandInteraction
-    | ButtonInteraction
-    | ModalSubmitInteraction,
+    ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
   abortControl: AbortControl,
   queue?: PromptQueue | null,
 ): Promise<void> {
@@ -61,7 +59,11 @@ export function resolveAbortControlQueue(
   abortControl: AbortControl,
   sessionRegistry: SessionRegistry,
 ): PromptQueue | null {
-  return sessionRegistry.get(abortControl.scope)?.promptQueue ?? abortControl.queue ?? null;
+  return (
+    sessionRegistry.get(abortControl.scope)?.promptQueue ??
+    abortControl.queue ??
+    null
+  );
 }
 
 export async function abortInteractionScope(

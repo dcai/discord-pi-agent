@@ -7,13 +7,18 @@ import {
   getDefaultPromptTimeZone,
 } from "./prompt-context";
 import type {
+  AudioTranscriptionConfig,
   CommandRegistrationScope,
   DiscordGatewayConfig,
   ReplyReflectionConfig,
+  ResolvedAudioTranscriptionConfig,
   ResolvedDiscordGatewayConfig,
   ResolvedReplyReflectionConfig,
   ThinkingLevel,
 } from "./types";
+
+const DEFAULT_AUDIO_TRANSCRIPTION_PROVIDER = "openai";
+const DEFAULT_AUDIO_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
 
 export function resolveConfig(
   config: DiscordGatewayConfig,
@@ -32,6 +37,9 @@ export function resolveConfig(
     config.promptTimeZone?.trim() || getDefaultPromptTimeZone();
   const promptLocale = config.promptLocale?.trim() || getDefaultPromptLocale();
   const replyReflection = resolveReplyReflectionConfig(config.replyReflection);
+  const audioTranscription = resolveAudioTranscriptionConfig(
+    config.audioTranscription,
+  );
 
   if (
     discordCommandRegistrationScope === "guild" &&
@@ -79,6 +87,7 @@ export function resolveConfig(
       config.discordCommandPrefixes,
     ),
     replyReflection,
+    audioTranscription,
     discordCommandRegistrationScope,
     discordCommandRegistrationGuildIds,
   };
@@ -93,6 +102,7 @@ export function loadDiscordGatewayConfigFromEnv(
   const envReplyReflectionMaxFollowUpLength = readNumberFromEnv(
     "DISCORD_REPLY_REFLECTION_MAX_FOLLOW_UP_LENGTH",
   );
+  const envAudioTranscription = buildAudioTranscriptionConfigFromEnv();
 
   return resolveConfig({
     discordBotToken:
@@ -130,6 +140,7 @@ export function loadDiscordGatewayConfigFromEnv(
         envReplyReflection,
         envReplyReflectionMaxFollowUpLength,
       ),
+    audioTranscription: overrides.audioTranscription ?? envAudioTranscription,
     discordCommandRegistrationScope:
       parseCommandRegistrationScope(
         overrides.discordCommandRegistrationScope ??
@@ -312,6 +323,30 @@ function normalizeOptionalText(value: string | undefined): string | undefined {
   return trimmedValue;
 }
 
+function buildAudioTranscriptionConfigFromEnv():
+  AudioTranscriptionConfig | false | undefined {
+  const enabled = readBooleanFromEnv("PI_AUDIO_TRANSCRIPTION_ENABLED");
+  const provider = process.env.PI_AUDIO_TRANSCRIPTION_PROVIDER?.trim();
+  const model = process.env.PI_AUDIO_TRANSCRIPTION_MODEL?.trim();
+  const apiKey = process.env.PI_AUDIO_TRANSCRIPTION_API_KEY?.trim();
+  const endpoint = process.env.PI_AUDIO_TRANSCRIPTION_ENDPOINT?.trim();
+
+  if (enabled === false) {
+    return false;
+  }
+
+  if (enabled !== true && !provider && !model && !apiKey && !endpoint) {
+    return undefined;
+  }
+
+  return {
+    provider: provider || undefined,
+    model: model || undefined,
+    apiKey: apiKey || undefined,
+    endpoint: endpoint || undefined,
+  };
+}
+
 function parseStringArrayFromEnv(key: string): string[] | undefined {
   const value = process.env[key];
   if (!value) {
@@ -322,6 +357,64 @@ function parseStringArrayFromEnv(key: string): string[] | undefined {
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
+}
+
+function resolveAudioTranscriptionConfig(
+  value: AudioTranscriptionConfig | false | undefined,
+): ResolvedAudioTranscriptionConfig {
+  if (value === false) {
+    return createDisabledAudioTranscriptionConfig();
+  }
+
+  if (!value) {
+    return createEnabledAudioTranscriptionConfig({});
+  }
+
+  const provider = normalizeAudioTranscriptionProvider(value.provider);
+  const endpoint = normalizeOptionalText(value.endpoint) ?? null;
+
+  if (provider !== DEFAULT_AUDIO_TRANSCRIPTION_PROVIDER && !endpoint) {
+    throw new Error(
+      'audioTranscription.provider currently only supports "openai" unless audioTranscription.endpoint is set.',
+    );
+  }
+
+  return createEnabledAudioTranscriptionConfig({
+    provider,
+    model:
+      normalizeOptionalText(value.model) ?? DEFAULT_AUDIO_TRANSCRIPTION_MODEL,
+    apiKey: normalizeOptionalText(value.apiKey) ?? null,
+    endpoint,
+  });
+}
+
+function createEnabledAudioTranscriptionConfig(
+  overrides: Partial<ResolvedAudioTranscriptionConfig>,
+): ResolvedAudioTranscriptionConfig {
+  return {
+    enabled: true,
+    provider: DEFAULT_AUDIO_TRANSCRIPTION_PROVIDER,
+    model: DEFAULT_AUDIO_TRANSCRIPTION_MODEL,
+    apiKey: null,
+    endpoint: null,
+    ...overrides,
+  };
+}
+
+function createDisabledAudioTranscriptionConfig(): ResolvedAudioTranscriptionConfig {
+  return {
+    enabled: false,
+    provider: DEFAULT_AUDIO_TRANSCRIPTION_PROVIDER,
+    model: DEFAULT_AUDIO_TRANSCRIPTION_MODEL,
+    apiKey: null,
+    endpoint: null,
+  };
+}
+
+function normalizeAudioTranscriptionProvider(
+  value: string | undefined,
+): string {
+  return value?.trim().toLowerCase() || DEFAULT_AUDIO_TRANSCRIPTION_PROVIDER;
 }
 
 function normalizeCommandPrefixes(prefixes: string[] | undefined): string[] {
