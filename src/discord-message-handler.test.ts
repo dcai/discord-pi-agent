@@ -155,6 +155,7 @@ function createConfig(
       model: "gpt-4o-mini-transcribe",
       apiKey: null,
       endpoint: null,
+      echoToDiscord: true,
     },
     discordCommandRegistrationScope: "none",
     discordCommandRegistrationGuildIds: [],
@@ -501,6 +502,7 @@ describe("handleDiscordMessage", () => {
         model: "gpt-4o-mini-transcribe",
         apiKey: "sk-audio",
         endpoint: null,
+        echoToDiscord: true,
       },
     });
     const session = createSession();
@@ -543,6 +545,10 @@ describe("handleDiscordMessage", () => {
           "[Audio transcription: voice-message.ogg (12s)]\nHello from audio.",
       }),
     );
+    expect(sendFollowUpMock).toHaveBeenCalledWith(
+      message,
+      "Transcript:\n> Hello from audio.",
+    );
     expect(runAgentTurnMock).toHaveBeenCalledWith(
       session,
       "transformed:[Audio transcription: voice-message.ogg (12s)]\nHello from audio.",
@@ -562,6 +568,7 @@ describe("handleDiscordMessage", () => {
         model: "gpt-4o-mini-transcribe",
         apiKey: null,
         endpoint: null,
+        echoToDiscord: false,
       },
     });
     const session = createSession();
@@ -588,6 +595,7 @@ describe("handleDiscordMessage", () => {
 
     expect(transcribeAudioMock).not.toHaveBeenCalled();
     expect(postProcessAudioTranscriptMock).not.toHaveBeenCalled();
+    expect(sendFollowUpMock).not.toHaveBeenCalled();
     expect(config.promptTransform).toHaveBeenCalledWith(
       expect.objectContaining({
         rawContent: expect.stringContaining(
@@ -606,7 +614,7 @@ describe("handleDiscordMessage", () => {
     );
   });
 
-  it("forwards audio transcription failure notes into the prompt", async () => {
+  it("falls back to the raw transcript and still echoes it", async () => {
     const config = createConfig({
       audioTranscription: {
         enabled: true,
@@ -614,6 +622,7 @@ describe("handleDiscordMessage", () => {
         model: "gpt-4o-mini-transcribe",
         apiKey: "sk-audio",
         endpoint: null,
+        echoToDiscord: true,
       },
     });
     const session = createSession();
@@ -639,6 +648,10 @@ describe("handleDiscordMessage", () => {
       accessConfig,
     );
 
+    expect(sendFollowUpMock).toHaveBeenCalledWith(
+      message,
+      "Transcript:\n> hello from audio",
+    );
     expect(runAgentTurnMock).toHaveBeenCalledWith(
       session,
       "transformed:[Audio transcription: voice-message.ogg (12s)]\nhello from audio",

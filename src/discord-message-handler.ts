@@ -68,6 +68,7 @@ type BuiltPromptInput = {
   images: ImageContent[] | undefined;
   rawContent: string;
   discordMetadata: string;
+  transcriptEchoes: string[];
 };
 
 /**
@@ -468,6 +469,8 @@ async function processAgentPrompt(
         preparedMessage,
       );
 
+      await sendAudioTranscriptEchoes(message, promptInput.transcriptEchoes);
+
       const response = await runAgentTurn(entry.session, promptInput.prompt, {
         images: promptInput.images,
         onToolStart: async ({ toolName, toolCallId }) => {
@@ -575,14 +578,14 @@ async function buildPromptInput(
   entry: ScopedSessionEntry,
   preparedMessage: PreparedDiscordMessage,
 ): Promise<BuiltPromptInput> {
-  const contentWithAudio = await resolveAudio(
+  const resolvedAudio = await resolveAudio(
     preparedMessage,
     config,
     agentService,
     entry.session.model,
   );
   const resolvedPromptMedia = await resolvePromptMedia(
-    { ...preparedMessage, content: contentWithAudio },
+    { ...preparedMessage, content: resolvedAudio.content },
     entry,
     config,
     agentService,
@@ -622,17 +625,26 @@ async function buildPromptInput(
         : undefined,
     rawContent: resolvedPromptMedia.content,
     discordMetadata,
+    transcriptEchoes: resolvedAudio.transcriptEchoes,
   };
 }
+
+type ResolvedAudioContent = {
+  content: string;
+  transcriptEchoes: string[];
+};
 
 async function resolveAudio(
   preparedMessage: PreparedDiscordMessage,
   config: ResolvedDiscordGatewayConfig,
   agentService: AgentService,
   sourceModel: { provider: string; id: string } | undefined,
-): Promise<string> {
+): Promise<ResolvedAudioContent> {
   if (preparedMessage.audioAttachments.length === 0) {
-    return preparedMessage.content;
+    return {
+      content: preparedMessage.content,
+      transcriptEchoes: [],
+    };
   }
 
   if (!config.audioTranscription.enabled) {
@@ -640,10 +652,14 @@ async function resolveAudio(
       .map((a) => a.filename)
       .join(", ");
     const note = `\n\n[Audio file(s) received: ${names}]\n(Audio transcription is disabled in config.)`;
-    return preparedMessage.content ? preparedMessage.content + note : note;
+    return {
+      content: preparedMessage.content ? preparedMessage.content + note : note,
+      transcriptEchoes: [],
+    };
   }
 
   const transcriptBlocks: string[] = [];
+  const transcriptEchoes: string[] = [];
 
   for (const audioAttachment of preparedMessage.audioAttachments) {
     const rawTranscript = await transcribeAudio(
@@ -670,16 +686,61 @@ async function resolveAudio(
     transcriptBlocks.push(
       `${buildAudioAttachmentLabel(audioAttachment.filename, audioAttachment.durationSecs)}\n${finalTranscript}`,
     );
+
+    if (config.audioTranscription.echoToDiscord) {
+      transcriptEchoes.push(
+        buildAudioTranscriptEcho(
+          audioAttachment.filename,
+          finalTranscript,
+          audioAttachment.durationSecs,
+          preparedMessage.audioAttachments.length > 1,
+        ),
+      );
+    }
   }
 
   if (transcriptBlocks.length === 0) {
-    return preparedMessage.content;
+    return {
+      content: preparedMessage.content,
+      transcriptEchoes,
+    };
   }
 
   const transcriptText = transcriptBlocks.join("\n\n");
-  return preparedMessage.content
-    ? `${transcriptText}\n\n---\n${preparedMessage.content}`
-    : transcriptText;
+  return {
+    content: preparedMessage.content
+      ? `${transcriptText}\n\n---\n${preparedMessage.content}`
+      : transcriptText,
+    transcriptEchoes,
+  };
+}
+
+async function sendAudioTranscriptEchoes(
+  message: Message,
+  transcriptEchoes: string[],
+): Promise<void> {
+  for (const transcriptEcho of transcriptEchoes) {
+    await sendFollowUp(message, transcriptEcho);
+  }
+}
+
+function buildAudioTranscriptEcho(
+  filename: string,
+  transcript: string,
+  durationSecs: number | null,
+  includeFilename: boolean,
+): string {
+  const title = includeFilename
+    ? `Transcript (${filename}${durationSecs !== null ? `, ${formatAudioDuration(durationSecs)}` : ""}):`
+    : "Transcript:";
+  const quotedTranscript = transcript
+    .split("\n")
+    .map((line) => {
+      return `> ${line}`;
+    })
+    .join("\n");
+
+  return `${title}\n${quotedTranscript}`;
 }
 
 function buildAudioAttachmentLabel(

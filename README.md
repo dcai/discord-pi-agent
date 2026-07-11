@@ -36,6 +36,7 @@ Important:
 - audio files and Discord voice messages go through `audio-transcription.ts`
 - transcript cleanup then goes through `audio-transcript-post-process.ts`
 - the final prompt gets the cleaned transcript only
+- by default, the cleaned transcript is also echoed back into Discord as a quick reference
 - this split is intentional because the current pi SDK flow in this repo supports image input, while audio still needs a separate transcription API before the Pi cleanup pass
 
 ## Built-in commands
@@ -380,9 +381,10 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
 - `audioTranscription` default: enabled — audio attachments and Discord voice messages are transcribed to text through a separate OpenAI-compatible audio transcription API, then cleaned through a Pi temporary-session pass before reaching the main agent
   - omit it to use the default enabled config
   - set `false` to disable it entirely
-  - `{ provider: "openai", model: "gpt-4o-mini-transcribe", apiKey: "sk-..." }` customizes the enabled config
+  - `{ provider: "openai", model: "gpt-4o-mini-transcribe", apiKey: process.env.PI_AUDIO_TRANSCRIPTION_API_KEY }` customizes the enabled config
   - optional `endpoint` for custom/self-hosted or non-OpenAI-compatible services
   - optional `prompt` adds host guidance for transcript cleanup while keeping the same language as the source transcript
+  - optional `echoToDiscord` controls whether the cleaned transcript is echoed back into Discord as a quick reference (default: `true`)
   - `provider` currently auto-supports `openai`; for anything else, set `endpoint` explicitly
   - this is separate from `visionModelId` and the media resolution path
   - if disabled when an audio file arrives, the bot notes that audio was received but not transcribed
@@ -437,7 +439,10 @@ Pretty console logs use:
 
 ## Env helpers
 
-`loadDiscordGatewayConfigFromEnv()` — the config loader:
+`loadDiscordGatewayConfigFromEnv()` only loads basic boot/runtime values.
+Feature behavior should be configured in code through the config object.
+
+The config loader reads:
 
 - `DISCORD_BOT_TOKEN`
 - `DISCORD_ALLOWED_USER_ID`
@@ -447,23 +452,22 @@ Pretty console logs use:
 - `PI_MODEL_ID`
 - `PI_PROMPT_TIME_ZONE`
 - `PI_PROMPT_LOCALE`
-- `DISCORD_STARTUP_MESSAGE`
 - `DISCORD_FORUM_CHANNEL_IDS` — comma-separated forum channel IDs
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated allowed user IDs
 - `DISCORD_COMMAND_PREFIXES` — comma-separated command prefixes (example: `!, ;`)
-- `DISCORD_REPLY_REFLECTION` — `true` or `false` to enable one proactive second-pass follow-up
-- `DISCORD_REPLY_REFLECTION_MAX_FOLLOW_UP_LENGTH` — optional positive integer character limit for proactive follow-ups
-- `PI_AUDIO_TRANSCRIPTION_ENABLED` — optional override; set to `false` to disable audio transcription explicitly
-- `PI_AUDIO_TRANSCRIPTION_API_KEY` — API key for the transcription service
-- `PI_AUDIO_TRANSCRIPTION_PROVIDER` — provider name (defaults to `openai`)
-- `PI_AUDIO_TRANSCRIPTION_MODEL` — model ID (defaults to `gpt-4o-mini-transcribe`)
-- `PI_AUDIO_TRANSCRIPTION_ENDPOINT` — optional custom endpoint URL
-- `PI_AUDIO_TRANSCRIPTION_PROMPT` — optional extra prompt guidance for transcript cleanup
 - `DISCORD_COMMAND_REGISTRATION_SCOPE` — `none`, `global`, or `guild`
 - `DISCORD_COMMAND_REGISTRATION_GUILD_IDS` — comma-separated guild IDs for guild-scoped slash-command sync
 
 If `PI_AGENT_CWD` is missing it falls back to `process.cwd()`.
-Set `DISCORD_STARTUP_MESSAGE=false` to disable the startup DM.
+
+For behavior config like `startupMessage`, `replyReflection`, and most of `audioTranscription`, pass values directly in the host app config object.
+
+For audio transcription secrets specifically, the loader will automatically use:
+
+- `PI_AUDIO_TRANSCRIPTION_API_KEY`
+- `OPENAI_API_KEY` fallback
+
+if `audioTranscription.apiKey` is not set in code.
 
 ## Thinking Levels
 

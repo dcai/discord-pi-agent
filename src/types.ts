@@ -35,6 +35,9 @@ export type AudioTranscriptionConfig = {
   /** Optional extra prompt guidance for transcript cleanup.
    * The cleanup pass keeps the same language and returns only the cleaned text. */
   prompt?: string;
+  /** Whether to send the cleaned transcript back into Discord as a quick reference.
+   * Defaults to true. */
+  echoToDiscord?: boolean;
 };
 
 export type ResolvedAudioTranscriptionConfig = {
@@ -44,6 +47,7 @@ export type ResolvedAudioTranscriptionConfig = {
   apiKey: string | null;
   endpoint: string | null;
   prompt?: string;
+  echoToDiscord: boolean;
 };
 
 export type ReplyReflectionConfig =

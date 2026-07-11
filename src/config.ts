@@ -97,12 +97,10 @@ export function loadDiscordGatewayConfigFromEnv(
   overrides: Partial<DiscordGatewayConfig> = {},
 ): ResolvedDiscordGatewayConfig {
   dotenv.config();
-
-  const envReplyReflection = readBooleanFromEnv("DISCORD_REPLY_REFLECTION");
-  const envReplyReflectionMaxFollowUpLength = readNumberFromEnv(
-    "DISCORD_REPLY_REFLECTION_MAX_FOLLOW_UP_LENGTH",
-  );
-  const envAudioTranscription = buildAudioTranscriptionConfigFromEnv();
+  const envAudioTranscriptionApiKey =
+    process.env.PI_AUDIO_TRANSCRIPTION_API_KEY?.trim() ||
+    process.env.OPENAI_API_KEY?.trim() ||
+    undefined;
 
   return resolveConfig({
     discordBotToken:
@@ -121,7 +119,7 @@ export function loadDiscordGatewayConfigFromEnv(
     promptTimeZone: overrides.promptTimeZone || process.env.PI_PROMPT_TIME_ZONE,
     promptLocale: overrides.promptLocale || process.env.PI_PROMPT_LOCALE,
     promptTransform: overrides.promptTransform,
-    startupMessage: overrides.startupMessage ?? readStartupMessageFromEnv(),
+    startupMessage: overrides.startupMessage,
     shutdownOnSignals: overrides.shutdownOnSignals,
     visionModelId: overrides.visionModelId ?? process.env.PI_VISION_MODEL_ID,
     discordAllowedForumChannelIds:
@@ -134,15 +132,10 @@ export function loadDiscordGatewayConfigFromEnv(
     discordCommandPrefixes:
       overrides.discordCommandPrefixes ??
       parseStringArrayFromEnv("DISCORD_COMMAND_PREFIXES"),
-    replyReflection:
-      overrides.replyReflection ??
-      buildReplyReflectionConfigFromEnv(
-        envReplyReflection,
-        envReplyReflectionMaxFollowUpLength,
-      ),
-    audioTranscription: mergeAudioTranscriptionConfig(
+    replyReflection: overrides.replyReflection,
+    audioTranscription: mergeAudioTranscriptionApiKeyFromEnv(
       overrides.audioTranscription,
-      envAudioTranscription,
+      envAudioTranscriptionApiKey,
     ),
     discordCommandRegistrationScope:
       parseCommandRegistrationScope(
@@ -189,35 +182,6 @@ function resolveReplyReflectionConfig(
     maxFollowUpLength: normalizePositiveInteger(value.maxFollowUpLength) ?? 600,
     instructions: normalizeOptionalText(value.instructions),
   };
-}
-
-function buildReplyReflectionConfigFromEnv(
-  enabled: boolean | undefined,
-  maxFollowUpLength: number | undefined,
-): ReplyReflectionConfig | undefined {
-  if (enabled === undefined && maxFollowUpLength === undefined) {
-    return undefined;
-  }
-
-  return {
-    enabled,
-    maxFollowUpLength,
-  };
-}
-
-function readStartupMessageFromEnv(): string | false | undefined {
-  const value = process.env.DISCORD_STARTUP_MESSAGE;
-
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const trimmedValue = value.trim();
-  if (!trimmedValue || trimmedValue.toLowerCase() === "false") {
-    return false;
-  }
-
-  return trimmedValue;
 }
 
 function parseThinkingLevel(
@@ -273,35 +237,6 @@ function defaultPromptTransform(ctx: {
     .join("\n");
 }
 
-function readBooleanFromEnv(key: string): boolean | undefined {
-  const value = process.env[key];
-
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const normalizedValue = value.trim().toLowerCase();
-  if (normalizedValue === "true" || normalizedValue === "1") {
-    return true;
-  }
-
-  if (normalizedValue === "false" || normalizedValue === "0") {
-    return false;
-  }
-
-  return undefined;
-}
-
-function readNumberFromEnv(key: string): number | undefined {
-  const value = process.env[key];
-
-  if (value === undefined) {
-    return undefined;
-  }
-
-  return normalizePositiveInteger(Number(value.trim()));
-}
-
 function normalizePositiveInteger(
   value: number | undefined,
 ): number | undefined {
@@ -327,39 +262,6 @@ function normalizeOptionalText(value: string | undefined): string | undefined {
   return trimmedValue;
 }
 
-function buildAudioTranscriptionConfigFromEnv():
-  AudioTranscriptionConfig | false | undefined {
-  const enabled = readBooleanFromEnv("PI_AUDIO_TRANSCRIPTION_ENABLED");
-  const provider = process.env.PI_AUDIO_TRANSCRIPTION_PROVIDER?.trim();
-  const model = process.env.PI_AUDIO_TRANSCRIPTION_MODEL?.trim();
-  const apiKey = process.env.PI_AUDIO_TRANSCRIPTION_API_KEY?.trim();
-  const endpoint = process.env.PI_AUDIO_TRANSCRIPTION_ENDPOINT?.trim();
-  const prompt = process.env.PI_AUDIO_TRANSCRIPTION_PROMPT?.trim();
-
-  if (enabled === false) {
-    return false;
-  }
-
-  if (
-    enabled !== true &&
-    !provider &&
-    !model &&
-    !apiKey &&
-    !endpoint &&
-    !prompt
-  ) {
-    return undefined;
-  }
-
-  return {
-    provider: provider || undefined,
-    model: model || undefined,
-    apiKey: apiKey || undefined,
-    endpoint: endpoint || undefined,
-    prompt: prompt || undefined,
-  };
-}
-
 function parseStringArrayFromEnv(key: string): string[] | undefined {
   const value = process.env[key];
   if (!value) {
@@ -372,25 +274,31 @@ function parseStringArrayFromEnv(key: string): string[] | undefined {
     .filter(Boolean);
 }
 
-function mergeAudioTranscriptionConfig(
-  overrides: AudioTranscriptionConfig | false | undefined,
-  envValue: AudioTranscriptionConfig | false | undefined,
+function mergeAudioTranscriptionApiKeyFromEnv(
+  value: AudioTranscriptionConfig | false | undefined,
+  envApiKey: string | undefined,
 ): AudioTranscriptionConfig | false | undefined {
-  if (overrides === false) {
+  if (value === false) {
     return false;
   }
 
-  if (overrides === undefined) {
-    return envValue;
+  if (!envApiKey) {
+    return value;
   }
 
-  if (envValue === undefined || envValue === false) {
-    return overrides;
+  if (!value) {
+    return {
+      apiKey: envApiKey,
+    };
+  }
+
+  if (normalizeOptionalText(value.apiKey)) {
+    return value;
   }
 
   return {
-    ...envValue,
-    ...overrides,
+    ...value,
+    apiKey: envApiKey,
   };
 }
 
@@ -423,6 +331,7 @@ function resolveAudioTranscriptionConfig(
     apiKey: normalizeOptionalText(value.apiKey) ?? null,
     endpoint,
     ...(prompt ? { prompt } : {}),
+    echoToDiscord: value.echoToDiscord ?? true,
   });
 }
 
@@ -435,6 +344,7 @@ function createEnabledAudioTranscriptionConfig(
     model: DEFAULT_AUDIO_TRANSCRIPTION_MODEL,
     apiKey: null,
     endpoint: null,
+    echoToDiscord: true,
     ...overrides,
   };
 }
@@ -446,6 +356,7 @@ function createDisabledAudioTranscriptionConfig(): ResolvedAudioTranscriptionCon
     model: DEFAULT_AUDIO_TRANSCRIPTION_MODEL,
     apiKey: null,
     endpoint: null,
+    echoToDiscord: false,
   };
 }
 

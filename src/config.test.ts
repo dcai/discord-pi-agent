@@ -64,6 +64,7 @@ function withEnv(
     PI_AUDIO_TRANSCRIPTION_ENDPOINT:
       process.env.PI_AUDIO_TRANSCRIPTION_ENDPOINT,
     PI_AUDIO_TRANSCRIPTION_PROMPT: process.env.PI_AUDIO_TRANSCRIPTION_PROMPT,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   };
 
   Object.entries(env).forEach(([key, value]) => {
@@ -141,6 +142,7 @@ describe("config", () => {
         model: "gpt-4o-mini-transcribe",
         apiKey: null,
         endpoint: null,
+        echoToDiscord: true,
       });
       expect(config.discordCommandRegistrationScope).toBe("none");
       expect(config.discordCommandRegistrationGuildIds).toEqual([]);
@@ -223,6 +225,7 @@ describe("config", () => {
         apiKey: "sk-custom-key",
         endpoint: "https://custom.example.com/transcribe",
         prompt: "Keep the same language. Be conservative.",
+        echoToDiscord: true,
       });
       expect(config.discordCommandRegistrationScope).toBe("guild");
       expect(config.discordCommandRegistrationGuildIds).toEqual([
@@ -244,6 +247,7 @@ describe("config", () => {
         model: "gpt-4o-mini-transcribe",
         apiKey: null,
         endpoint: null,
+        echoToDiscord: false,
       });
     });
 
@@ -314,7 +318,7 @@ describe("config", () => {
   });
 
   describe("loadDiscordGatewayConfigFromEnv", () => {
-    it("loads values from env and parses array fields", () => {
+    it("loads core values from env and parses array fields", () => {
       withEnv(
         {
           DISCORD_BOT_TOKEN: "env-token",
@@ -326,20 +330,14 @@ describe("config", () => {
           PI_THINKING_LEVEL: "xhigh",
           PI_PROMPT_TIME_ZONE: "Asia/Bangkok",
           PI_PROMPT_LOCALE: "th-TH",
-          DISCORD_STARTUP_MESSAGE: " hello from env ",
           PI_VISION_MODEL_ID: "openrouter/google/gemini-3.1-flash-lite",
           DISCORD_FORUM_CHANNEL_IDS: "forum-1, forum-2",
           DISCORD_ALLOWED_USER_IDS: "user-1, user-2",
           DISCORD_COMMAND_PREFIXES: "!, ;",
-          DISCORD_REPLY_REFLECTION: "true",
-          DISCORD_REPLY_REFLECTION_MAX_FOLLOW_UP_LENGTH: "420",
           DISCORD_COMMAND_REGISTRATION_SCOPE: "guild",
           DISCORD_COMMAND_REGISTRATION_GUILD_IDS: "guild-1, guild-2",
-          PI_AUDIO_TRANSCRIPTION_ENABLED: "true",
-          PI_AUDIO_TRANSCRIPTION_API_KEY: "env-audio-key",
-          PI_AUDIO_TRANSCRIPTION_PROVIDER: "openai",
-          PI_AUDIO_TRANSCRIPTION_MODEL: "gpt-4o-mini-transcribe",
-          PI_AUDIO_TRANSCRIPTION_PROMPT: " Keep the same language. ",
+          PI_AUDIO_TRANSCRIPTION_API_KEY: undefined,
+          OPENAI_API_KEY: undefined,
         },
         () => {
           const config = loadDiscordGatewayConfigFromEnv();
@@ -353,7 +351,6 @@ describe("config", () => {
           expect(config.thinkingLevel).toBe("xhigh");
           expect(config.promptTimeZone).toBe("Asia/Bangkok");
           expect(config.promptLocale).toBe("th-TH");
-          expect(config.startupMessage).toBe("hello from env");
           expect(config.visionModelId).toBe(
             "openrouter/google/gemini-3.1-flash-lite",
           );
@@ -364,34 +361,34 @@ describe("config", () => {
           expect(config.discordAllowedUserIds).toEqual(["user-1", "user-2"]);
           expect(config.discordCommandPrefixes).toEqual(["!", ";"]);
           expect(config.replyReflection).toEqual({
-            enabled: true,
-            maxFollowUpLength: 420,
+            enabled: false,
+            maxFollowUpLength: 600,
             instructions: undefined,
+          });
+          expect(config.audioTranscription).toEqual({
+            enabled: true,
+            provider: "openai",
+            model: "gpt-4o-mini-transcribe",
+            apiKey: null,
+            endpoint: null,
+            echoToDiscord: true,
           });
           expect(config.discordCommandRegistrationScope).toBe("guild");
           expect(config.discordCommandRegistrationGuildIds).toEqual([
             "guild-1",
             "guild-2",
           ]);
-          expect(config.audioTranscription).toEqual({
-            enabled: true,
-            provider: "openai",
-            model: "gpt-4o-mini-transcribe",
-            apiKey: "env-audio-key",
-            endpoint: null,
-            prompt: "Keep the same language.",
-          });
         },
       );
     });
 
-    it("loads audio transcription from env with defaults", () => {
+    it("loads audio transcription api key from PI_AUDIO_TRANSCRIPTION_API_KEY", () => {
       withEnv(
         {
           DISCORD_BOT_TOKEN: "env-token",
           DISCORD_ALLOWED_USER_ID: "env-user",
           PI_AGENT_CWD: "/env-repo",
-          PI_AUDIO_TRANSCRIPTION_API_KEY: "sk-audio-key",
+          PI_AUDIO_TRANSCRIPTION_API_KEY: "pi-audio-key",
         },
         () => {
           const config = loadDiscordGatewayConfigFromEnv();
@@ -400,25 +397,50 @@ describe("config", () => {
             enabled: true,
             provider: "openai",
             model: "gpt-4o-mini-transcribe",
-            apiKey: "sk-audio-key",
+            apiKey: "pi-audio-key",
             endpoint: null,
+            echoToDiscord: true,
           });
         },
       );
     });
 
-    it("merges audio transcription overrides with env values", () => {
+    it("falls back to OPENAI_API_KEY for audio transcription", () => {
       withEnv(
         {
           DISCORD_BOT_TOKEN: "env-token",
           DISCORD_ALLOWED_USER_ID: "env-user",
           PI_AGENT_CWD: "/env-repo",
-          PI_AUDIO_TRANSCRIPTION_API_KEY: "env-audio-key",
+          OPENAI_API_KEY: "openai-key",
+        },
+        () => {
+          const config = loadDiscordGatewayConfigFromEnv();
+
+          expect(config.audioTranscription).toEqual({
+            enabled: true,
+            provider: "openai",
+            model: "gpt-4o-mini-transcribe",
+            apiKey: "openai-key",
+            endpoint: null,
+            echoToDiscord: true,
+          });
+        },
+      );
+    });
+
+    it("fills a missing audioTranscription.apiKey from env while keeping behavior in config", () => {
+      withEnv(
+        {
+          DISCORD_BOT_TOKEN: "env-token",
+          DISCORD_ALLOWED_USER_ID: "env-user",
+          PI_AGENT_CWD: "/env-repo",
+          PI_AUDIO_TRANSCRIPTION_API_KEY: "pi-audio-key",
         },
         () => {
           const config = loadDiscordGatewayConfigFromEnv({
             audioTranscription: {
               prompt: " Keep the same language. ",
+              echoToDiscord: false,
             },
           });
 
@@ -426,15 +448,16 @@ describe("config", () => {
             enabled: true,
             provider: "openai",
             model: "gpt-4o-mini-transcribe",
-            apiKey: "env-audio-key",
+            apiKey: "pi-audio-key",
             endpoint: null,
             prompt: "Keep the same language.",
+            echoToDiscord: false,
           });
         },
       );
     });
 
-    it("lets overrides win over env values", () => {
+    it("lets overrides set behavior config explicitly", () => {
       withEnv(
         {
           DISCORD_BOT_TOKEN: "env-token",
@@ -443,82 +466,40 @@ describe("config", () => {
         },
         () => {
           const config = loadDiscordGatewayConfigFromEnv({
-            discordBotToken: "override-token",
-            discordAllowedUserId: "override-user",
-            cwd: "/override-repo",
             startupMessage: false,
-            discordAllowedUserIds: ["override-user", "friend"],
+            discordAllowedUserIds: ["env-user", "friend"],
             discordCommandPrefixes: [";", "!"],
             replyReflection: {
               enabled: true,
               maxFollowUpLength: 333,
               instructions: " Add confidence-building support when it helps. ",
             },
+            audioTranscription: {
+              apiKey: "sk-audio-key",
+              prompt: " Keep the same language. ",
+              echoToDiscord: false,
+            },
             discordCommandRegistrationScope: "global",
           });
 
-          expect(config.discordBotToken).toBe("override-token");
-          expect(config.discordAllowedUserId).toBe("override-user");
-          expect(config.cwd).toBe("/override-repo");
           expect(config.startupMessage).toBe(false);
-          expect(config.discordAllowedUserIds).toEqual([
-            "override-user",
-            "friend",
-          ]);
+          expect(config.discordAllowedUserIds).toEqual(["env-user", "friend"]);
           expect(config.discordCommandPrefixes).toEqual([";", "!"]);
           expect(config.replyReflection).toEqual({
             enabled: true,
             maxFollowUpLength: 333,
             instructions: "Add confidence-building support when it helps.",
           });
-          expect(config.discordCommandRegistrationScope).toBe("global");
-        },
-      );
-    });
-
-    it("lets env disable audio transcription explicitly", () => {
-      withEnv(
-        {
-          DISCORD_BOT_TOKEN: "env-token",
-          DISCORD_ALLOWED_USER_ID: "env-user",
-          PI_AGENT_CWD: "/env-repo",
-          PI_AUDIO_TRANSCRIPTION_ENABLED: "false",
-          PI_AUDIO_TRANSCRIPTION_API_KEY: "sk-audio-key",
-        },
-        () => {
-          expect(loadDiscordGatewayConfigFromEnv().audioTranscription).toEqual({
-            enabled: false,
+          expect(config.audioTranscription).toEqual({
+            enabled: true,
             provider: "openai",
             model: "gpt-4o-mini-transcribe",
-            apiKey: null,
+            apiKey: "sk-audio-key",
             endpoint: null,
+            prompt: "Keep the same language.",
+            echoToDiscord: false,
           });
-        },
-      );
-    });
-
-    it("treats blank or false startup env as disabled", () => {
-      withEnv(
-        {
-          DISCORD_BOT_TOKEN: "env-token",
-          DISCORD_ALLOWED_USER_ID: "env-user",
-          PI_AGENT_CWD: "/env-repo",
-          DISCORD_STARTUP_MESSAGE: " false ",
-        },
-        () => {
-          expect(loadDiscordGatewayConfigFromEnv().startupMessage).toBe(false);
-        },
-      );
-
-      withEnv(
-        {
-          DISCORD_BOT_TOKEN: "env-token",
-          DISCORD_ALLOWED_USER_ID: "env-user",
-          PI_AGENT_CWD: "/env-repo",
-          DISCORD_STARTUP_MESSAGE: "   ",
-        },
-        () => {
-          expect(loadDiscordGatewayConfigFromEnv().startupMessage).toBe(false);
+          expect(config.discordCommandRegistrationScope).toBe("global");
         },
       );
     });
