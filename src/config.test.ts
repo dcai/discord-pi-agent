@@ -407,6 +407,33 @@ describe("config", () => {
       );
     });
 
+    it("merges audio transcription overrides with env values", () => {
+      withEnv(
+        {
+          DISCORD_BOT_TOKEN: "env-token",
+          DISCORD_ALLOWED_USER_ID: "env-user",
+          PI_AGENT_CWD: "/env-repo",
+          PI_AUDIO_TRANSCRIPTION_API_KEY: "env-audio-key",
+        },
+        () => {
+          const config = loadDiscordGatewayConfigFromEnv({
+            audioTranscription: {
+              prompt: " Keep the same language. ",
+            },
+          });
+
+          expect(config.audioTranscription).toEqual({
+            enabled: true,
+            provider: "openai",
+            model: "gpt-4o-mini-transcribe",
+            apiKey: "env-audio-key",
+            endpoint: null,
+            prompt: "Keep the same language.",
+          });
+        },
+      );
+    });
+
     it("lets overrides win over env values", () => {
       withEnv(
         {

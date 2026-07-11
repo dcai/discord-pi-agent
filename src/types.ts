@@ -19,7 +19,7 @@ export type PromptTransform = (
 ) => string | Promise<string>;
 
 export type ThinkingLevel =
-  "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
+  "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
 export type CommandRegistrationScope = "none" | "global" | "guild";
 

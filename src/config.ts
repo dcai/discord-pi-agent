@@ -140,7 +140,10 @@ export function loadDiscordGatewayConfigFromEnv(
         envReplyReflection,
         envReplyReflectionMaxFollowUpLength,
       ),
-    audioTranscription: overrides.audioTranscription ?? envAudioTranscription,
+    audioTranscription: mergeAudioTranscriptionConfig(
+      overrides.audioTranscription,
+      envAudioTranscription,
+    ),
     discordCommandRegistrationScope:
       parseCommandRegistrationScope(
         overrides.discordCommandRegistrationScope ??
@@ -232,6 +235,7 @@ function parseThinkingLevel(
     "medium",
     "high",
     "xhigh",
+    "max",
   ];
 
   if (validLevels.includes(trimmed as ThinkingLevel)) {
@@ -366,6 +370,28 @@ function parseStringArrayFromEnv(key: string): string[] | undefined {
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
+}
+
+function mergeAudioTranscriptionConfig(
+  overrides: AudioTranscriptionConfig | false | undefined,
+  envValue: AudioTranscriptionConfig | false | undefined,
+): AudioTranscriptionConfig | false | undefined {
+  if (overrides === false) {
+    return false;
+  }
+
+  if (overrides === undefined) {
+    return envValue;
+  }
+
+  if (envValue === undefined || envValue === false) {
+    return overrides;
+  }
+
+  return {
+    ...envValue,
+    ...overrides,
+  };
 }
 
 function resolveAudioTranscriptionConfig(
