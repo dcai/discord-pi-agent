@@ -211,8 +211,6 @@ npx npm-check-updates -u
 npm install
 ```
 
-Use this instead of the old `bun update` workflow.
-
 ### Build notes
 
 - build uses `tsgo` for JS emit and declaration emit
