@@ -132,7 +132,7 @@ describe("discord-replies", () => {
     expect(message.channel.send).toHaveBeenNthCalledWith(2, "chunk-2");
   });
 
-  it("returns early when chunking yields no content and swallows reply errors", async () => {
+  it("returns early when chunking yields no content and surfaces reply errors", async () => {
     chunkMessageMock.mockReturnValueOnce([]).mockReturnValueOnce(["chunk-1"]);
     const message = createMessage({
       reply: vi.fn(async () => {
@@ -141,9 +141,9 @@ describe("discord-replies", () => {
     });
 
     await expect(sendReply(message as never, "empty")).resolves.toBeUndefined();
-    await expect(
-      sendReply(message as never, "broken"),
-    ).resolves.toBeUndefined();
+    await expect(sendReply(message as never, "broken")).rejects.toThrow(
+      "cannot reply",
+    );
 
     expect(message.channel.send).not.toHaveBeenCalled();
   });

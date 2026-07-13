@@ -11,6 +11,8 @@ type QueueEntry<T> = {
   reject: (reason?: unknown) => void;
 };
 
+type IdleResolver = () => void;
+
 export class PromptQueueCancelledError extends Error {
   constructor(message = "Prompt queue entry was cancelled.") {
     super(message);
@@ -20,10 +22,18 @@ export class PromptQueueCancelledError extends Error {
 
 export class PromptQueue {
   private readonly queue: Array<QueueEntry<unknown>> = [];
+  private readonly idleResolvers: IdleResolver[] = [];
   private running = false;
   private cancellationCount = 0;
+  private closed = false;
 
   enqueue<T>(task: QueueTask<T>): Promise<T> {
+    if (this.closed) {
+      return Promise.reject(
+        new PromptQueueCancelledError("Prompt queue is closed."),
+      );
+    }
+
     return new Promise<T>((resolve, reject) => {
       const entry: QueueEntry<T> = {
         task,
@@ -65,13 +75,27 @@ export class PromptQueue {
     this.cancellationCount += 1;
   }
 
+  async close(
+    message = "Cancelled because the session is shutting down.",
+  ): Promise<void> {
+    if (!this.closed) {
+      this.closed = true;
+      this.markAbort();
+    }
+
+    this.cancelPending(message);
+    await this.waitForIdle();
+  }
+
   private runNextTask(): void {
-    if (this.running) {
+    if (this.running || this.closed) {
+      this.resolveIdleIfNeeded();
       return;
     }
 
     const next = this.queue.shift();
     if (!next) {
+      this.resolveIdleIfNeeded();
       return;
     }
 
@@ -80,6 +104,27 @@ export class PromptQueue {
       this.running = false;
       this.runNextTask();
     });
+  }
+
+  private waitForIdle(): Promise<void> {
+    if (!this.running && this.queue.length === 0) {
+      return Promise.resolve();
+    }
+
+    return new Promise<void>((resolve) => {
+      this.idleResolvers.push(resolve);
+    });
+  }
+
+  private resolveIdleIfNeeded(): void {
+    if (this.running || this.queue.length > 0) {
+      return;
+    }
+
+    const resolvers = this.idleResolvers.splice(0);
+    for (const resolve of resolvers) {
+      resolve();
+    }
   }
 
   private async runTask<T>(entry: QueueEntry<T>): Promise<void> {

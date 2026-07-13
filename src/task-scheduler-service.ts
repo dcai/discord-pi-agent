@@ -94,6 +94,10 @@ export class TaskSchedulerService {
   private timeoutId: NodeJS.Timeout | null = null;
   private nextTickAt: Date | null = null;
   private running = false;
+  private stopping = false;
+  private stopPromise: Promise<void> | null = null;
+  private reloadPromise: Promise<TaskSchedulerStatus> | null = null;
+  private readonly activeRuns = new Set<Promise<JobRunResult>>();
 
   constructor(options: TaskSchedulerServiceOptions) {
     this.config = options.config;
@@ -110,6 +114,8 @@ export class TaskSchedulerService {
       return;
     }
 
+    this.stopping = false;
+    this.stopPromise = null;
     this.running = true;
     logger.info(
       {
@@ -144,6 +150,10 @@ export class TaskSchedulerService {
     jobId: string,
     options: RunJobNowOptions = {},
   ): Promise<JobRunResult> {
+    if (this.stopping) {
+      throw new Error("Task scheduler is stopping");
+    }
+
     const jobState = this.jobStates.get(jobId);
     if (!jobState) {
       throw new Error(`Unknown scheduled job: ${jobId}`);
@@ -160,7 +170,7 @@ export class TaskSchedulerService {
         } as ManagedJobDefinition)
       : jobState.definition;
 
-    return this.runJob(job, options.now ?? new Date());
+    return this.trackJobRun(job, options.now ?? new Date());
   }
 
   addRuntimeReminder(input: CreateRuntimeReminderInput): TaskJobRuntimeState {
@@ -198,6 +208,23 @@ export class TaskSchedulerService {
   }
 
   async reload(): Promise<TaskSchedulerStatus> {
+    if (this.reloadPromise) {
+      return this.reloadPromise;
+    }
+
+    const reloadPromise = this.reloadInternal();
+    this.reloadPromise = reloadPromise;
+
+    try {
+      return await reloadPromise;
+    } finally {
+      if (this.reloadPromise === reloadPromise) {
+        this.reloadPromise = null;
+      }
+    }
+  }
+
+  private async reloadInternal(): Promise<TaskSchedulerStatus> {
     const reloadedJobs = await loadScheduledJobs(this.schedulerConfig, {
       config: this.config,
       schedulerConfig: this.schedulerConfig,
@@ -216,8 +243,13 @@ export class TaskSchedulerService {
     return this.getStatus();
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
+    if (this.stopPromise) {
+      return this.stopPromise;
+    }
+
     this.running = false;
+    this.stopping = true;
 
     if (this.timeoutId) {
       clearTimeout(this.timeoutId);
@@ -225,6 +257,10 @@ export class TaskSchedulerService {
     }
 
     this.nextTickAt = null;
+
+    const activeRuns = Array.from(this.activeRuns);
+    this.stopPromise = Promise.allSettled(activeRuns).then(() => undefined);
+    await this.stopPromise;
   }
 
   usesDiscordDelivery(): boolean {
@@ -270,7 +306,7 @@ export class TaskSchedulerService {
     await Promise.allSettled(
       dueJobs.map(async ({ job, decision }) => {
         this.lastRunKeys.set(job.id, decision.runKey);
-        await this.runJob(job, tickTime);
+        await this.trackJobRun(job, tickTime);
       }),
     );
   }
@@ -317,6 +353,13 @@ export class TaskSchedulerService {
     job: ManagedJobDefinition,
     now: Date,
   ): Promise<JobRunResult> {
+    if (this.stopping) {
+      return {
+        ok: false,
+        errorMessage: "Task scheduler is stopping",
+      };
+    }
+
     const sessionStrategy = getTaskSessionStrategy(job.session);
     const scope = sessionStrategy === "ephemeral" ? null : resolveJobScope(job);
     const effectiveModel = resolveJobModel(job, this.config);
@@ -368,8 +411,9 @@ export class TaskSchedulerService {
       }
 
       await this.deliveryService.deliverResult(job, response);
-      if (jobState) {
-        jobState.lastSuccessAt = now;
+      const currentJobState = this.jobStates.get(job.id);
+      if (currentJobState) {
+        currentJobState.lastSuccessAt = now;
       }
       logger.info(
         { jobId: job.id, scope, sessionStrategy },
@@ -381,9 +425,10 @@ export class TaskSchedulerService {
       };
     } catch (error) {
       const errorMessage = stringifyError(error);
-      if (jobState) {
-        jobState.lastErrorAt = now;
-        jobState.lastErrorMessage = errorMessage;
+      const currentJobState = this.jobStates.get(job.id);
+      if (currentJobState) {
+        currentJobState.lastErrorAt = now;
+        currentJobState.lastErrorMessage = errorMessage;
       }
       await this.deliveryService.deliverError(job, error);
       return {
@@ -391,14 +436,32 @@ export class TaskSchedulerService {
         errorMessage,
       };
     } finally {
-      if (jobState) {
-        jobState.running = false;
+      const currentJobState = this.jobStates.get(job.id);
+      if (currentJobState) {
+        currentJobState.running = false;
       }
 
       if (isRuntimeReminderJob(job)) {
         this.removeRuntimeJob(job.id);
       }
     }
+  }
+
+  private trackJobRun(
+    job: ManagedJobDefinition,
+    now: Date,
+  ): Promise<JobRunResult> {
+    const run = this.runJob(job, now);
+    this.activeRuns.add(run);
+    run.then(
+      () => {
+        this.activeRuns.delete(run);
+      },
+      () => {
+        this.activeRuns.delete(run);
+      },
+    );
+    return run;
   }
 
   private async runPersistentJob(
@@ -641,7 +704,7 @@ function buildJobStateMap(
       lastSuccessAt: previousJobState?.lastSuccessAt ?? null,
       lastErrorAt: previousJobState?.lastErrorAt ?? null,
       lastErrorMessage: previousJobState?.lastErrorMessage ?? null,
-      running: false,
+      running: previousJobState?.running ?? false,
     });
   }
 

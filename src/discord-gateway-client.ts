@@ -156,10 +156,17 @@ export async function startGatewayClient(
       );
     } catch (error) {
       logger.error({ error, direction: "IN" }, "message handling failed");
-      await sendReply(
-        message,
-        "The bot hit an error while handling that message.",
-      );
+      try {
+        await sendReply(
+          message,
+          "The bot hit an error while handling that message.",
+        );
+      } catch (replyError) {
+        logger.error(
+          { error: replyError },
+          "failed to send message error reply",
+        );
+      }
     }
   });
 
@@ -183,7 +190,11 @@ export async function startGatewayClient(
   client.on(Events.ThreadDelete, async (thread) => {
     const scope: SessionScope = `thread:${thread.id}`;
     logger.info({ threadId: thread.id, scope }, "thread deleted");
-    await sessionRegistry.remove(scope);
+    try {
+      await sessionRegistry.remove(scope);
+    } catch (error) {
+      logger.error({ error, scope }, "thread session cleanup failed");
+    }
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {

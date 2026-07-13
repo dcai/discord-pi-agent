@@ -514,6 +514,115 @@ describe("TaskSchedulerService", () => {
     await firstRun;
   });
 
+  it("preserves a running job across reload and clears it when the run finishes", async () => {
+    let releaseRun: (() => void) | null = null;
+    runAgentTurnMock.mockImplementation(
+      async () =>
+        await new Promise<string>((resolve) => {
+          releaseRun = () => {
+            resolve("scheduled reply");
+          };
+        }),
+    );
+
+    const { service } = createService([
+      {
+        id: "daily-summary",
+        prompt: "Write the summary",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+        },
+      },
+    ]);
+
+    const runPromise = service.runJobNow("daily-summary");
+    await Promise.resolve();
+
+    const scheduledJobLoader = await import("./scheduled-job-loader");
+    vi.spyOn(scheduledJobLoader, "loadScheduledJobs").mockResolvedValue([
+      {
+        id: "daily-summary",
+        prompt: "Updated summary",
+        schedule: {
+          type: "daily-at",
+          hour: 10,
+          minute: 0,
+          timeZone: "UTC",
+        },
+      },
+    ]);
+
+    await service.reload();
+    expect(service.getJob("daily-summary")).toEqual(
+      expect.objectContaining({
+        prompt: "Updated summary",
+        running: true,
+      }),
+    );
+
+    releaseRun?.();
+    await expect(runPromise).resolves.toEqual({
+      ok: true,
+      errorMessage: null,
+    });
+    expect(service.getJob("daily-summary")).toEqual(
+      expect.objectContaining({
+        running: false,
+        lastSuccessAt: "2026-01-01T00:04:30.000Z",
+      }),
+    );
+  });
+
+  it("waits for active jobs during shutdown and blocks new runs", async () => {
+    let releaseRun: (() => void) | null = null;
+    runAgentTurnMock.mockImplementation(
+      async () =>
+        await new Promise<string>((resolve) => {
+          releaseRun = () => {
+            resolve("scheduled reply");
+          };
+        }),
+    );
+
+    const { service } = createService([
+      {
+        id: "daily-summary",
+        prompt: "Write the summary",
+        schedule: {
+          type: "daily-at",
+          hour: 9,
+          minute: 0,
+          timeZone: "UTC",
+        },
+      },
+    ]);
+
+    const runPromise = service.runJobNow("daily-summary");
+    await Promise.resolve();
+
+    let stopped = false;
+    const stopPromise = service.stop().then(() => {
+      stopped = true;
+    });
+    await Promise.resolve();
+    expect(stopped).toBe(false);
+
+    await expect(service.runJobNow("daily-summary")).rejects.toThrow(
+      "Task scheduler is stopping",
+    );
+
+    releaseRun?.();
+    await expect(runPromise).resolves.toEqual({
+      ok: true,
+      errorMessage: null,
+    });
+    await expect(stopPromise).resolves.toBeUndefined();
+    expect(stopped).toBe(true);
+  });
+
   it("lists jobs with runtime state and reloads definitions", async () => {
     const { service } = createService([
       {

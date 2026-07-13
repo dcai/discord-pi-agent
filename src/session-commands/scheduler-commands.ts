@@ -260,7 +260,8 @@ async function handleRemindCommand(
   trimmedInput: string,
   context: Parameters<CommandHandler>[1],
 ) {
-  if (!trimmedInput.startsWith(`${INTERNAL_COMMAND_PREFIX}remind`)) {
+  const command = `${INTERNAL_COMMAND_PREFIX}remind`;
+  if (trimmedInput !== command && !trimmedInput.startsWith(`${command} `)) {
     return null;
   }
 
@@ -271,9 +272,7 @@ async function handleRemindCommand(
     };
   }
 
-  const request = trimmedInput
-    .slice(`${INTERNAL_COMMAND_PREFIX}remind`.length)
-    .trim();
+  const request = trimmedInput.slice(command.length).trim();
   if (!request) {
     return {
       handled: true,
@@ -338,7 +337,8 @@ async function handleJobUpdateCommand(
   trimmedInput: string,
   context: Parameters<CommandHandler>[1],
 ) {
-  if (!trimmedInput.startsWith(`${INTERNAL_COMMAND_PREFIX}job update`)) {
+  const command = `${INTERNAL_COMMAND_PREFIX}job update`;
+  if (trimmedInput !== command && !trimmedInput.startsWith(`${command} `)) {
     return null;
   }
 
@@ -349,9 +349,7 @@ async function handleJobUpdateCommand(
     };
   }
 
-  const request = trimmedInput
-    .slice(`${INTERNAL_COMMAND_PREFIX}job update`.length)
-    .trim();
+  const request = trimmedInput.slice(command.length).trim();
   if (!request) {
     return {
       handled: true,

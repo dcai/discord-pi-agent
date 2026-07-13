@@ -170,6 +170,7 @@ function createChatInputInteraction(options: {
     isChatInputCommand: () => true,
     isButton: () => false,
     isModalSubmit: () => false,
+    isRepliable: () => true,
   };
 }
 
@@ -334,6 +335,29 @@ describe("discord interactions", () => {
       expect(executeSessionCommandMock).not.toHaveBeenCalled();
     },
   );
+
+  it("completes a deferred reply when interaction handling fails", async () => {
+    const interaction = createChatInputInteraction({
+      commandName: "jobs",
+    });
+    interaction.deferred = true;
+    const sessionRegistry = createSessionRegistry();
+    sessionRegistry.getOrCreate.mockRejectedValue(new Error("session failed"));
+
+    await handleDiscordInteraction(
+      interaction as never,
+      createConfig(),
+      createAgentService() as never,
+      sessionRegistry as never,
+      accessConfig,
+      null,
+    );
+
+    expect(interaction.editReply).toHaveBeenLastCalledWith({
+      content: "Something went wrong while processing that interaction.",
+      components: [],
+    });
+  });
 
   it("can send one extra proactive follow-up after a slash prompt", async () => {
     const config = createConfig({

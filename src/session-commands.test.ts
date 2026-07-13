@@ -1075,6 +1075,40 @@ describe("executeSessionCommand", () => {
     });
   });
 
+  it("does not match longer command names as scheduler commands", async () => {
+    const reminderResult = await executeSessionCommand(
+      "!reminder tomorrow 14:00",
+      {
+        agentService: createAgentServiceMock(createSessionMock()),
+        promptQueue: createPromptQueueMock(),
+        taskScheduler: createTaskSchedulerMock(),
+        scope: DM_SCOPE,
+        workingEmoji: "⚙️",
+        channelId: "channel-123",
+      },
+    );
+    const updateResult = await executeSessionCommand(
+      "!job updateable change it",
+      {
+        agentService: createAgentServiceMock(createSessionMock()),
+        promptQueue: createPromptQueueMock(),
+        taskScheduler: createTaskSchedulerMock(),
+        scope: DM_SCOPE,
+        workingEmoji: "⚙️",
+      },
+    );
+
+    expect(reminderResult).toEqual({
+      handled: true,
+      response: "Unknown command: !reminder tomorrow 14:00. Try !help.",
+    });
+    expect(updateResult).toEqual({
+      handled: true,
+      response: "Unknown command: !job updateable change it. Try !help.",
+    });
+    expect(parseReminderCommandMock).not.toHaveBeenCalled();
+  });
+
   it("surfaces reminder parsing errors", async () => {
     parseReminderCommandMock.mockRejectedValueOnce(
       new Error("I could not safely determine the reminder time."),

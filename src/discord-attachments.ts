@@ -39,6 +39,7 @@ const MAX_MEDIA_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024;
 const AUDIO_EXTENSIONS = [".ogg", ".mp3", ".wav", ".flac", ".m4a", ".webm"];
 
 const MAX_AUDIO_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024;
+const ATTACHMENT_FETCH_TIMEOUT_MS = 30_000;
 
 const OFFICE_MIME_TYPES = new Set([
   "application/pdf",
@@ -68,6 +69,97 @@ export type AudioAttachmentContent = {
   /** Duration in seconds, available for Discord voice messages. */
   durationSecs: number | null;
 };
+
+type FetchedAttachment = {
+  response: Response;
+  bytes: Uint8Array;
+};
+
+async function readResponseBytes(
+  response: Response,
+  maxBytes: number,
+): Promise<Uint8Array> {
+  if (response.body) {
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+
+    try {
+      while (true) {
+        const result = await reader.read();
+        if (result.done) {
+          break;
+        }
+
+        totalBytes += result.value.byteLength;
+        if (totalBytes > maxBytes) {
+          await reader.cancel();
+          throw new Error(`attachment response exceeds ${maxBytes} bytes`);
+        }
+
+        chunks.push(result.value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const bytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
+  }
+
+  if (typeof response.arrayBuffer === "function") {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > maxBytes) {
+      throw new Error(`attachment response exceeds ${maxBytes} bytes`);
+    }
+    return bytes;
+  }
+
+  if (typeof response.text === "function") {
+    const bytes = new TextEncoder().encode(await response.text());
+    if (bytes.byteLength > maxBytes) {
+      throw new Error(`attachment response exceeds ${maxBytes} bytes`);
+    }
+    return bytes;
+  }
+
+  throw new Error("attachment response has no readable body");
+}
+
+async function fetchAttachment(
+  url: string,
+  maxBytes: number,
+): Promise<FetchedAttachment> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, ATTACHMENT_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      return { response, bytes: new Uint8Array() };
+    }
+
+    const declaredSize = response.headers?.get("content-length");
+    const declaredSizeBytes = declaredSize ? Number(declaredSize) : NaN;
+    if (Number.isFinite(declaredSizeBytes) && declaredSizeBytes > maxBytes) {
+      throw new Error(`attachment response exceeds ${maxBytes} bytes`);
+    }
+
+    return {
+      response,
+      bytes: await readResponseBytes(response, maxBytes),
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export function isSupportedTextAttachment(attachment: {
   name: string | null;
@@ -138,7 +230,10 @@ export async function readTextAttachments(
         },
         "fetching attachment",
       );
-      const response = await fetch(attachment.url);
+      const { response, bytes } = await fetchAttachment(
+        attachment.url,
+        MAX_TEXT_ATTACHMENT_SIZE_BYTES,
+      );
       if (!response.ok) {
         logger.warn(
           {
@@ -151,7 +246,7 @@ export async function readTextAttachments(
         continue;
       }
 
-      const content = await response.text();
+      const content = new TextDecoder().decode(bytes);
       results.push({ filename: attachment.name, content });
     } catch (error) {
       logger.error(
@@ -221,7 +316,10 @@ export async function readAudioAttachments(
         },
         "fetching audio attachment",
       );
-      const response = await fetch(attachment.url);
+      const { response, bytes } = await fetchAttachment(
+        attachment.url,
+        MAX_AUDIO_ATTACHMENT_SIZE_BYTES,
+      );
       if (!response.ok) {
         logger.warn(
           {
@@ -234,7 +332,7 @@ export async function readAudioAttachments(
         continue;
       }
 
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const buffer = Buffer.from(bytes);
       results.push({
         filename: attachment.name,
         data: buffer,
@@ -288,7 +386,10 @@ export async function readMediaAttachments(
         },
         "fetching media attachment",
       );
-      const response = await fetch(attachment.url);
+      const { response, bytes } = await fetchAttachment(
+        attachment.url,
+        MAX_MEDIA_ATTACHMENT_SIZE_BYTES,
+      );
       if (!response.ok) {
         logger.warn(
           {
@@ -301,10 +402,9 @@ export async function readMediaAttachments(
         continue;
       }
 
-      const buffer = await response.arrayBuffer();
       results.push({
         filename: attachment.name,
-        data: Buffer.from(buffer).toString("base64"),
+        data: Buffer.from(bytes).toString("base64"),
         mimeType: attachment.contentType ?? "application/octet-stream",
       });
     } catch (error) {

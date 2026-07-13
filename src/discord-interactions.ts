@@ -10,7 +10,6 @@ import {
   type TextBasedChannel,
 } from "discord.js";
 import type { AgentService } from "./agent-service";
-import { runAgentTurn } from "./agent-turn-runner";
 import { generatePostReplyFollowUp } from "./discord-reply-reflection";
 import {
   abortInteractionScope,
@@ -46,6 +45,7 @@ import { createModuleLogger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import { formatDiscordPromptTime, wrapXmlTag } from "./prompt-context";
 import { PromptQueueCancelledError, type PromptQueue } from "./prompt-queue";
+import { executeQueuedAgentPrompt } from "./queued-agent-prompt";
 import type { SessionRegistry, SessionScope } from "./session-registry";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
 import type { TaskSchedulerService } from "./task-scheduler-service";
@@ -100,50 +100,84 @@ export async function handleDiscordInteraction(
   accessConfig: GatewayAccessConfig,
   taskScheduler?: TaskSchedulerService | null,
 ): Promise<void> {
-  if (interaction.isAutocomplete()) {
-    await handleAutocompleteInteraction(
-      interaction,
-      agentService,
-      sessionRegistry,
-      accessConfig,
-      taskScheduler,
-    );
+  try {
+    if (interaction.isAutocomplete()) {
+      await handleAutocompleteInteraction(
+        interaction,
+        agentService,
+        sessionRegistry,
+        accessConfig,
+        taskScheduler,
+      );
+      return;
+    }
+
+    if (interaction.isChatInputCommand()) {
+      await handleChatInputInteraction(
+        interaction,
+        config,
+        agentService,
+        sessionRegistry,
+        accessConfig,
+        taskScheduler,
+      );
+      return;
+    }
+
+    if (interaction.isButton()) {
+      await handleButtonCommandInteraction(
+        interaction,
+        config,
+        agentService,
+        sessionRegistry,
+        accessConfig,
+        taskScheduler,
+      );
+      return;
+    }
+
+    if (interaction.isModalSubmit()) {
+      await handleModalCommandInteraction(
+        interaction,
+        config,
+        agentService,
+        sessionRegistry,
+        accessConfig,
+        taskScheduler,
+      );
+    }
+  } catch (error) {
+    await replyInteractionError(interaction, error);
+  }
+}
+
+async function replyInteractionError(
+  interaction: Interaction,
+  error: unknown,
+): Promise<void> {
+  logger.error({ error }, "interaction handling failed");
+
+  if (!interaction.isRepliable()) {
     return;
   }
 
-  if (interaction.isChatInputCommand()) {
-    await handleChatInputInteraction(
-      interaction,
-      config,
-      agentService,
-      sessionRegistry,
-      accessConfig,
-      taskScheduler,
-    );
-    return;
-  }
+  try {
+    const payload = {
+      content: "Something went wrong while processing that interaction.",
+      components: [],
+    };
 
-  if (interaction.isButton()) {
-    await handleButtonCommandInteraction(
-      interaction,
-      config,
-      agentService,
-      sessionRegistry,
-      accessConfig,
-      taskScheduler,
-    );
-    return;
-  }
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply(payload);
+      return;
+    }
 
-  if (interaction.isModalSubmit()) {
-    await handleModalCommandInteraction(
-      interaction,
-      config,
-      agentService,
-      sessionRegistry,
-      accessConfig,
-      taskScheduler,
-    );
+    await interaction.reply({
+      ...payload,
+      flags: MessageFlags.Ephemeral,
+    });
+  } catch (replyError) {
+    logger.error({ error: replyError }, "failed to send interaction error");
   }
 }
 
@@ -549,35 +583,38 @@ async function executePromptInteraction(
       scope,
       config,
     );
-    const response = await entry.promptQueue.enqueue(async () => {
-      const transformedPrompt = await config.promptTransform({
-        rawContent: promptText,
-        discordMetadata,
-        now: () => {
-          return wrapXmlTag(
-            "datetime",
-            formatDiscordPromptTime(new Date(), {
-              timeZone: config.promptTimeZone,
-              locale: config.promptLocale,
-            }),
-          );
-        },
-        userMessage: () => {
-          return wrapXmlTag("user_message", promptText);
-        },
-      });
+    const result = await executeQueuedAgentPrompt({
+      entry,
+      prepare: async () => {
+        const prompt = await config.promptTransform({
+          rawContent: promptText,
+          discordMetadata,
+          now: () => {
+            return wrapXmlTag(
+              "datetime",
+              formatDiscordPromptTime(new Date(), {
+                timeZone: config.promptTimeZone,
+                locale: config.promptLocale,
+              }),
+            );
+          },
+          userMessage: () => {
+            return wrapXmlTag("user_message", promptText);
+          },
+        });
 
-      return runAgentTurn(entry.session, transformedPrompt);
+        return { prompt };
+      },
     });
 
-    await sendPromptOutputToChannel(interaction.channel, response);
+    await sendPromptOutputToChannel(interaction.channel, result.response);
 
     if (config.replyReflection.enabled) {
       const followUp = await generatePostReplyFollowUp({
         config,
         agentService,
         promptText,
-        assistantReply: response,
+        assistantReply: result.response,
         discordMetadata,
         sourceModel: entry.session.model,
       });

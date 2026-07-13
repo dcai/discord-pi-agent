@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { SessionRegistry } from "./session-registry";
+import { SessionRegistry, sessionDirForScope } from "./session-registry";
 import type { AgentService } from "./agent-service";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 
@@ -123,6 +123,21 @@ describe("SessionRegistry", () => {
       );
     });
 
+    it("serializes concurrent creation for the same scope", async () => {
+      const agentService = mockAgentService();
+      const registry = new SessionRegistry(agentService);
+
+      const results = await Promise.all([
+        registry.getOrCreate("dm"),
+        registry.getOrCreate("dm"),
+      ]);
+
+      expect(agentService.createSession).toHaveBeenCalledOnce();
+      expect(results[0]?.entry).toBe(results[1]?.entry);
+      expect(results[0]?.created).toBe(true);
+      expect(results[1]?.created).toBe(false);
+    });
+
     it("passes correct session dir for dm scope", async () => {
       const agentDir = "/tmp/test-agent";
       const agentService = mockAgentService(agentDir);
@@ -213,5 +228,34 @@ describe("SessionRegistry", () => {
       const registry = new SessionRegistry(mockAgentService());
       await expect(registry.remove("nope")).resolves.toBeUndefined();
     });
+
+    it("waits for active queued work before disposing a session", async () => {
+      const registry = new SessionRegistry(mockAgentService());
+      const { entry } = await registry.getOrCreate("thread:999");
+      let releaseTask: (() => void) | undefined;
+      const task = entry.promptQueue.enqueue(async () => {
+        await new Promise<void>((resolve) => {
+          releaseTask = resolve;
+        });
+        return "done";
+      });
+
+      const removePromise = registry.remove("thread:999");
+      await Promise.resolve();
+
+      expect(entry.session.abort).toHaveBeenCalledOnce();
+      expect(entry.session.dispose).not.toHaveBeenCalled();
+
+      releaseTask?.();
+      await expect(task).resolves.toBe("done");
+      await expect(removePromise).resolves.toBeUndefined();
+      expect(entry.session.dispose).toHaveBeenCalledOnce();
+    });
+  });
+
+  it("encodes scope identifiers before deriving session paths", () => {
+    expect(sessionDirForScope("/tmp/test-agent", "thread:../../outside")).toBe(
+      "/tmp/test-agent/sessions/thread-..%2F..%2Foutside",
+    );
   });
 });

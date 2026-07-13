@@ -101,4 +101,39 @@ describe("PromptQueue", () => {
       new PromptQueueCancelledError("Cancelled."),
     );
   });
+
+  it("closes without interrupting the active task and rejects new work", async () => {
+    const queue = new PromptQueue();
+    let releaseFirstTask: (() => void) | undefined;
+
+    const firstTask = queue.enqueue(async () => {
+      await new Promise<void>((resolve) => {
+        releaseFirstTask = resolve;
+      });
+      return "first";
+    });
+    const pendingTask = queue.enqueue(async () => "pending");
+    const closePromise = queue.close();
+    let closed = false;
+    void closePromise.then(() => {
+      closed = true;
+    });
+
+    await Promise.resolve();
+    expect(closed).toBe(false);
+    await expect(queue.enqueue(async () => "closed")).rejects.toEqual(
+      new PromptQueueCancelledError("Prompt queue is closed."),
+    );
+
+    releaseFirstTask?.();
+
+    await expect(firstTask).resolves.toBe("first");
+    await expect(pendingTask).rejects.toEqual(
+      new PromptQueueCancelledError(
+        "Cancelled because the session is shutting down.",
+      ),
+    );
+    await expect(closePromise).resolves.toBeUndefined();
+    expect(queue.getSnapshot()).toEqual({ pending: 0, busy: false });
+  });
 });

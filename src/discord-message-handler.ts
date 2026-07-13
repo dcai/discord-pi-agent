@@ -23,6 +23,7 @@ import {
   sendReply,
 } from "./discord-replies";
 import { PromptQueueCancelledError } from "./prompt-queue";
+import { executeQueuedAgentPrompt } from "./queued-agent-prompt";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
 import { startTypingForChannel, stopTypingForChannel } from "./discord-typing";
 import { createModuleLogger } from "./logger";
@@ -32,7 +33,6 @@ import {
   wrapXmlTag,
   type DiscordMessageMetadataOptions,
 } from "./prompt-context";
-import { runAgentTurn } from "./agent-turn-runner";
 import type {
   ScopedSessionEntry,
   SessionRegistry,
@@ -460,60 +460,55 @@ async function processAgentPrompt(
   const cancellationCount = entry.promptQueue.getCancellationCount();
 
   try {
-    const result = await entry.promptQueue.enqueue(async () => {
-      const promptInput = await buildPromptInput(
-        message,
-        config,
-        agentService,
-        entry,
-        preparedMessage,
-      );
+    const result = await executeQueuedAgentPrompt({
+      entry,
+      prepare: async () => {
+        return buildPromptInput(
+          message,
+          config,
+          agentService,
+          entry,
+          preparedMessage,
+        );
+      },
+      beforeRun: async (promptInput) => {
+        await sendAudioTranscriptEchoes(message, promptInput.transcriptEchoes);
+      },
+      onToolStart: async ({ toolName, toolCallId }) => {
+        reactionOperationChain = reactionOperationChain.then(async () => {
+          const emoji = resolveToolReactionEmoji(toolName);
+          toolEmojiByCallId.set(toolCallId, emoji);
 
-      await sendAudioTranscriptEchoes(message, promptInput.transcriptEchoes);
+          const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
+          activeToolCountByEmoji.set(emoji, activeCount + 1);
 
-      const response = await runAgentTurn(entry.session, promptInput.prompt, {
-        images: promptInput.images,
-        onToolStart: async ({ toolName, toolCallId }) => {
-          reactionOperationChain = reactionOperationChain.then(async () => {
-            const emoji = resolveToolReactionEmoji(toolName);
-            toolEmojiByCallId.set(toolCallId, emoji);
+          if (activeCount === 0) {
+            await addReaction(message, emoji);
+          }
+        });
 
-            const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
-            activeToolCountByEmoji.set(emoji, activeCount + 1);
+        await reactionOperationChain;
+      },
+      onToolEnd: async ({ toolCallId }) => {
+        reactionOperationChain = reactionOperationChain.then(async () => {
+          const emoji = toolEmojiByCallId.get(toolCallId);
+          if (!emoji) {
+            return;
+          }
 
-            if (activeCount === 0) {
-              await addReaction(message, emoji);
-            }
-          });
+          toolEmojiByCallId.delete(toolCallId);
+          const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
+          if (activeCount <= 1) {
+            activeToolCountByEmoji.delete(emoji);
+            await removeReaction(message, emoji);
+            return;
+          }
 
-          await reactionOperationChain;
-        },
-        onToolEnd: async ({ toolCallId }) => {
-          reactionOperationChain = reactionOperationChain.then(async () => {
-            const emoji = toolEmojiByCallId.get(toolCallId);
-            if (!emoji) {
-              return;
-            }
+          activeToolCountByEmoji.set(emoji, activeCount - 1);
+        });
 
-            toolEmojiByCallId.delete(toolCallId);
-            const activeCount = activeToolCountByEmoji.get(emoji) ?? 0;
-            if (activeCount <= 1) {
-              activeToolCountByEmoji.delete(emoji);
-              await removeReaction(message, emoji);
-              return;
-            }
-
-            activeToolCountByEmoji.set(emoji, activeCount - 1);
-          });
-
-          await reactionOperationChain;
-        },
-      });
-
-      return {
-        response,
-        promptInput,
-      };
+        await reactionOperationChain;
+      },
     });
 
     await sendReply(message, result.response);
@@ -522,9 +517,9 @@ async function processAgentPrompt(
       const followUp = await generatePostReplyFollowUp({
         config,
         agentService,
-        promptText: result.promptInput.rawContent,
+        promptText: result.input.rawContent,
         assistantReply: result.response,
-        discordMetadata: result.promptInput.discordMetadata,
+        discordMetadata: result.input.discordMetadata,
         sourceModel: entry.session.model,
       });
 

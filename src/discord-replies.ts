@@ -168,6 +168,7 @@ export async function sendReply(message: Message, text: string): Promise<void> {
       },
       "send reply failed",
     );
+    throw error;
   }
 }
 
@@ -204,6 +205,7 @@ export async function sendFollowUp(
       },
       "send follow-up failed",
     );
+    throw error;
   }
 }
 
@@ -246,5 +248,6 @@ export async function sendCommandReply(
       },
       "send command reply failed",
     );
+    throw error;
   }
 }

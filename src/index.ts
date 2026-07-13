@@ -232,10 +232,40 @@ function createGatewayStopHandler(
       },
       "stopping discord gateway",
     );
-    taskScheduler?.stop();
-    client?.destroy();
-    await sessionRegistry.shutdownAll();
-    await agentService.shutdown();
+
+    let cleanupError: unknown = null;
+
+    try {
+      await taskScheduler?.stop();
+    } catch (error) {
+      cleanupError ??= error;
+      logger.error({ error }, "task scheduler shutdown failed");
+    }
+
+    try {
+      client?.destroy();
+    } catch (error) {
+      cleanupError ??= error;
+      logger.error({ error }, "discord client shutdown failed");
+    }
+
+    try {
+      await sessionRegistry.shutdownAll();
+    } catch (error) {
+      cleanupError ??= error;
+      logger.error({ error }, "session registry shutdown failed");
+    }
+
+    try {
+      await agentService.shutdown();
+    } catch (error) {
+      cleanupError ??= error;
+      logger.error({ error }, "agent service shutdown failed");
+    }
+
+    if (cleanupError) {
+      throw cleanupError;
+    }
   };
 }
 

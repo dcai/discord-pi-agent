@@ -504,5 +504,5 @@ This is the npm-side replacement for the old `bun update` workflow.
 - Sessions survive restarts — `SessionManager.continueRecent()` resumes the latest `.jsonl`
 - Single Discord client with all intents (DM + Guild + MessageContent)
 - No mode flags — forum support activates when `discordAllowedForumChannelIds` is set
-- The package does not register Discord slash commands
+- Slash-command registration is opt-in through `discordCommandRegistrationScope`
 - pi resources are loaded from the configured `cwd` and `agentDir`

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   isSupportedAudioAttachment,
   isSupportedMediaAttachment,
@@ -22,6 +22,10 @@ function createMessage(attachments: Array<Record<string, unknown>>) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("discord-attachments", () => {
@@ -134,6 +138,62 @@ describe("discord-attachments", () => {
         ),
       ).resolves.toEqual([]);
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("enforces the declared response size and passes an abort signal", async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        headers: new Headers({ "content-length": String(26 * 1024 * 1024) }),
+        text: async () => "too large",
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        readTextAttachments(
+          createMessage([
+            {
+              name: "large.md",
+              size: 10,
+              url: "https://example.com/large.md",
+            },
+          ]) as never,
+        ),
+      ).resolves.toEqual([]);
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://example.com/large.md",
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+    });
+
+    it("aborts attachment fetches that exceed the timeout", async () => {
+      vi.useFakeTimers();
+      let signal: AbortSignal | undefined;
+      const fetchMock = vi.fn(
+        (_url: string, options: { signal: AbortSignal }) => {
+          signal = options.signal;
+          return new Promise<never>((_, reject) => {
+            options.signal.addEventListener("abort", () => {
+              reject(new Error("aborted"));
+            });
+          });
+        },
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const readPromise = readTextAttachments(
+        createMessage([
+          {
+            name: "slow.md",
+            size: 10,
+            url: "https://example.com/slow.md",
+          },
+        ]) as never,
+      );
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      await expect(readPromise).resolves.toEqual([]);
+      expect(signal?.aborted).toBe(true);
     });
   });
 

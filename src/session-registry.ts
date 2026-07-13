@@ -30,28 +30,44 @@ export function sessionDirForScope(
   agentDir: string,
   scope: SessionScope,
 ): string {
+  const sessionsRoot = path.join(agentDir, "sessions");
+
   if (scope === "dm") {
-    return path.join(agentDir, "sessions");
+    return sessionsRoot;
   }
+
+  let directoryName: string;
 
   if (scope.startsWith("thread:")) {
     const threadId = scope.slice(7);
-    return path.join(agentDir, "sessions", `thread-${threadId}`);
-  }
-
-  if (scope.startsWith("job:")) {
+    directoryName = `thread-${encodeURIComponent(threadId)}`;
+  } else if (scope.startsWith("job:")) {
     const jobId = scope.slice(4);
-    return path.join(agentDir, "sessions", `job-${jobId}`);
+    directoryName = `job-${encodeURIComponent(jobId)}`;
+  } else {
+    throw new Error(`Unknown session scope: ${scope}`);
   }
 
-  throw new Error(`Unknown session scope: ${scope}`);
+  const sessionDir = path.join(sessionsRoot, directoryName);
+  const resolvedRoot = path.resolve(sessionsRoot);
+  const resolvedSessionDir = path.resolve(sessionDir);
+  if (
+    resolvedSessionDir !== resolvedRoot &&
+    !resolvedSessionDir.startsWith(`${resolvedRoot}${path.sep}`)
+  ) {
+    throw new Error(`Session scope resolves outside the sessions directory.`);
+  }
+
+  return sessionDir;
 }
 
 const logger = createModuleLogger("session-registry");
 
 export class SessionRegistry {
   private readonly scopes = new Map<SessionScope, ScopedSessionEntry>();
+  private readonly scopeOperations = new Map<SessionScope, Promise<void>>();
   private readonly agentService: AgentService;
+  private shuttingDown = false;
 
   constructor(agentService: AgentService) {
     this.agentService = agentService;
@@ -61,71 +77,77 @@ export class SessionRegistry {
     scope: SessionScope,
     options: GetOrCreateSessionOptions = {},
   ): Promise<{ entry: ScopedSessionEntry; created: boolean }> {
-    const reuseExisting = options.reuseExisting ?? true;
-    const existing = this.scopes.get(scope);
-    if (existing && reuseExisting) {
-      return { entry: existing, created: false };
-    }
+    return this.withScopeLock(scope, async () => {
+      if (this.shuttingDown) {
+        throw new Error("Session registry is shutting down.");
+      }
 
-    if (existing && !reuseExisting) {
-      await this.remove(scope);
-    }
+      const reuseExisting = options.reuseExisting ?? true;
+      const existing = this.scopes.get(scope);
+      if (existing && reuseExisting) {
+        return { entry: existing, created: false };
+      }
 
-    const sessionDir = sessionDirForScope(
-      this.agentService.getAgentDir(),
-      scope,
-    );
-    const session = await this.agentService.createSession(sessionDir, {
-      reuseExisting,
-    });
-    const promptQueue = new PromptQueue();
+      if (existing && !reuseExisting) {
+        await this.removeEntry(scope);
+      }
 
-    const entry: ScopedSessionEntry = {
-      session,
-      promptQueue,
-      createdAt: new Date(),
-      workingEmoji: DEFAULT_WORKING_EMOJI,
-    };
-    this.scopes.set(scope, entry);
-
-    logger.debug(
-      {
+      const sessionDir = sessionDirForScope(
+        this.agentService.getAgentDir(),
         scope,
-        sessionDir,
+      );
+      const session = await this.agentService.createSession(sessionDir, {
         reuseExisting,
-        sessionId: session.sessionId,
-      },
-      "scope registered",
-    );
+      });
+      const promptQueue = new PromptQueue();
 
-    return { entry, created: true };
+      const entry: ScopedSessionEntry = {
+        session,
+        promptQueue,
+        createdAt: new Date(),
+        workingEmoji: DEFAULT_WORKING_EMOJI,
+      };
+      this.scopes.set(scope, entry);
+
+      logger.debug(
+        {
+          scope,
+          sessionDir,
+          reuseExisting,
+          sessionId: session.sessionId,
+        },
+        "scope registered",
+      );
+
+      return { entry, created: true };
+    });
   }
 
   async remove(scope: SessionScope): Promise<void> {
-    const entry = this.scopes.get(scope);
-    if (!entry) {
-      return;
-    }
-
-    logger.debug({ scope }, "removing scope");
-    await entry.session.abort();
-    entry.session.dispose();
-    this.scopes.delete(scope);
+    await this.withScopeLock(scope, async () => {
+      await this.removeEntry(scope);
+    });
   }
 
   async reset(scope: SessionScope): Promise<void> {
-    logger.info({ scope }, "resetting scope");
+    await this.withScopeLock(scope, async () => {
+      logger.info({ scope }, "resetting scope");
 
-    if (scope === "dm") {
-      await this.remove(scope);
-      await this.agentService.resetMainSession();
-      return;
-    }
+      if (scope === "dm") {
+        await this.removeEntry(scope);
+        await this.agentService.resetMainSession();
+        return;
+      }
 
-    await this.remove(scope);
-    await fs.rm(sessionDirForScope(this.agentService.getAgentDir(), scope), {
-      recursive: true,
-      force: true,
+      const sessionDir = sessionDirForScope(
+        this.agentService.getAgentDir(),
+        scope,
+      );
+      await this.removeEntry(scope);
+      await fs.rm(sessionDir, {
+        recursive: true,
+        force: true,
+      });
     });
   }
 
@@ -138,10 +160,75 @@ export class SessionRegistry {
   }
 
   async shutdownAll(): Promise<void> {
+    this.shuttingDown = true;
     logger.info({ count: this.scopes.size }, "shutting down all scopes");
     const scopes = Array.from(this.scopes.keys());
-    for (const scope of scopes) {
-      await this.remove(scope);
+    const results = await Promise.allSettled(
+      scopes.map(async (scope) => {
+        await this.remove(scope);
+      }),
+    );
+    const failure = results.find((result) => {
+      return result.status === "rejected";
+    });
+    if (failure?.status === "rejected") {
+      throw failure.reason;
+    }
+  }
+
+  private async removeEntry(scope: SessionScope): Promise<void> {
+    const entry = this.scopes.get(scope);
+    if (!entry) {
+      return;
+    }
+
+    logger.debug({ scope }, "removing scope");
+    this.scopes.delete(scope);
+
+    const results = await Promise.allSettled([
+      entry.promptQueue.close(),
+      entry.session.abort(),
+    ]);
+
+    let disposeError: unknown;
+    try {
+      entry.session.dispose();
+    } catch (error) {
+      disposeError = error;
+    }
+
+    const failure = results.find((result) => {
+      return result.status === "rejected";
+    });
+    if (failure?.status === "rejected") {
+      throw failure.reason;
+    }
+
+    if (disposeError) {
+      throw disposeError;
+    }
+  }
+
+  private async withScopeLock<T>(
+    scope: SessionScope,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.scopeOperations.get(scope) ?? Promise.resolve();
+    let release: (() => void) | undefined;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const queued = previous.then(() => current);
+    this.scopeOperations.set(scope, queued);
+
+    await previous;
+    try {
+      return await operation();
+    } finally {
+      release?.();
+      if (this.scopeOperations.get(scope) === queued) {
+        this.scopeOperations.delete(scope);
+      }
     }
   }
 }

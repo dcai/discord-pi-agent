@@ -315,4 +315,43 @@ describe("startGatewayClient", () => {
       "The bot hit an error while handling that message.",
     );
   });
+
+  it("does not reject when the fallback error reply also fails", async () => {
+    handleDiscordMessageMock.mockRejectedValue(new Error("boom"));
+    sendReplyMock.mockRejectedValue(new Error("discord unavailable"));
+
+    const client = (await startGatewayClient(
+      createConfig(),
+      {} as AgentService,
+      {} as SessionRegistry,
+      accessConfig,
+    )) as unknown as {
+      onHandlers: Map<string, (value: any) => Promise<void> | void>;
+    };
+
+    await expect(
+      client.onHandlers.get(Events.MessageCreate)?.({ id: "message-1" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("contains thread cleanup failures", async () => {
+    const sessionRegistry = {
+      remove: vi.fn(async () => {
+        throw new Error("cleanup failed");
+      }),
+    } as unknown as SessionRegistry;
+
+    const client = (await startGatewayClient(
+      createConfig(),
+      {} as AgentService,
+      sessionRegistry,
+      accessConfig,
+    )) as unknown as {
+      onHandlers: Map<string, (value: any) => Promise<void> | void>;
+    };
+
+    await expect(
+      client.onHandlers.get(Events.ThreadDelete)?.({ id: "thread-1" }),
+    ).resolves.toBeUndefined();
+  });
 });
