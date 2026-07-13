@@ -142,6 +142,7 @@ describe("config", () => {
         model: "gpt-4o-mini-transcribe",
         apiKey: null,
         endpoint: null,
+        ffmpegPath: "ffmpeg",
         echoToDiscord: true,
       });
       expect(config.discordCommandRegistrationScope).toBe("none");
@@ -193,6 +194,8 @@ describe("config", () => {
             model: " whisper-2 ",
             apiKey: " sk-custom-key ",
             endpoint: " https://custom.example.com/transcribe ",
+            ffmpegPath: " /usr/local/bin/ffmpeg ",
+            transcriptionPrompt: " Pi, Discord, and OpenAI. ",
             prompt: " Keep the same language. Be conservative. ",
           },
           discordCommandRegistrationScope: "guild",
@@ -224,6 +227,8 @@ describe("config", () => {
         model: "whisper-2",
         apiKey: "sk-custom-key",
         endpoint: "https://custom.example.com/transcribe",
+        ffmpegPath: "/usr/local/bin/ffmpeg",
+        transcriptionPrompt: "Pi, Discord, and OpenAI.",
         prompt: "Keep the same language. Be conservative.",
         echoToDiscord: true,
       });
@@ -247,6 +252,7 @@ describe("config", () => {
         model: "gpt-4o-mini-transcribe",
         apiKey: null,
         endpoint: null,
+        ffmpegPath: "ffmpeg",
         echoToDiscord: false,
       });
     });
@@ -371,6 +377,7 @@ describe("config", () => {
             model: "gpt-4o-mini-transcribe",
             apiKey: null,
             endpoint: null,
+            ffmpegPath: "ffmpeg",
             echoToDiscord: true,
           });
           expect(config.discordCommandRegistrationScope).toBe("guild");
@@ -399,6 +406,7 @@ describe("config", () => {
             model: "gpt-4o-mini-transcribe",
             apiKey: "pi-audio-key",
             endpoint: null,
+            ffmpegPath: "ffmpeg",
             echoToDiscord: true,
           });
         },
@@ -422,6 +430,7 @@ describe("config", () => {
             model: "gpt-4o-mini-transcribe",
             apiKey: "openai-key",
             endpoint: null,
+            ffmpegPath: "ffmpeg",
             echoToDiscord: true,
           });
         },
@@ -450,6 +459,7 @@ describe("config", () => {
             model: "gpt-4o-mini-transcribe",
             apiKey: "pi-audio-key",
             endpoint: null,
+            ffmpegPath: "ffmpeg",
             prompt: "Keep the same language.",
             echoToDiscord: false,
           });
@@ -496,6 +506,7 @@ describe("config", () => {
             model: "gpt-4o-mini-transcribe",
             apiKey: "sk-audio-key",
             endpoint: null,
+            ffmpegPath: "ffmpeg",
             prompt: "Keep the same language.",
             echoToDiscord: false,
           });

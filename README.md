@@ -383,7 +383,9 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
   - set `false` to disable it entirely
   - `{ provider: "openai", model: "gpt-4o-mini-transcribe", apiKey: process.env.PI_AUDIO_TRANSCRIPTION_API_KEY }` customizes the enabled config
   - optional `endpoint` for custom/self-hosted or non-OpenAI-compatible services
+  - optional `transcriptionPrompt` provides short recognition context, such as names, acronyms, and technical terms
   - optional `prompt` adds host guidance for transcript cleanup while keeping the same language as the source transcript
+  - optional `ffmpegPath` selects the system `ffmpeg` executable used only when OpenAI rejects a Discord audio format (default: `"ffmpeg"`)
   - optional `echoToDiscord` controls whether the cleaned transcript is echoed back into Discord as a quick reference (default: `true`)
   - `provider` currently auto-supports `openai`; for anything else, set `endpoint` explicitly
   - this is separate from `visionModelId` and the media resolution path

@@ -323,6 +323,7 @@ function resolveAudioTranscriptionConfig(
   }
 
   const prompt = normalizeOptionalText(value.prompt);
+  const transcriptionPrompt = normalizeOptionalText(value.transcriptionPrompt);
 
   return createEnabledAudioTranscriptionConfig({
     provider,
@@ -330,6 +331,8 @@ function resolveAudioTranscriptionConfig(
       normalizeOptionalText(value.model) ?? DEFAULT_AUDIO_TRANSCRIPTION_MODEL,
     apiKey: normalizeOptionalText(value.apiKey) ?? null,
     endpoint,
+    ffmpegPath: normalizeOptionalText(value.ffmpegPath) ?? "ffmpeg",
+    ...(transcriptionPrompt ? { transcriptionPrompt } : {}),
     ...(prompt ? { prompt } : {}),
     echoToDiscord: value.echoToDiscord ?? true,
   });
@@ -344,6 +347,7 @@ function createEnabledAudioTranscriptionConfig(
     model: DEFAULT_AUDIO_TRANSCRIPTION_MODEL,
     apiKey: null,
     endpoint: null,
+    ffmpegPath: "ffmpeg",
     echoToDiscord: true,
     ...overrides,
   };
@@ -356,6 +360,7 @@ function createDisabledAudioTranscriptionConfig(): ResolvedAudioTranscriptionCon
     model: DEFAULT_AUDIO_TRANSCRIPTION_MODEL,
     apiKey: null,
     endpoint: null,
+    ffmpegPath: "ffmpeg",
     echoToDiscord: false,
   };
 }

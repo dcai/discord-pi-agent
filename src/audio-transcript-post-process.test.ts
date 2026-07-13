@@ -162,6 +162,35 @@ describe("audio-transcript-post-process", () => {
     );
   });
 
+  it("cleans long transcripts in ordered chunks without dropping text", async () => {
+    const { agentService, session } = createAgentService();
+    const firstChunk = `${"a".repeat(11_999)} `;
+    const secondChunk = "second part";
+    runAgentTurnMock
+      .mockResolvedValueOnce("cleaned first part")
+      .mockResolvedValueOnce("cleaned second part");
+
+    const result = await postProcessAudioTranscript({
+      agentService,
+      config: createConfig(),
+      filename: "long-audio.mp3",
+      transcript: `${firstChunk}${secondChunk}`,
+    });
+
+    expect(result).toBe("cleaned first part\ncleaned second part");
+    expect(runAgentTurnMock).toHaveBeenCalledTimes(2);
+    expect(runAgentTurnMock).toHaveBeenNthCalledWith(
+      1,
+      session,
+      expect.stringContaining("This is transcript part 1 of 2."),
+    );
+    expect(runAgentTurnMock).toHaveBeenNthCalledWith(
+      2,
+      session,
+      expect.stringContaining("This is transcript part 2 of 2."),
+    );
+  });
+
   it("returns null when cleanup fails", async () => {
     const { agentService } = createAgentService();
     const config = createConfig();

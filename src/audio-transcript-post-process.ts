@@ -5,7 +5,8 @@ import { wrapXmlTag } from "./prompt-context";
 import type { ResolvedDiscordGatewayConfig, TaskModelTarget } from "./types";
 
 const logger = createModuleLogger("audio-transcript-post-process");
-const DEFAULT_AUDIO_TRANSCRIPT_PROMPT_MAX_CHARS = 12_000;
+const AUDIO_TRANSCRIPT_CLEANUP_CHUNK_MAX_CHARS = 12_000;
+const AUDIO_TRANSCRIPT_INSTRUCTIONS_MAX_CHARS = 12_000;
 
 type PostProcessAudioTranscriptInput = {
   agentService: AgentService;
@@ -44,24 +45,38 @@ export async function postProcessAudioTranscript(
         },
       );
 
-      const cleanedTranscript = (
-        await runAgentTurn(
-          session,
-          buildAudioTranscriptCleanupPrompt(input, rawTranscript),
-        )
-      ).trim();
+      const transcriptChunks = splitTranscriptForCleanup(rawTranscript);
+      const cleanedChunks: string[] = [];
 
-      if (!cleanedTranscript) {
-        logger.warn(
-          {
-            filename: input.filename,
-            rawTranscript,
-          },
-          "audio transcript cleanup returned empty text",
-        );
-        return null;
+      for (const [index, transcriptChunk] of transcriptChunks.entries()) {
+        const cleanedChunk = (
+          await runAgentTurn(
+            session,
+            buildAudioTranscriptCleanupPrompt(
+              input,
+              transcriptChunk,
+              index + 1,
+              transcriptChunks.length,
+            ),
+          )
+        ).trim();
+
+        if (!cleanedChunk) {
+          logger.warn(
+            {
+              filename: input.filename,
+              rawTranscript,
+              chunk: index + 1,
+            },
+            "audio transcript cleanup returned empty text",
+          );
+          return null;
+        }
+
+        cleanedChunks.push(cleanedChunk);
       }
 
+      const cleanedTranscript = cleanedChunks.join("\n");
       logger.info(
         {
           filename: input.filename,
@@ -90,7 +105,9 @@ export async function postProcessAudioTranscript(
 
 function buildAudioTranscriptCleanupPrompt(
   input: PostProcessAudioTranscriptInput,
-  rawTranscript: string,
+  transcriptChunk: string,
+  chunkNumber: number,
+  chunkCount: number,
 ): string {
   const sections = [
     [
@@ -108,6 +125,12 @@ function buildAudioTranscriptCleanupPrompt(
     ].join("\n"),
   ];
 
+  if (chunkCount > 1) {
+    sections.push(
+      `This is transcript part ${chunkNumber} of ${chunkCount}. Clean only this part.`,
+    );
+  }
+
   const customPrompt = input.config.audioTranscription.prompt?.trim();
   if (customPrompt) {
     sections.push(
@@ -117,24 +140,41 @@ function buildAudioTranscriptCleanupPrompt(
           "host_audio_cleanup_instructions",
           limitPromptSection(
             customPrompt,
-            DEFAULT_AUDIO_TRANSCRIPT_PROMPT_MAX_CHARS,
+            AUDIO_TRANSCRIPT_INSTRUCTIONS_MAX_CHARS,
           ),
         ),
       ].join("\n"),
     );
   }
 
-  sections.push(
-    wrapXmlTag(
-      "audio_transcript",
-      limitPromptSection(
-        rawTranscript,
-        DEFAULT_AUDIO_TRANSCRIPT_PROMPT_MAX_CHARS,
-      ),
-    ),
-  );
+  sections.push(wrapXmlTag("audio_transcript", transcriptChunk));
 
   return sections.join("\n\n");
+}
+
+function splitTranscriptForCleanup(transcript: string): string[] {
+  const chunks: string[] = [];
+  let remaining = transcript;
+
+  while (remaining.length > AUDIO_TRANSCRIPT_CLEANUP_CHUNK_MAX_CHARS) {
+    const candidate = remaining.slice(
+      0,
+      AUDIO_TRANSCRIPT_CLEANUP_CHUNK_MAX_CHARS,
+    );
+    const lastWhitespace = Math.max(
+      candidate.lastIndexOf("\n"),
+      candidate.lastIndexOf(" "),
+    );
+    const splitAt = lastWhitespace > 0 ? lastWhitespace : candidate.length;
+    chunks.push(remaining.slice(0, splitAt).trim());
+    remaining = remaining.slice(splitAt).trimStart();
+  }
+
+  if (remaining) {
+    chunks.push(remaining);
+  }
+
+  return chunks;
 }
 
 function limitPromptSection(value: string, maxLength: number): string {

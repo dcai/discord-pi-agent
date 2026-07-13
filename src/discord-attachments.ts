@@ -36,9 +36,19 @@ const MEDIA_ATTACHMENT_EXTENSIONS = [
 
 const MAX_MEDIA_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024;
 
-const AUDIO_EXTENSIONS = [".ogg", ".mp3", ".wav", ".flac", ".m4a", ".webm"];
+const AUDIO_EXTENSIONS = [
+  ".ogg",
+  ".mp3",
+  ".wav",
+  ".flac",
+  ".m4a",
+  ".webm",
+  ".mp4",
+  ".mpeg",
+  ".mpga",
+];
 
-const MAX_AUDIO_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024;
+const MAX_AUDIO_ATTACHMENT_SIZE_BYTES = 24_000_000;
 const ATTACHMENT_FETCH_TIMEOUT_MS = 30_000;
 
 const OFFICE_MIME_TYPES = new Set([

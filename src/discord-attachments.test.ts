@@ -374,7 +374,7 @@ describe("discord-attachments", () => {
             {
               name: "huge.ogg",
               contentType: "audio/ogg",
-              size: 30 * 1024 * 1024,
+              size: 24_000_001,
               url: "https://example.com/huge.ogg",
             },
           ]) as never,

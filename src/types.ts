@@ -32,6 +32,10 @@ export type AudioTranscriptionConfig = {
   apiKey?: string;
   /** Custom endpoint URL for the transcription API (defaults to provider's standard endpoint). */
   endpoint?: string;
+  /** Executable used to convert Discord audio formats unsupported by OpenAI. Defaults to "ffmpeg". */
+  ffmpegPath?: string;
+  /** Optional context for the transcription model, such as names and technical terms. */
+  transcriptionPrompt?: string;
   /** Optional extra prompt guidance for transcript cleanup.
    * The cleanup pass keeps the same language and returns only the cleaned text. */
   prompt?: string;
@@ -46,6 +50,8 @@ export type ResolvedAudioTranscriptionConfig = {
   model: string;
   apiKey: string | null;
   endpoint: string | null;
+  ffmpegPath: string;
+  transcriptionPrompt?: string;
   prompt?: string;
   echoToDiscord: boolean;
 };

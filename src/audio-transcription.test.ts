@@ -6,6 +6,21 @@ import {
 import type { AudioAttachmentContent } from "./discord-attachments";
 import type { ResolvedAudioTranscriptionConfig } from "./types";
 
+const { requiresOpenAiAudioTranscodingMock, transcodeAudioForOpenAiMock } =
+  vi.hoisted(() => {
+    return {
+      requiresOpenAiAudioTranscodingMock: vi.fn(),
+      transcodeAudioForOpenAiMock: vi.fn(),
+    };
+  });
+
+vi.mock("./audio-transcoding", () => {
+  return {
+    requiresOpenAiAudioTranscoding: requiresOpenAiAudioTranscodingMock,
+    transcodeAudioForOpenAi: transcodeAudioForOpenAiMock,
+  };
+});
+
 function createConfig(
   overrides: Partial<ResolvedAudioTranscriptionConfig> = {},
 ): ResolvedAudioTranscriptionConfig {
@@ -15,6 +30,7 @@ function createConfig(
     model: "gpt-4o-mini-transcribe",
     apiKey: "sk-test-key",
     endpoint: null,
+    ffmpegPath: "ffmpeg",
     ...overrides,
   };
 }
@@ -34,6 +50,8 @@ function createAudio(
 beforeEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
+  requiresOpenAiAudioTranscodingMock.mockReturnValue(true);
+  transcodeAudioForOpenAiMock.mockImplementation(async (audio) => audio);
 });
 
 describe("audio-transcription", () => {
@@ -68,6 +86,7 @@ describe("audio-transcription", () => {
       expect(init.method).toBe("POST");
       expect(init.headers.Authorization).toBe("Bearer sk-test-key");
       expect(init.body).toBeInstanceOf(FormData);
+      expect(transcodeAudioForOpenAiMock).not.toHaveBeenCalled();
     });
 
     it("uses custom endpoint when configured", async () => {
@@ -85,6 +104,97 @@ describe("audio-transcription", () => {
       expect(fetchMock.mock.calls[0][0]).toBe(
         "https://custom.example.com/transcribe",
       );
+      expect(transcodeAudioForOpenAiMock).not.toHaveBeenCalled();
+    });
+
+    it("returns null when audio transcoding fails", async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: false,
+        status: 415,
+        text: async () => "Unsupported audio format",
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+      transcodeAudioForOpenAiMock.mockRejectedValue(
+        new Error("ffmpeg is not installed"),
+      );
+
+      await expect(
+        transcribeAudio(createAudio(), createConfig()),
+      ).resolves.toBeNull();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries an unsupported raw format after transcoding", async () => {
+      const transcodedAudio = createAudio({
+        filename: "voice-message.mp3",
+        data: Buffer.from("transcoded-audio"),
+        mimeType: "audio/mpeg",
+      });
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 415,
+          text: async () => "Unsupported audio format",
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => "transcribed after fallback",
+        });
+      vi.stubGlobal("fetch", fetchMock);
+      transcodeAudioForOpenAiMock.mockResolvedValue(transcodedAudio);
+
+      await expect(
+        transcribeAudio(createAudio(), createConfig()),
+      ).resolves.toBe("transcribed after fallback");
+
+      expect(transcodeAudioForOpenAiMock).toHaveBeenCalledWith(
+        createAudio(),
+        "ffmpeg",
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[1][1].body.get("file").name).toBe(
+        "voice-message.mp3",
+      );
+    });
+
+    it("passes transcription-specific context to the API", async () => {
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        text: async () => "transcribed",
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await transcribeAudio(
+        createAudio(),
+        createConfig({
+          transcriptionPrompt: "Terms include pi, Discord, and OpenAI.",
+        }),
+      );
+
+      const [, init] = fetchMock.mock.calls[0];
+      expect(init.body.get("prompt")).toBe(
+        "Terms include pi, Discord, and OpenAI.",
+      );
+    });
+
+    it("cancels a transcription request that exceeds its timeout", async () => {
+      vi.useFakeTimers();
+      const fetchMock = vi.fn((_url, init) => {
+        return new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const transcription = transcribeAudio(createAudio(), createConfig());
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      await expect(transcription).resolves.toBeNull();
+      expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
+      vi.useRealTimers();
     });
 
     it("returns null on API error", async () => {
