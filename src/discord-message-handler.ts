@@ -157,103 +157,114 @@ export async function handleDiscordMessage(
   const channelKey = message.channel.id;
   startTypingIfPossible(message, channelKey);
 
-  const { entry, created } = await sessionRegistry.getOrCreate(
-    preparedMessage.scope,
-  );
-  logNewThreadSession(message, preparedMessage.scope, created);
+  let pipelineOwnsTypingCleanup = false;
+  try {
+    const { entry, created } = await sessionRegistry.getOrCreate(
+      preparedMessage.scope,
+    );
+    logNewThreadSession(message, preparedMessage.scope, created);
 
-  const promptTemplateCommand =
-    agentService.resources.expandPromptTemplateCommand(
-      preparedMessage.content,
-      config.discordCommandPrefixes,
-    );
-  if (promptTemplateCommand.matched) {
-    logger.info(
-      {
-        scope: preparedMessage.scope,
-        templateName: promptTemplateCommand.template.name,
-      },
-      "prompt template command received",
-    );
-    const startedAt = performance.now();
-    let outcome: "success" | "failed" = "success";
-    try {
-      await processAgentPrompt(
-        message,
-        config,
-        agentService,
-        entry,
+    const promptTemplateCommand =
+      agentService.resources.expandPromptTemplateCommand(
+        preparedMessage.content,
+        config.discordCommandPrefixes,
+      );
+    if (promptTemplateCommand.matched) {
+      logger.info(
         {
-          ...preparedMessage,
-          content: promptTemplateCommand.expandedPrompt,
+          scope: preparedMessage.scope,
+          templateName: promptTemplateCommand.template.name,
         },
+        "prompt template command received",
+      );
+      const startedAt = performance.now();
+      let outcome: "success" | "failed" = "success";
+      pipelineOwnsTypingCleanup = true;
+      try {
+        await processAgentPrompt(
+          message,
+          config,
+          agentService,
+          entry,
+          {
+            ...preparedMessage,
+            content: promptTemplateCommand.expandedPrompt,
+          },
+          channelKey,
+        );
+      } catch (error) {
+        outcome = "failed";
+        throw error;
+      } finally {
+        await recordCommandUsage(commandUsage, {
+          commandId: `prompt_template:${promptTemplateCommand.template.name}`,
+          surface: "prefix",
+          alias: findCommandPrefix(
+            preparedMessage.content,
+            config.discordCommandPrefixes,
+          ),
+          resourceName: promptTemplateCommand.template.name,
+          outcome,
+          durationMs: performance.now() - startedAt,
+          scope: preparedMessage.scope,
+        });
+      }
+      return;
+    }
+
+    const commandResult = await executeSessionCommand(preparedMessage.content, {
+      agentService,
+      promptQueue: entry.promptQueue,
+      session: entry.session,
+      sessionRegistry,
+      taskScheduler,
+      channelId: message.channel.id,
+      promptTimeZone: config.promptTimeZone,
+      promptLocale: config.promptLocale,
+      scope: preparedMessage.scope,
+      workingEmoji: entry.workingEmoji,
+      commandPrefixes: config.discordCommandPrefixes,
+      commandUsage,
+      commandSurface: "prefix",
+      commandAlias: findCommandPrefix(
+        preparedMessage.content,
+        config.discordCommandPrefixes,
+      ),
+    });
+
+    if (commandResult.handled) {
+      pipelineOwnsTypingCleanup = true;
+      await handleCommandResult(
+        message,
+        sessionRegistry,
+        preparedMessage.scope,
+        entry,
+        commandResult,
         channelKey,
       );
-    } catch (error) {
-      outcome = "failed";
-      throw error;
-    } finally {
-      await recordCommandUsage(commandUsage, {
-        commandId: `prompt_template:${promptTemplateCommand.template.name}`,
-        surface: "prefix",
-        alias: findCommandPrefix(
-          preparedMessage.content,
-          config.discordCommandPrefixes,
-        ),
-        resourceName: promptTemplateCommand.template.name,
-        outcome,
-        durationMs: performance.now() - startedAt,
-        scope: preparedMessage.scope,
-      });
+      return;
     }
-    return;
-  }
 
-  const commandResult = await executeSessionCommand(preparedMessage.content, {
-    agentService,
-    promptQueue: entry.promptQueue,
-    session: entry.session,
-    sessionRegistry,
-    taskScheduler,
-    channelId: message.channel.id,
-    promptTimeZone: config.promptTimeZone,
-    promptLocale: config.promptLocale,
-    scope: preparedMessage.scope,
-    workingEmoji: entry.workingEmoji,
-    commandPrefixes: config.discordCommandPrefixes,
-    commandUsage,
-    commandSurface: "prefix",
-    commandAlias: findCommandPrefix(
-      preparedMessage.content,
-      config.discordCommandPrefixes,
-    ),
-  });
-
-  if (commandResult.handled) {
-    await handleCommandResult(
+    pipelineOwnsTypingCleanup = true;
+    await processAgentPrompt(
       message,
-      sessionRegistry,
-      preparedMessage.scope,
+      config,
+      agentService,
       entry,
-      commandResult,
+      commandResult.forwardedInput
+        ? {
+            ...preparedMessage,
+            content: commandResult.forwardedInput,
+          }
+        : preparedMessage,
       channelKey,
     );
-    return;
+  } catch (error) {
+    if (!pipelineOwnsTypingCleanup) {
+      stopTypingForChannel(channelKey);
+    }
+    throw error;
   }
-
-  await processAgentPrompt(
-    message,
-    config,
-    agentService,
-    entry,
-    commandResult.forwardedInput
-      ? {
-          ...preparedMessage,
-          content: commandResult.forwardedInput,
-        }
-      : preparedMessage,
-    channelKey,
-  );
 }
 
 async function resolveFullMessage(
@@ -486,15 +497,18 @@ async function processAgentPrompt(
     return;
   }
 
-  await addWorkingReaction(message, entry.workingEmoji);
-  await notifyIfPromptQueued(message, entry.promptQueue.getSnapshot().pending);
-
   const toolEmojiByCallId = new Map<string, string>();
   const activeToolCountByEmoji = new Map<string, number>();
   let reactionOperationChain = Promise.resolve();
   const cancellationCount = entry.promptQueue.getCancellationCount();
 
   try {
+    await addWorkingReaction(message, entry.workingEmoji);
+    await notifyIfPromptQueued(
+      message,
+      entry.promptQueue.getSnapshot().pending,
+    );
+
     const result = await executeQueuedAgentPrompt({
       entry,
       prepare: async () => {

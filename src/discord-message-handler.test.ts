@@ -848,6 +848,27 @@ describe("handleDiscordMessage", () => {
     expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
   });
 
+  it("stops typing when command handling fails before the command reply", async () => {
+    const config = createConfig();
+    const registry = createSessionRegistry();
+    const message = createMessage({ content: "!help" });
+    const error = new Error("help failed");
+
+    executeSessionCommandMock.mockRejectedValueOnce(error);
+
+    await expect(
+      handleDiscordMessage(
+        message as never,
+        config,
+        createAgentService(),
+        registry,
+        accessConfig,
+      ),
+    ).rejects.toThrow("help failed");
+
+    expect(stopTypingForChannelMock).toHaveBeenCalledWith("channel-1");
+  });
+
   it("expands loaded prompt templates before running the agent", async () => {
     const config = createConfig();
     const registry = createSessionRegistry();

@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { classifySessionCommand } from "./command-registry";
+import {
+  classifySessionCommand,
+  formatCommandInventoryHelp,
+} from "./command-registry";
 import { recordCommandUsage } from "./command-usage";
 
 describe("command usage", () => {
@@ -34,8 +37,27 @@ describe("command usage", () => {
       outcome: "success",
       durationMs: 12,
     });
+
     expect(record.mock.calls[0][0]).not.toHaveProperty("content");
     expect(record.mock.calls[0][0]).not.toHaveProperty("messageId");
+  });
+
+  it("calls the resource prompt-template method with its owning service", () => {
+    const resources = {
+      templates: [{ name: "review" }],
+      getPromptTemplates() {
+        return this.templates;
+      },
+    };
+
+    const help = formatCommandInventoryHelp({
+      agentService: { resources } as never,
+      promptQueue: {} as never,
+      scope: "dm",
+      workingEmoji: "⚙️",
+    });
+
+    expect(help).toContain("!review <args> - loaded Pi prompt template");
   });
 
   it("does not break command execution when recording fails", async () => {

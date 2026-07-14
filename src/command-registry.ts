@@ -298,9 +298,11 @@ export function formatCommandInventoryHelp(context: CommandContext): string {
     output.push("", `${categoryLabels[category]}:`, ...lines);
   }
 
-  const getPromptTemplates = context.agentService.resources.getPromptTemplates;
+  const resources = context.agentService.resources;
   const promptTemplates =
-    typeof getPromptTemplates === "function" ? getPromptTemplates() : [];
+    typeof resources.getPromptTemplates === "function"
+      ? resources.getPromptTemplates()
+      : [];
   const promptTemplateLines = promptTemplates.map((template) => {
     return `${prefix}${template.name} <args> - loaded Pi prompt template`;
   });
