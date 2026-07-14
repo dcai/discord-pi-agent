@@ -290,7 +290,7 @@ describe("executeSessionCommand", () => {
       promptQueue: createPromptQueueMock(),
       session: createSessionMock(),
       taskScheduler: createTaskSchedulerMock(),
-      scope: DM_SCOPE,
+      scope: "thread:thread-1",
       workingEmoji: "⚙️",
     });
 

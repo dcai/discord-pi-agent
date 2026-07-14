@@ -25,6 +25,7 @@ import {
 import { PromptQueueCancelledError } from "./prompt-queue";
 import { executeQueuedAgentPrompt } from "./queued-agent-prompt";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
+import { recordCommandUsage } from "./command-usage";
 import { startTypingForChannel, stopTypingForChannel } from "./discord-typing";
 import { createModuleLogger } from "./logger";
 import {
@@ -41,6 +42,7 @@ import type {
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   GatewayAccessConfig,
+  CommandUsageOptions,
   ResolvedDiscordGatewayConfig,
 } from "./types";
 
@@ -137,6 +139,7 @@ export async function handleDiscordMessage(
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
   taskScheduler?: TaskSchedulerService | null,
+  commandUsage?: CommandUsageOptions,
 ): Promise<void> {
   const preparedMessage = await prepareDiscordMessage(message, accessConfig);
   if (!preparedMessage) {
@@ -172,17 +175,37 @@ export async function handleDiscordMessage(
       },
       "prompt template command received",
     );
-    await processAgentPrompt(
-      message,
-      config,
-      agentService,
-      entry,
-      {
-        ...preparedMessage,
-        content: promptTemplateCommand.expandedPrompt,
-      },
-      channelKey,
-    );
+    const startedAt = performance.now();
+    let outcome: "success" | "failed" = "success";
+    try {
+      await processAgentPrompt(
+        message,
+        config,
+        agentService,
+        entry,
+        {
+          ...preparedMessage,
+          content: promptTemplateCommand.expandedPrompt,
+        },
+        channelKey,
+      );
+    } catch (error) {
+      outcome = "failed";
+      throw error;
+    } finally {
+      await recordCommandUsage(commandUsage, {
+        commandId: `prompt_template:${promptTemplateCommand.template.name}`,
+        surface: "prefix",
+        alias: findCommandPrefix(
+          preparedMessage.content,
+          config.discordCommandPrefixes,
+        ),
+        resourceName: promptTemplateCommand.template.name,
+        outcome,
+        durationMs: performance.now() - startedAt,
+        scope: preparedMessage.scope,
+      });
+    }
     return;
   }
 
@@ -198,6 +221,12 @@ export async function handleDiscordMessage(
     scope: preparedMessage.scope,
     workingEmoji: entry.workingEmoji,
     commandPrefixes: config.discordCommandPrefixes,
+    commandUsage,
+    commandSurface: "prefix",
+    commandAlias: findCommandPrefix(
+      preparedMessage.content,
+      config.discordCommandPrefixes,
+    ),
   });
 
   if (commandResult.handled) {
@@ -207,7 +236,6 @@ export async function handleDiscordMessage(
       preparedMessage.scope,
       entry,
       commandResult,
-      preparedMessage.content,
       channelKey,
     );
     return;
@@ -368,7 +396,6 @@ async function handleCommandResult(
   scope: SessionScope,
   entry: ScopedSessionEntry,
   commandResult: CommandResult,
-  content: string,
   channelKey: string,
 ): Promise<void> {
   stopTypingForChannel(channelKey);
@@ -397,10 +424,9 @@ async function handleCommandResult(
   logger.info(
     {
       messageId: message.id,
-      command: content,
       hasResponse: Boolean(commandResult.response),
     },
-    `command handled: ${content}`,
+    "command handled",
   );
 
   if (commandResult.response) {
@@ -435,6 +461,15 @@ async function archiveThreadSession(
 
 function resolveToolReactionEmoji(toolName: string): string {
   return TOOL_REACTION_EMOJIS[toolName] ?? DEFAULT_TOOL_REACTION_EMOJI;
+}
+
+function findCommandPrefix(
+  input: string,
+  prefixes: string[],
+): string | undefined {
+  return prefixes.find((prefix) => {
+    return prefix.length > 0 && input.startsWith(prefix);
+  });
 }
 
 async function processAgentPrompt(

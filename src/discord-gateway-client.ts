@@ -15,6 +15,7 @@ import type { SessionRegistry, SessionScope } from "./session-registry";
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   GatewayAccessConfig,
+  CommandUsageOptions,
   ResolvedDiscordGatewayConfig,
 } from "./types";
 
@@ -130,6 +131,7 @@ export async function startGatewayClient(
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
   taskScheduler?: TaskSchedulerService | null,
+  commandUsage?: CommandUsageOptions,
 ): Promise<Client> {
   const client = createDiscordClient(config, accessConfig);
   maybeAttachRawGatewayEventLogger(client);
@@ -146,14 +148,26 @@ export async function startGatewayClient(
     logGatewayMessageSummary("message create", message);
 
     try {
-      await handleDiscordMessage(
-        message,
-        config,
-        agentService,
-        sessionRegistry,
-        accessConfig,
-        taskScheduler,
-      );
+      if (commandUsage) {
+        await handleDiscordMessage(
+          message,
+          config,
+          agentService,
+          sessionRegistry,
+          accessConfig,
+          taskScheduler,
+          commandUsage,
+        );
+      } else {
+        await handleDiscordMessage(
+          message,
+          config,
+          agentService,
+          sessionRegistry,
+          accessConfig,
+          taskScheduler,
+        );
+      }
     } catch (error) {
       logger.error({ error, direction: "IN" }, "message handling failed");
       try {
@@ -199,14 +213,26 @@ export async function startGatewayClient(
 
   client.on(Events.InteractionCreate, async (interaction) => {
     try {
-      await handleDiscordInteraction(
-        interaction,
-        config,
-        agentService,
-        sessionRegistry,
-        accessConfig,
-        taskScheduler,
-      );
+      if (commandUsage) {
+        await handleDiscordInteraction(
+          interaction,
+          config,
+          agentService,
+          sessionRegistry,
+          accessConfig,
+          taskScheduler,
+          commandUsage,
+        );
+      } else {
+        await handleDiscordInteraction(
+          interaction,
+          config,
+          agentService,
+          sessionRegistry,
+          accessConfig,
+          taskScheduler,
+        );
+      }
     } catch (error) {
       logger.error({ error }, "interaction handling failed");
     }

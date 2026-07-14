@@ -1,5 +1,8 @@
 import { coreCommandHandlers } from "./session-commands/core-commands";
 import { schedulerCommandHandlers } from "./session-commands/scheduler-commands";
+import { recordCommandUsage } from "./command-usage";
+import { classifySessionCommand } from "./command-registry";
+import { PromptQueueCancelledError } from "./prompt-queue";
 import {
   type CommandContext,
   type CommandResult,
@@ -25,17 +28,50 @@ export async function executeSessionCommand(
     return { handled: false };
   }
 
-  for (const handler of commandHandlers) {
-    const result = await handler(normalizedCommandInput, context);
-    if (result) {
-      return result;
-    }
-  }
+  const commandId = classifySessionCommand(normalizedCommandInput) ?? "unknown";
+  const startedAt = performance.now();
 
-  return {
-    handled: true,
-    response:
-      `Unknown command: ${trimmedInput}. ` +
-      `Try ${formatCommandUsage(context, "help")}.`,
-  };
+  try {
+    for (const handler of commandHandlers) {
+      const result = await handler(normalizedCommandInput, context);
+      if (result) {
+        await recordCommandUsage(context.commandUsage, {
+          commandId,
+          surface: context.commandSurface ?? "prefix",
+          alias: context.commandAlias,
+          outcome: result.forwardedInput ? "forwarded" : "success",
+          durationMs: performance.now() - startedAt,
+          scope: context.scope,
+        });
+        return result;
+      }
+    }
+
+    await recordCommandUsage(context.commandUsage, {
+      commandId,
+      surface: context.commandSurface ?? "prefix",
+      alias: context.commandAlias,
+      outcome: "success",
+      durationMs: performance.now() - startedAt,
+      scope: context.scope,
+    });
+
+    return {
+      handled: true,
+      response:
+        `Unknown command: ${trimmedInput}. ` +
+        `Try ${formatCommandUsage(context, "help")}.`,
+    };
+  } catch (error) {
+    await recordCommandUsage(context.commandUsage, {
+      commandId,
+      surface: context.commandSurface ?? "prefix",
+      alias: context.commandAlias,
+      outcome:
+        error instanceof PromptQueueCancelledError ? "cancelled" : "failed",
+      durationMs: performance.now() - startedAt,
+      scope: context.scope,
+    });
+    throw error;
+  }
 }

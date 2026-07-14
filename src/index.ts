@@ -12,10 +12,12 @@ import { ScheduledJobDeliveryService } from "./scheduled-job-delivery";
 import { SessionRegistry } from "./session-registry";
 import { TaskSchedulerService } from "./task-scheduler-service";
 import type {
+  CommandUsageOptions,
   DiscordGateway,
   DiscordGatewayConfig,
   ResolvedDiscordGatewayConfig,
   StartDiscordGatewayOptions,
+  StartTaskSchedulerOptions,
   TaskScheduler,
   TaskSchedulerConfig,
   TaskSchedulerStatus,
@@ -32,6 +34,10 @@ export {
 export type {
   AgentStatus,
   AudioTranscriptionConfig,
+  CommandUsageEvent,
+  CommandUsageOptions,
+  CommandUsageOutcome,
+  CommandUsageSurface,
   CommandRegistrationScope,
   DiscordGateway,
   DiscordGatewayConfig,
@@ -47,6 +53,7 @@ export type {
   ResolvedReplyReflectionConfig,
   ScheduledJobsContext,
   StartDiscordGatewayOptions,
+  StartTaskSchedulerOptions,
   TaskResultTarget,
   TaskSchedule,
   TaskScheduleDayOfWeek,
@@ -69,6 +76,7 @@ export async function startDiscordGateway(
   const runtime = await startRuntime(config, {
     enableGatewayHandlers: true,
     schedulerConfig: options.scheduler,
+    commandUsage: options.commandUsage,
   });
 
   if (runtime.config.shutdownOnSignals) {
@@ -90,10 +98,12 @@ export async function startDiscordGateway(
 export async function startTaskScheduler(
   config: DiscordGatewayConfig,
   schedulerConfig: TaskSchedulerConfig,
+  options: StartTaskSchedulerOptions = {},
 ): Promise<TaskScheduler> {
   const runtime = await startRuntime(config, {
     enableGatewayHandlers: false,
     schedulerConfig,
+    commandUsage: options.commandUsage,
   });
 
   if (!runtime.taskScheduler) {
@@ -121,6 +131,7 @@ async function startRuntime(
   options: {
     enableGatewayHandlers: boolean;
     schedulerConfig?: TaskSchedulerConfig;
+    commandUsage?: CommandUsageOptions;
   },
 ): Promise<{
   agentService: AgentService;
@@ -147,17 +158,29 @@ async function startRuntime(
         new ScheduledJobDeliveryService(() => {
           return client;
         }),
+        options.commandUsage,
       )
     : null;
 
   if (options.enableGatewayHandlers) {
-    client = await startGatewayClient(
-      resolvedConfig,
-      agentService,
-      sessionRegistry,
-      resolvedConfig,
-      taskScheduler,
-    );
+    if (options.commandUsage) {
+      client = await startGatewayClient(
+        resolvedConfig,
+        agentService,
+        sessionRegistry,
+        resolvedConfig,
+        taskScheduler,
+        options.commandUsage,
+      );
+    } else {
+      client = await startGatewayClient(
+        resolvedConfig,
+        agentService,
+        sessionRegistry,
+        resolvedConfig,
+        taskScheduler,
+      );
+    }
   } else if (taskScheduler?.usesDiscordDelivery()) {
     client = createDiscordClient(resolvedConfig, resolvedConfig);
     await loginDiscordClient(client, resolvedConfig);
@@ -190,6 +213,7 @@ async function createTaskScheduler(
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
   deliveryService: ScheduledJobDeliveryService,
+  commandUsage?: CommandUsageOptions,
 ): Promise<TaskSchedulerService> {
   const resolvedSchedulerConfig = resolveTaskSchedulerConfig(
     schedulerConfig,
@@ -207,6 +231,7 @@ async function createTaskScheduler(
     agentService,
     sessionRegistry,
     deliveryService,
+    commandUsage,
   });
 }
 

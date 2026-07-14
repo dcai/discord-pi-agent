@@ -1,5 +1,6 @@
 import type { SessionScope } from "../session-registry";
 import type { ThinkingLevel } from "../types";
+import { formatCommandInventoryHelp } from "../command-registry";
 import type { CommandHandler } from "./shared";
 import {
   buildAbortResponse,
@@ -18,37 +19,9 @@ async function handleHelpCommand(
     return null;
   }
 
-  const extraCommands = context.session
-    ? `\n${formatCommandUsage(context, "archive")} - archive this thread and end the session`
-    : "";
-
   return {
     handled: true,
-    response: [
-      "Commands:",
-      `${formatCommandUsage(context, "help")} - show this message`,
-      `${formatCommandUsage(context, "status")} - show current session status`,
-      `${formatCommandUsage(context, "thinking")} - show or set thinking/reasoning level`,
-      `${formatCommandUsage(context, "model")} - list available models or switch to one`,
-      `${formatCommandUsage(context, "compact")} - compact the persistent session`,
-      `${formatCommandUsage(context, "session reset <scope|here>")} - reset persisted session data for a scope`,
-      `${formatCommandUsage(context, "abort")} - abort the active run and clear queued prompts`,
-      `${formatCommandUsage(context, "reload")} - reload resources (AGENTS.md, extensions, skills, etc.)`,
-      `${formatCommandUsage(context, "remind <when>, <task>")} - create a one-off runtime reminder`,
-      `${formatCommandUsage(context, "jobs")} - list loaded scheduled jobs`,
-      `${formatCommandUsage(context, "job <id>")} - run one scheduled job in this conversation`,
-      `${formatCommandUsage(context, "job info <id>")} - show one scheduled job`,
-      `${formatCommandUsage(context, "job run <id>")} - run one scheduled job now (configured target)`,
-      `${formatCommandUsage(context, "job run-here <id>")} - run one scheduled job now in this conversation`,
-      `${formatCommandUsage(context, "job update <what you want changed>")} - edit the jobs file via the agent`,
-      `${formatCommandUsage(context, "jobs reload")} - reload scheduled jobs from the jobs file`,
-      `${formatCommandUsage(context, "reaction")} - show or set the working reaction emoji`,
-      extraCommands,
-      `Loaded pi prompt templates can also be invoked with command prefixes, for example ${formatCommandUsage(context, "review src/index.ts")}.`,
-      "Any other text goes to the agent session.",
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    response: formatCommandInventoryHelp(context),
   };
 }
 

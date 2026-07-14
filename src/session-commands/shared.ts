@@ -3,6 +3,7 @@ import type { AgentService } from "../agent-service";
 import type { PromptQueue } from "../prompt-queue";
 import type { SessionRegistry, SessionScope } from "../session-registry";
 import type { TaskSchedulerService } from "../task-scheduler-service";
+import type { CommandUsageOptions, CommandUsageSurface } from "../types";
 
 export type CommandResult = {
   handled: boolean;
@@ -25,6 +26,9 @@ export type CommandContext = {
   scope: SessionScope;
   workingEmoji: string;
   commandPrefixes?: string[];
+  commandUsage?: CommandUsageOptions;
+  commandSurface?: CommandUsageSurface;
+  commandAlias?: string;
 };
 
 export type CommandHandler = (

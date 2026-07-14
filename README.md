@@ -107,6 +107,43 @@ Interaction handling is always wired in, but automatic slash-command registratio
 
 Guild-scoped sync is usually the best choice during development because Discord applies it faster than global command updates.
 
+### Canonical command inventory and usage events
+
+`!help` is generated from the package command inventory. It groups the same
+canonical commands across prefix, slash, button, modal, prompt-template, and
+scheduled entry points, and hides scheduler or thread commands when they are
+not available.
+
+Usage tracking is opt-in and database-agnostic. The host application supplies a
+recorder when starting the gateway:
+
+```ts
+await startDiscordGateway(config, {
+  commandUsage: {
+    record: async (event) => {
+      await healthDatabase.insertCommandUsage(event);
+    },
+  },
+});
+```
+
+The recorder receives privacy-safe `CommandUsageEvent` values containing the
+canonical command ID, entry surface, alias, optional job or prompt-template
+name, scope type, outcome, duration, event ID, and timestamp. Raw messages,
+arguments, Discord IDs, and channel IDs are not emitted. The package does not
+open or manage SQLite; the consumer owns the database file, schema,
+migrations, retention, and reporting.
+
+Scheduler-only mode accepts the same recorder as the third argument:
+
+```ts
+await startTaskScheduler(config, { jobsFile: "./scheduled-jobs.ts" }, {
+  commandUsage: {
+    record: (event) => healthDatabase.insertCommandUsage(event),
+  },
+});
+```
+
 When the scheduler is enabled, `!jobs` shows the loaded runtime state with a prompt preview for each job, `!job <id>` runs a loaded job immediately in the current DM or thread, `!job info <id>` shows one job with its full prompt, `!job run <id>` runs a loaded job immediately with its configured result target, `!job run-here <id>` runs a loaded job immediately but overrides delivery to the current DM or thread, `!jobs reload` reloads the jobs file without restarting the process, and `!job update <freeform request>` turns your request into a scheduler-aware agent prompt that edits the jobs file in the normal agentic way.
 
 Job IDs should avoid reserved subcommand words like `run`, `run-here`, `info`, and `update`.

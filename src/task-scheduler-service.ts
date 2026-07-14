@@ -1,4 +1,5 @@
 import { createModuleLogger } from "./logger";
+import { recordCommandUsage } from "./command-usage";
 import { wrapXmlTag, formatDiscordPromptTime } from "./prompt-context";
 import { runAgentTurn } from "./agent-turn-runner";
 import type { AgentService } from "./agent-service";
@@ -19,6 +20,7 @@ import type {
   TaskResultTarget,
   TaskSessionStrategy,
   TaskSessionTarget,
+  CommandUsageOptions,
 } from "./types";
 import { ScheduledJobDeliveryService } from "./scheduled-job-delivery";
 import { loadScheduledJobs } from "./scheduled-job-loader";
@@ -33,6 +35,7 @@ type TaskSchedulerServiceOptions = {
   agentService: AgentService;
   sessionRegistry: SessionRegistry;
   deliveryService: ScheduledJobDeliveryService;
+  commandUsage?: CommandUsageOptions;
 };
 
 type RunDecision = {
@@ -89,6 +92,7 @@ export class TaskSchedulerService {
   private readonly agentService: AgentService;
   private readonly sessionRegistry: SessionRegistry;
   private deliveryService: ScheduledJobDeliveryService;
+  private readonly commandUsage?: CommandUsageOptions;
   private jobStates = new Map<string, MutableJobState>();
   private readonly lastRunKeys = new Map<string, string>();
   private timeoutId: NodeJS.Timeout | null = null;
@@ -106,6 +110,7 @@ export class TaskSchedulerService {
     this.agentService = options.agentService;
     this.sessionRegistry = options.sessionRegistry;
     this.deliveryService = options.deliveryService;
+    this.commandUsage = options.commandUsage;
     this.jobStates = buildJobStateMap(this.getAllJobs(), this.jobStates);
   }
 
@@ -353,6 +358,8 @@ export class TaskSchedulerService {
     job: ManagedJobDefinition,
     now: Date,
   ): Promise<JobRunResult> {
+    const startedAt = performance.now();
+    let outcome: "success" | "failed" = "failed";
     if (this.stopping) {
       return {
         ok: false,
@@ -415,6 +422,7 @@ export class TaskSchedulerService {
       if (currentJobState) {
         currentJobState.lastSuccessAt = now;
       }
+      outcome = "success";
       logger.info(
         { jobId: job.id, scope, sessionStrategy },
         "scheduled job finished",
@@ -444,6 +452,15 @@ export class TaskSchedulerService {
       if (isRuntimeReminderJob(job)) {
         this.removeRuntimeJob(job.id);
       }
+
+      await recordCommandUsage(this.commandUsage, {
+        commandId: "job.run",
+        surface: "scheduled",
+        resourceName: job.id,
+        outcome,
+        durationMs: performance.now() - startedAt,
+        scope: scope ?? `job:${job.id}`,
+      });
     }
   }
 

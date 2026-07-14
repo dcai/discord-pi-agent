@@ -41,6 +41,7 @@ import {
   resolveSessionForAutocomplete,
 } from "./discord-interactions/scope";
 import { formatCommandReplyChunks } from "./discord-replies";
+import { recordCommandUsage } from "./command-usage";
 import { createModuleLogger } from "./logger";
 import { chunkMessage } from "./message-chunker";
 import { formatDiscordPromptTime, wrapXmlTag } from "./prompt-context";
@@ -48,9 +49,12 @@ import { PromptQueueCancelledError, type PromptQueue } from "./prompt-queue";
 import { executeQueuedAgentPrompt } from "./queued-agent-prompt";
 import type { SessionRegistry, SessionScope } from "./session-registry";
 import { executeSessionCommand, type CommandResult } from "./session-commands";
+import { classifySessionCommand } from "./command-registry";
 import type { TaskSchedulerService } from "./task-scheduler-service";
 import type {
   GatewayAccessConfig,
+  CommandUsageOptions,
+  CommandUsageSurface,
   ResolvedDiscordGatewayConfig,
 } from "./types";
 
@@ -99,6 +103,7 @@ export async function handleDiscordInteraction(
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
   taskScheduler?: TaskSchedulerService | null,
+  commandUsage?: CommandUsageOptions,
 ): Promise<void> {
   try {
     if (interaction.isAutocomplete()) {
@@ -120,6 +125,7 @@ export async function handleDiscordInteraction(
         sessionRegistry,
         accessConfig,
         taskScheduler,
+        commandUsage,
       );
       return;
     }
@@ -132,6 +138,7 @@ export async function handleDiscordInteraction(
         sessionRegistry,
         accessConfig,
         taskScheduler,
+        commandUsage,
       );
       return;
     }
@@ -144,6 +151,7 @@ export async function handleDiscordInteraction(
         sessionRegistry,
         accessConfig,
         taskScheduler,
+        commandUsage,
       );
     }
   } catch (error) {
@@ -252,6 +260,7 @@ async function handleChatInputInteraction(
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
   taskScheduler?: TaskSchedulerService | null,
+  commandUsage?: CommandUsageOptions,
 ): Promise<void> {
   const scope = resolveInteractionScope(interaction);
   if (!scope) {
@@ -280,6 +289,7 @@ async function handleChatInputInteraction(
       agentService,
       sessionRegistry,
       scope,
+      commandUsage,
     );
     return;
   }
@@ -298,11 +308,13 @@ async function handleChatInputInteraction(
     sessionRegistry,
     taskScheduler,
     scope,
+    "slash",
     await resolveInteractionAbortControl(
       interaction,
       sessionRegistry,
       taskScheduler,
     ),
+    commandUsage,
   );
 }
 
@@ -313,6 +325,7 @@ async function handleButtonCommandInteraction(
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
   taskScheduler?: TaskSchedulerService | null,
+  commandUsage?: CommandUsageOptions,
 ): Promise<void> {
   const scope = resolveInteractionScope(interaction);
   if (!scope) {
@@ -326,15 +339,31 @@ async function handleButtonCommandInteraction(
   }
 
   if (interaction.customId.startsWith("abort:")) {
+    const startedAt = performance.now();
+    let outcome: "success" | "failed" = "success";
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await sendInteractionCommandResult(
-      interaction,
-      await abortInteractionScope(
-        parseAbortButtonScope(interaction.customId),
-        sessionRegistry,
-      ),
-      [],
-    );
+    try {
+      await sendInteractionCommandResult(
+        interaction,
+        await abortInteractionScope(
+          parseAbortButtonScope(interaction.customId),
+          sessionRegistry,
+        ),
+        [],
+      );
+    } catch (error) {
+      outcome = "failed";
+      throw error;
+    } finally {
+      await recordCommandUsage(commandUsage, {
+        commandId: "abort",
+        surface: "button",
+        alias: "abort",
+        outcome,
+        durationMs: performance.now() - startedAt,
+        scope,
+      });
+    }
     return;
   }
 
@@ -362,6 +391,9 @@ async function handleButtonCommandInteraction(
     sessionRegistry,
     taskScheduler,
     scope,
+    "button",
+    undefined,
+    commandUsage,
   );
 }
 
@@ -372,6 +404,7 @@ async function handleModalCommandInteraction(
   sessionRegistry: SessionRegistry,
   accessConfig: GatewayAccessConfig,
   taskScheduler?: TaskSchedulerService | null,
+  commandUsage?: CommandUsageOptions,
 ): Promise<void> {
   const scope = resolveInteractionScope(interaction);
   if (!scope) {
@@ -410,6 +443,9 @@ async function handleModalCommandInteraction(
     sessionRegistry,
     taskScheduler,
     scope,
+    "modal",
+    undefined,
+    commandUsage,
   );
 }
 
@@ -422,9 +458,16 @@ async function executeInteractionCommand(
   sessionRegistry: SessionRegistry,
   taskScheduler: TaskSchedulerService | null | undefined,
   scope: SessionScope,
+  surface: CommandUsageSurface,
   abortControl?: AbortControl | null,
+  commandUsage?: CommandUsageOptions,
 ): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const startedAt = performance.now();
+  const commandId =
+    classifySessionCommand(commandText) ??
+    (surface === "slash" ? interactionToCommandAlias(interaction) : "unknown");
+  let outcome: "success" | "failed" | "cancelled" = "success";
 
   const { entry } = await sessionRegistry.getOrCreate(scope);
   const cancellationCount = getInteractionCancellationCount(
@@ -441,10 +484,8 @@ async function executeInteractionCommand(
     );
   }
 
-  let result: CommandResult;
-
   try {
-    result = await executeSessionCommand(commandText, {
+    const result = await executeSessionCommand(commandText, {
       agentService,
       promptQueue: entry.promptQueue,
       session: entry.session,
@@ -457,6 +498,35 @@ async function executeInteractionCommand(
       workingEmoji: entry.workingEmoji,
       commandPrefixes: config.discordCommandPrefixes,
     });
+    if (
+      getInteractionCancellationCount(
+        abortControl,
+        sessionRegistry,
+        entry.promptQueue,
+      ) !== cancellationCount
+    ) {
+      outcome = "cancelled";
+      await sendInteractionCommandResult(
+        interaction,
+        { handled: true, response: "Cancelled." },
+        [],
+      );
+      return;
+    }
+
+    await applyInteractionCommandSideEffects(
+      interaction,
+      sessionRegistry,
+      scope,
+      entry,
+      result,
+    );
+
+    await sendInteractionCommandResult(
+      interaction,
+      result,
+      buildInteractionComponents(interaction, result, Boolean(taskScheduler)),
+    );
   } catch (error) {
     if (
       error instanceof PromptQueueCancelledError ||
@@ -466,6 +536,7 @@ async function executeInteractionCommand(
         entry.promptQueue,
       ) !== cancellationCount
     ) {
+      outcome = "cancelled";
       await sendInteractionCommandResult(
         interaction,
         { handled: true, response: "Cancelled." },
@@ -474,37 +545,18 @@ async function executeInteractionCommand(
       return;
     }
 
+    outcome = "failed";
     throw error;
+  } finally {
+    await recordCommandUsage(commandUsage, {
+      commandId,
+      surface,
+      alias: interactionToCommandAlias(interaction),
+      outcome,
+      durationMs: performance.now() - startedAt,
+      scope,
+    });
   }
-
-  if (
-    getInteractionCancellationCount(
-      abortControl,
-      sessionRegistry,
-      entry.promptQueue,
-    ) !== cancellationCount
-  ) {
-    await sendInteractionCommandResult(
-      interaction,
-      { handled: true, response: "Cancelled." },
-      [],
-    );
-    return;
-  }
-
-  await applyInteractionCommandSideEffects(
-    interaction,
-    sessionRegistry,
-    scope,
-    entry,
-    result,
-  );
-
-  await sendInteractionCommandResult(
-    interaction,
-    result,
-    buildInteractionComponents(interaction, result, Boolean(taskScheduler)),
-  );
 }
 
 function getInteractionCancellationCount(
@@ -565,6 +617,7 @@ async function executePromptInteraction(
   agentService: AgentService,
   sessionRegistry: SessionRegistry,
   scope: SessionScope,
+  commandUsage?: CommandUsageOptions,
 ): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -576,6 +629,8 @@ async function executePromptInteraction(
   };
   const cancellationCount = entry.promptQueue.getCancellationCount();
   await showAbortControlReply(interaction, abortControl, entry.promptQueue);
+  const startedAt = performance.now();
+  let outcome: "success" | "failed" | "cancelled" = "success";
 
   try {
     const discordMetadata = buildInteractionPromptMetadata(
@@ -636,11 +691,51 @@ async function executePromptInteraction(
         content: "Cancelled.",
         components: [],
       });
+      outcome = "cancelled";
       return;
     }
 
+    outcome = "failed";
     throw error;
+  } finally {
+    await recordCommandUsage(commandUsage, {
+      commandId: "prompt",
+      surface: "slash",
+      alias: interaction.commandName,
+      outcome,
+      durationMs: performance.now() - startedAt,
+      scope,
+    });
   }
+}
+
+function interactionToCommandAlias(
+  interaction:
+    ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction,
+): string {
+  if (interaction.isChatInputCommand()) {
+    return interaction.commandName;
+  }
+
+  if (interaction.isButton()) {
+    if (interaction.customId.startsWith("abort:")) {
+      return "abort";
+    }
+
+    if (interaction.customId === JOBS_RELOAD_BUTTON_ID) {
+      return "jobs:reload";
+    }
+
+    if (interaction.customId.startsWith(JOB_RUN_HERE_BUTTON_PREFIX)) {
+      return "job:run-here";
+    }
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId === REMIND_MODAL_ID) {
+    return "remind";
+  }
+
+  return "unknown";
 }
 
 async function sendInteractionCommandResult(

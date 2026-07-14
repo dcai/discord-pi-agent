@@ -23,6 +23,28 @@ export type ThinkingLevel =
 
 export type CommandRegistrationScope = "none" | "global" | "guild";
 
+export type CommandUsageSurface =
+  "prefix" | "slash" | "button" | "modal" | "scheduled";
+
+export type CommandUsageOutcome =
+  "success" | "failed" | "cancelled" | "forwarded";
+
+export type CommandUsageEvent = {
+  eventId: string;
+  occurredAt: string;
+  commandId: string;
+  surface: CommandUsageSurface;
+  alias?: string;
+  resourceName?: string;
+  scopeType: "dm" | "thread" | "job";
+  outcome: CommandUsageOutcome;
+  durationMs: number;
+};
+
+export type CommandUsageOptions = {
+  record: (event: CommandUsageEvent) => void | Promise<void>;
+};
+
 export type AudioTranscriptionConfig = {
   /** Provider for audio transcription (e.g. "openai"). Default: "openai". */
   provider?: string;
@@ -207,6 +229,11 @@ export type ResolvedTaskSchedulerConfig = {
 
 export type StartDiscordGatewayOptions = {
   scheduler?: TaskSchedulerConfig;
+  commandUsage?: CommandUsageOptions;
+};
+
+export type StartTaskSchedulerOptions = {
+  commandUsage?: CommandUsageOptions;
 };
 
 export type ResolvedDiscordGatewayConfig = {
