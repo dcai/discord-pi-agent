@@ -137,6 +137,9 @@ export class AgentService {
   ): Promise<AgentSession> {
     const reuseExisting = options.reuseExisting ?? true;
     await fs.mkdir(sessionDir, { recursive: true });
+    const sessionManager = reuseExisting
+      ? SessionManager.continueRecent(this.config.cwd, sessionDir)
+      : SessionManager.create(this.config.cwd, sessionDir);
     const { session } = await createAgentSession({
       cwd: this.config.cwd,
       agentDir: this.config.agentDir,
@@ -144,10 +147,11 @@ export class AgentService {
       modelRegistry: this.modelRegistry,
       resourceLoader: this.resourceLoader,
       settingsManager: this.settingsManager,
-      sessionManager: reuseExisting
-        ? SessionManager.continueRecent(this.config.cwd, sessionDir)
-        : SessionManager.create(this.config.cwd, sessionDir),
-      thinkingLevel: this.config.thinkingLevel,
+      sessionManager,
+      ...getConfiguredThinkingLevelOption(
+        sessionManager,
+        this.config.thinkingLevel,
+      ),
     });
     logger.debug(
       {
@@ -207,6 +211,10 @@ export class AgentService {
   }
 
   private async createOrResumeSession(): Promise<void> {
+    const sessionManager = SessionManager.continueRecent(
+      this.config.cwd,
+      this.getSessionDir(),
+    );
     const { session } = await createAgentSession({
       cwd: this.config.cwd,
       agentDir: this.config.agentDir,
@@ -214,11 +222,11 @@ export class AgentService {
       modelRegistry: this.modelRegistry,
       resourceLoader: this.resourceLoader,
       settingsManager: this.settingsManager,
-      sessionManager: SessionManager.continueRecent(
-        this.config.cwd,
-        this.getSessionDir(),
+      sessionManager,
+      ...getConfiguredThinkingLevelOption(
+        sessionManager,
+        this.config.thinkingLevel,
       ),
-      thinkingLevel: this.config.thinkingLevel,
     });
     this.session = session;
     logger.info(
@@ -248,4 +256,19 @@ export class AgentService {
   private getSessionDir(): string {
     return path.join(this.config.agentDir, "sessions");
   }
+}
+
+function getConfiguredThinkingLevelOption(
+  sessionManager: SessionManager,
+  configuredThinkingLevel: ThinkingLevel,
+): { thinkingLevel?: ThinkingLevel } {
+  const hasPersistedThinkingLevel = sessionManager.getBranch().some((entry) => {
+    return entry.type === "thinking_level_change";
+  });
+
+  if (hasPersistedThinkingLevel) {
+    return {};
+  }
+
+  return { thinkingLevel: configuredThinkingLevel };
 }

@@ -512,7 +512,7 @@ if `audioTranscription.apiKey` is not set in code.
 
 Use `!thinking` to view the current thinking/reasoning level and available options. Use `!thinking <level>` to set it (e.g., `!thinking high`).
 
-Not all models support thinking/reasoning. The configured `thinkingLevel` is applied automatically when the model supports it.
+Not all models support thinking/reasoning. The configured `thinkingLevel` is applied automatically to new sessions when the model supports it. A session-specific level set with `!thinking <level>` is persisted and restored after the host app restarts.
 
 ## Build
 

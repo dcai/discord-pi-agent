@@ -26,11 +26,21 @@ const {
     sessionManagerInMemoryMock: vi.fn(() => ({ kind: "in-memory" })),
     sessionManagerContinueRecentMock: vi.fn(
       (cwd: string, sessionDir: string) => {
-        return { kind: "continue-recent", cwd, sessionDir };
+        return {
+          kind: "continue-recent",
+          cwd,
+          sessionDir,
+          getBranch: () => [],
+        };
       },
     ),
     sessionManagerCreateMock: vi.fn((cwd: string, sessionDir: string) => {
-      return { kind: "create", cwd, sessionDir };
+      return {
+        kind: "create",
+        cwd,
+        sessionDir,
+        getBranch: () => [],
+      };
     }),
     defaultResourceLoaderCtorMock: vi.fn(),
     runAgentTurnMock: vi.fn(),
@@ -176,12 +186,35 @@ describe("AgentService", () => {
           kind: "continue-recent",
           cwd: "/repo",
           sessionDir: "/repo/.pi-agent/sessions",
+          getBranch: expect.any(Function),
         },
       }),
     );
     expect(ensureModelSpy).toHaveBeenCalled();
     expect(service.getSession()).not.toBeNull();
     expect(service.getAgentDir()).toBe("/repo/.pi-agent");
+  });
+
+  it("restores a persisted thinking level instead of applying the configured default", async () => {
+    sessionManagerContinueRecentMock.mockImplementationOnce(
+      (cwd: string, sessionDir: string) => {
+        return {
+          kind: "continue-recent",
+          cwd,
+          sessionDir,
+          getBranch: () => [{ type: "thinking_level_change" }],
+        };
+      },
+    );
+    const service = new AgentService(createConfig({ thinkingLevel: "medium" }));
+
+    await service.initialize();
+
+    expect(createAgentSessionMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        thinkingLevel: expect.anything(),
+      }),
+    );
   });
 
   it("creates a temporary session in memory", async () => {
