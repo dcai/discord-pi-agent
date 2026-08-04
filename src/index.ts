@@ -141,7 +141,7 @@ async function startRuntime(
   taskScheduler: TaskSchedulerService | null;
 }> {
   const resolvedConfig = resolveConfig(config);
-  const agentService = new AgentService(resolvedConfig);
+  const agentService = await AgentService.create(resolvedConfig);
 
   logger.info("initializing agent service");
   await agentService.initialize();

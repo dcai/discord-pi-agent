@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
   ModelRegistry,
+  ModelRuntime,
   SessionManager,
   SettingsManager,
   type AgentSession,
@@ -24,7 +24,7 @@ const logger = createModuleLogger("agent-service");
 
 export class AgentService {
   private readonly config: ResolvedDiscordGatewayConfig;
-  private readonly authStorage: AuthStorage;
+  private readonly modelRuntime: ModelRuntime;
   private readonly modelRegistry: ModelRegistryType;
   private readonly settingsManager: SettingsManager;
   private readonly resourceLoader: DefaultResourceLoader;
@@ -33,15 +33,13 @@ export class AgentService {
   readonly models: AgentModelService;
   readonly resources: AgentResourceService;
 
-  constructor(config: ResolvedDiscordGatewayConfig) {
+  private constructor(
+    config: ResolvedDiscordGatewayConfig,
+    modelRuntime: ModelRuntime,
+  ) {
     this.config = config;
-    this.authStorage = AuthStorage.create(
-      path.join(config.agentDir, "auth.json"),
-    );
-    this.modelRegistry = ModelRegistry.create(
-      this.authStorage,
-      path.join(config.agentDir, "models.json"),
-    );
+    this.modelRuntime = modelRuntime;
+    this.modelRegistry = new ModelRegistry(modelRuntime);
     this.settingsManager = SettingsManager.create(config.cwd, config.agentDir);
     this.resourceLoader = new DefaultResourceLoader({
       cwd: config.cwd,
@@ -50,6 +48,17 @@ export class AgentService {
     });
     this.models = new AgentModelService(config, this.modelRegistry);
     this.resources = new AgentResourceService(this.resourceLoader);
+  }
+
+  static async create(
+    config: ResolvedDiscordGatewayConfig,
+  ): Promise<AgentService> {
+    const modelRuntime = await ModelRuntime.create({
+      authPath: path.join(config.agentDir, "auth.json"),
+      modelsPath: path.join(config.agentDir, "models.json"),
+    });
+
+    return new AgentService(config, modelRuntime);
   }
 
   async initialize(): Promise<void> {
@@ -118,8 +127,7 @@ export class AgentService {
     const { session } = await createAgentSession({
       cwd: this.config.cwd,
       agentDir: this.config.agentDir,
-      authStorage: this.authStorage,
-      modelRegistry: this.modelRegistry,
+      modelRuntime: this.modelRuntime,
       resourceLoader: this.resourceLoader,
       settingsManager: this.settingsManager,
       sessionManager: SessionManager.inMemory(),
@@ -143,8 +151,7 @@ export class AgentService {
     const { session } = await createAgentSession({
       cwd: this.config.cwd,
       agentDir: this.config.agentDir,
-      authStorage: this.authStorage,
-      modelRegistry: this.modelRegistry,
+      modelRuntime: this.modelRuntime,
       resourceLoader: this.resourceLoader,
       settingsManager: this.settingsManager,
       sessionManager,
@@ -218,8 +225,7 @@ export class AgentService {
     const { session } = await createAgentSession({
       cwd: this.config.cwd,
       agentDir: this.config.agentDir,
-      authStorage: this.authStorage,
-      modelRegistry: this.modelRegistry,
+      modelRuntime: this.modelRuntime,
       resourceLoader: this.resourceLoader,
       settingsManager: this.settingsManager,
       sessionManager,

@@ -91,6 +91,10 @@ vi.mock("./task-scheduler-service", () => {
 
 vi.mock("./agent-service", () => {
   class AgentServiceMock {
+    static async create(config: unknown): Promise<AgentServiceMock> {
+      return new AgentServiceMock(config);
+    }
+
     initialize = vi.fn(async () => undefined);
     getStatus = vi.fn(() => ({
       sessionId: "session-1",

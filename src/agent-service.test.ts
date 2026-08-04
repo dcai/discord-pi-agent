@@ -6,8 +6,8 @@ import type { ResolvedDiscordGatewayConfig } from "./types";
 const {
   mkdirMock,
   createAgentSessionMock,
-  authStorageCreateMock,
-  modelRegistryCreateMock,
+  modelRuntimeCreateMock,
+  modelRegistryCtorMock,
   settingsManagerCreateMock,
   sessionManagerInMemoryMock,
   sessionManagerContinueRecentMock,
@@ -18,8 +18,8 @@ const {
   return {
     mkdirMock: vi.fn(async () => undefined),
     createAgentSessionMock: vi.fn(),
-    authStorageCreateMock: vi.fn(() => ({ kind: "auth-storage" })),
-    modelRegistryCreateMock: vi.fn(() => ({ kind: "model-registry" })),
+    modelRuntimeCreateMock: vi.fn(async () => ({ kind: "model-runtime" })),
+    modelRegistryCtorMock: vi.fn(),
     settingsManagerCreateMock: vi.fn(() => ({
       flush: vi.fn(async () => undefined),
     })),
@@ -73,13 +73,17 @@ vi.mock("@earendil-works/pi-coding-agent", () => {
     }
   }
 
+  class ModelRegistryMock {
+    constructor(modelRuntime: unknown) {
+      modelRegistryCtorMock(modelRuntime);
+    }
+  }
+
   return {
-    AuthStorage: {
-      create: authStorageCreateMock,
+    ModelRuntime: {
+      create: modelRuntimeCreateMock,
     },
-    ModelRegistry: {
-      create: modelRegistryCreateMock,
-    },
+    ModelRegistry: ModelRegistryMock,
     SettingsManager: {
       create: settingsManagerCreateMock,
     },
@@ -164,7 +168,7 @@ beforeEach(() => {
 
 describe("AgentService", () => {
   it("initializes resources, resumes a session, and ensures the configured model", async () => {
-    const service = new AgentService(createConfig());
+    const service = await AgentService.create(createConfig());
     const ensureModelSpy = vi
       .spyOn(service.models, "ensureSessionHasConfiguredModel")
       .mockResolvedValue(undefined);
@@ -177,10 +181,15 @@ describe("AgentService", () => {
     expect(mkdirMock).toHaveBeenCalledWith("/repo/.pi-agent/sessions", {
       recursive: true,
     });
+    expect(modelRuntimeCreateMock).toHaveBeenCalledWith({
+      authPath: "/repo/.pi-agent/auth.json",
+      modelsPath: "/repo/.pi-agent/models.json",
+    });
     expect(createAgentSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         cwd: "/repo",
         agentDir: "/repo/.pi-agent",
+        modelRuntime: { kind: "model-runtime" },
         thinkingLevel: "medium",
         sessionManager: {
           kind: "continue-recent",
@@ -206,7 +215,9 @@ describe("AgentService", () => {
         };
       },
     );
-    const service = new AgentService(createConfig({ thinkingLevel: "medium" }));
+    const service = await AgentService.create(
+      createConfig({ thinkingLevel: "medium" }),
+    );
 
     await service.initialize();
 
@@ -218,7 +229,7 @@ describe("AgentService", () => {
   });
 
   it("creates a temporary session in memory", async () => {
-    const service = new AgentService(createConfig());
+    const service = await AgentService.create(createConfig());
     const tempSession = createSession({ sessionId: "temp-session" });
     createAgentSessionMock.mockResolvedValueOnce({ session: tempSession });
 
@@ -233,7 +244,7 @@ describe("AgentService", () => {
   });
 
   it("accepts a custom thinking level for temporary sessions", async () => {
-    const service = new AgentService(createConfig());
+    const service = await AgentService.create(createConfig());
     const tempSession = createSession({ sessionId: "temp-session-thinking" });
     createAgentSessionMock.mockResolvedValueOnce({ session: tempSession });
 
@@ -250,7 +261,7 @@ describe("AgentService", () => {
   });
 
   it("creates a scoped session and ensures the configured model", async () => {
-    const service = new AgentService(createConfig());
+    const service = await AgentService.create(createConfig());
     const scopedSession = createSession({ sessionId: "thread-session" });
     createAgentSessionMock.mockResolvedValueOnce({ session: scopedSession });
     const ensureModelSpy = vi
@@ -275,7 +286,7 @@ describe("AgentService", () => {
   });
 
   it("creates a fresh scoped session when reuse is disabled", async () => {
-    const service = new AgentService(createConfig());
+    const service = await AgentService.create(createConfig());
     const scopedSession = createSession({ sessionId: "fresh-thread-session" });
     createAgentSessionMock.mockResolvedValueOnce({ session: scopedSession });
     const ensureModelSpy = vi
@@ -296,7 +307,7 @@ describe("AgentService", () => {
   });
 
   it("transforms prompts before collecting replies", async () => {
-    const service = new AgentService(createConfig());
+    const service = await AgentService.create(createConfig());
     const session = createSession();
     createAgentSessionMock.mockResolvedValueOnce({ session });
     vi.spyOn(
@@ -311,7 +322,7 @@ describe("AgentService", () => {
   });
 
   it("compacts, reports status, and shuts down", async () => {
-    const service = new AgentService(createConfig());
+    const service = await AgentService.create(createConfig());
     const firstSession = createSession({ sessionId: "session-1" });
     createAgentSessionMock.mockResolvedValueOnce({ session: firstSession });
 
@@ -350,7 +361,7 @@ describe("AgentService", () => {
   });
 
   it("throws when session-dependent methods are used before initialization", async () => {
-    const service = new AgentService(createConfig());
+    const service = await AgentService.create(createConfig());
 
     await expect(service.prompt("hello")).rejects.toThrow(
       "Agent session has not been initialized.",
