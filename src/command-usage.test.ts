@@ -44,7 +44,9 @@ describe("command usage", () => {
 
   it("calls the resource prompt-template method with its owning service", () => {
     const resources = {
-      templates: [{ name: "review" }],
+      templates: [
+        { name: "review", description: "Review the current changes" },
+      ],
       getPromptTemplates() {
         return this.templates;
       },
@@ -57,7 +59,7 @@ describe("command usage", () => {
       workingEmoji: "⚙️",
     });
 
-    expect(help).toContain("!review <args> - loaded Pi prompt template");
+    expect(help).toContain("!review <args> - Review the current changes");
   });
 
   it("does not break command execution when recording fails", async () => {

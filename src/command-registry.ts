@@ -304,7 +304,7 @@ export function formatCommandInventoryHelp(context: CommandContext): string {
       ? resources.getPromptTemplates()
       : [];
   const promptTemplateLines = promptTemplates.map((template) => {
-    return `${prefix}${template.name} <args> - loaded Pi prompt template`;
+    return `${prefix}${template.name} <args> - ${template.description}`;
   });
 
   if (promptTemplateLines.length > 0) {
