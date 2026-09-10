@@ -403,6 +403,7 @@ Discord scheduled job deliveries intentionally send each message chunk with embe
 - `agentDir` default: `<cwd>/.pi-agent`
 - `modelProvider` default: `openrouter`
 - `modelId` default: `anthropic/claude-3.5-haiku`
+- model catalogs refresh from pi.dev at startup so new models show up in `!model`; throttled per provider and bounded by a 15s timeout, set `PI_OFFLINE` to disable network refresh (cached catalogs still load)
 - `thinkingLevel` default: `medium` (values: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`)
 - `promptTimeZone` default: `PI_PROMPT_TIME_ZONE` or `UTC` — used for `sent_at_local` in Discord prompt metadata
 - `promptLocale` default: `PI_PROMPT_LOCALE` or `en-AU` — used for `sent_at_local` in Discord prompt metadata
@@ -491,6 +492,7 @@ The config loader reads:
 - `PI_MODEL_ID`
 - `PI_PROMPT_TIME_ZONE`
 - `PI_PROMPT_LOCALE`
+- `PI_OFFLINE` — disable model catalog network refresh; cached catalogs still load
 - `DISCORD_FORUM_CHANNEL_IDS` — comma-separated forum channel IDs
 - `DISCORD_ALLOWED_USER_IDS` — comma-separated allowed user IDs
 - `DISCORD_COMMAND_PREFIXES` — comma-separated command prefixes (example: `!, ;`)

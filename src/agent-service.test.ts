@@ -184,6 +184,8 @@ describe("AgentService", () => {
     expect(modelRuntimeCreateMock).toHaveBeenCalledWith({
       authPath: "/repo/.pi-agent/auth.json",
       modelsPath: "/repo/.pi-agent/models.json",
+      allowModelNetwork: true,
+      modelRefreshTimeoutMs: 15_000,
     });
     expect(createAgentSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({

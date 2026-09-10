@@ -22,6 +22,9 @@ import type {
 
 const logger = createModuleLogger("agent-service");
 
+/** Bound the create-time model catalog refresh so startup cannot hang on a slow network. */
+const MODEL_REFRESH_TIMEOUT_MS = 15_000;
+
 export class AgentService {
   private readonly config: ResolvedDiscordGatewayConfig;
   private readonly modelRuntime: ModelRuntime;
@@ -56,6 +59,10 @@ export class AgentService {
     const modelRuntime = await ModelRuntime.create({
       authPath: path.join(config.agentDir, "auth.json"),
       modelsPath: path.join(config.agentDir, "models.json"),
+      // Restore cached catalogs and refresh them from pi.dev when online.
+      // Set PI_OFFLINE to disable the network refresh.
+      allowModelNetwork: true,
+      modelRefreshTimeoutMs: MODEL_REFRESH_TIMEOUT_MS,
     });
 
     return new AgentService(config, modelRuntime);
